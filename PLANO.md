@@ -49,7 +49,8 @@ Rascunho visual (Design): https://claude.ai/artifact/L1YSV2mpHdq1jUw1gTC9Xp
 - Conectores da nuvem do claude.ai (Gmail, Drive, Magnific, Adobe) não vêm junto; precisam de MCP local equivalente.
 
 ### Avisos de outros programas
-- Claude Code: ganchos de fim de tarefa avisam a ilha.
+- Claude Code: ganchos de fim de tarefa avisam a ilha (feito: `ilha.exe --aviso claude-code`).
+- Codex e Gemini CLI usados fora da ilha (no terminal) também devem avisar: Codex pela opção `notify` do `config.toml`; Gemini CLI pelos ganchos dele (conferir o que a versão atual oferece). Todos chamam o mesmo `ilha.exe --aviso`. Quando os motores rodarem dentro da ilha (fase 2), ela mesma sabe quando terminam.
 - Programas que mostram notificação do Windows: a ilha lê e mostra.
 - DeepSeek Harness: só avisar quando terminar (ele já usa API; não precisa ser motor).
 
@@ -61,7 +62,8 @@ Rascunho visual (Design): https://claude.ai/artifact/L1YSV2mpHdq1jUw1gTC9Xp
 
 ### O que vem do Robozinho
 - Avisos de redefinição (cadastro manual), assinaturas com "Paguei", notas com abas e autosalvamento, foco, pausas, personagens, lançador de apps.
-- Mídia: tocar/pausar/pular/capa via APIs de mídia do Windows (funciona com Apple Music); pedir música específica exige controle do app.
+- Mídia: tocar/pausar/pular/capa via controles de mídia do Windows (feito). Funciona com qualquer player que aparece no controle de volume do Windows (Apple Music, Spotify, navegador), sem ligar conta nenhuma.
+- Pedir música, artista ou playlist pelo nome (voz, fase 3): o Apple Music não tem API aberta no Windows. Caminhos a testar: abrir a busca do Apple Music já com o nome, ou controlar o app pela tela como último recurso. Para comercializar: Spotify (API oficial, exige Premium) e outros serviços.
 
 ## Fases
 1. Ilha com efeito de gota + tudo que o Robozinho já faz + avisos de tarefa pronta + **tradução da tela** (botão).

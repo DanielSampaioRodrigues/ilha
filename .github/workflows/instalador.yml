@@ -11,6 +11,9 @@ name: Instalador do Windows
 
 on:
   push:
+    # Mudanças só em textos (PLANO, README…) não geram versão nova.
+    paths-ignore:
+      - "**.md"
   workflow_dispatch:
 
 concurrency:
