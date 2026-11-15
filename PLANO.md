@@ -73,7 +73,9 @@ Rascunho visual (Design): https://claude.ai/artifact/L1YSV2mpHdq1jUw1gTC9Xp
 ## Andamento
 - **Fase 1, etapa 1 (feita):** app Tauri com a janela da ilha no topo central, clique que atravessa a parte transparente, efeito de gota ao abrir/fechar, carinha de pixel (pisca e olha para os lados), todos os estados com dados de exemplo, ícone na bandeja com menu de teste, atalho Ctrl+Alt+Espaço, instalador pelo GitHub Actions.
 - **Atualização pelo próprio app (feita):** a ilha procura versão nova nos Releases do GitHub e mostra o botão "Atualizar". Repositório público para isso funcionar sem senha e para o GitHub Actions não ter custo.
-- **Próximas etapas da fase 1:** avisos e assinaturas de verdade (com "Paguei" e salvamento), lançador de apps, mídia do Windows, notas, foco e pausas, iniciar com o Windows, aviso de fim de tarefa do Claude Code, tradução da tela.
+- **Fase 1, etapa 2 (feita):** assinaturas com "Paguei" e aviso laranja, lembretes de redefinição, notas com abas, foco e pausas, lançador de programas e sites, música do Windows, aviso do Claude Code (ganchos Stop e Notification), iniciar com o Windows, atalho Win+Alt+I configurável (Ctrl+Alt+Espaço é do Claude), registro de erros.
+- **Próximas etapas da fase 1:** tradução da tela; modo discreto (ilha vira um risquinho em repouso, para não tampar abas do navegador — proposto, aguardando o Dan); personagens do Robozinho.
+- **Defender:** a versão 0.1.4 foi bloqueada como "Cavalo de Troia" (alarme falso de programa novo sem assinatura digital). Restaurada pelo Dan. Falta enviar o alarme falso para a Microsoft e estudar assinatura digital.
 
 ## Pendências a conferir
 - Termos de uso das assinaturas via CLI para uso pessoal.

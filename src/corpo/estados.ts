@@ -1,37 +1,13 @@
 // O que aparece dentro da ilha em cada estado.
-// Por enquanto os textos são exemplos (marcados como EXEMPLO): os dados de
-// verdade (avisos, tarefas, música) entram nas próximas etapas da fase 1.
+// "ouvindo", "trabalhando" e "confirmacao" ainda são de teste (dados de
+// exemplo): ganham vida nas fases 2 e 3, com a voz e os motores de IA.
 
-import { criarCarinha, type Expressao } from "./carinha";
+import { ler } from "../dados/armazem";
+import { pendentes, prazo } from "../dados/datas";
 import { ICONES } from "./icones";
-import type { Novidade } from "../atualizacao";
-
-export type NomeEstado =
-  | "repouso"
-  | "ouvindo"
-  | "trabalhando"
-  | "pronta"
-  | "aviso"
-  | "confirmacao"
-  | "aberta";
-
-export interface Contexto {
-  /** Troca o estado da ilha. */
-  ir(estado: NomeEstado): void;
-  /** Volta para o estado de descanso (repouso ou aviso fixo). */
-  fechar(): void;
-  /** Marca o aviso fixo como pago. */
-  pagarAviso(): void;
-  temAviso: boolean;
-  /** Versão instalada e versão nova (se houver). */
-  versao: string;
-  novidade: Novidade | null;
-  /** Recado para mostrar uma vez ao abrir (ex.: "você já tem a versão mais nova"). */
-  mensagem: string | null;
-  /** Relógios que são cancelados sozinhos quando o estado muda. */
-  depois(fazer: () => void, ms: number): void;
-  aCada(fazer: () => void, ms: number): void;
-}
+import { TELAS } from "./telas";
+import { aoClicar, escapar, html } from "./ui";
+import type { Contexto, NomeEstado } from "./contexto";
 
 export interface Estado {
   largura: number;
@@ -42,51 +18,16 @@ export interface Estado {
 }
 
 const EXEMPLO = {
-  aviso: { titulo: "Créditos do Claude", prazo: "em 3 dias", quando: "sexta, 20/11, às 21h" },
   fala: "“abre o InDesign e a pasta do livro novo…”",
   tarefa: { nome: "Organizando Downloads", total: 12 },
-  pronta: { titulo: "Claude Code terminou a tarefa", detalhe: "Ilha · fase 1 · há 1 min" },
   apagar: ["relatorio-antigo.pdf", "foto (2).jpg", "setup-velho.exe"],
-  musica: { nome: "[Nome da música]", artista: "[Artista] · Apple Music" },
 };
 
-const LANCADOR: { nome: string; letra: string; cor: string }[] = [
-  { nome: "Claude", letra: "C", cor: "#D97757" },
-  { nome: "ChatGPT", letra: "C", cor: "#E9ECEF" },
-  { nome: "Gemini", letra: "G", cor: "#7BA7FF" },
-  { nome: "Antigravity", letra: "A", cor: "#B78CFF" },
-  { nome: "InDesign", letra: "I", cor: "#FF5A8A" },
-  { nome: "DeepSeek", letra: "D", cor: "#5C8BFF" },
-];
-
-function html(codigo: string): HTMLElement {
-  const modelo = document.createElement("template");
-  modelo.innerHTML = codigo.trim();
-  const elemento = modelo.content.firstElementChild as HTMLElement;
-  // Troca cada <i data-carinha="..."> pela carinha de verdade.
-  elemento.querySelectorAll<HTMLElement>("[data-carinha]").forEach((lugar) => {
-    const expressao = lugar.dataset.carinha as Expressao;
-    const tamanho = Number(lugar.dataset.tamanho ?? 2);
-    lugar.replaceWith(criarCarinha(expressao, tamanho).elemento);
-  });
-  return elemento;
-}
-
-function aoClicar(raiz: HTMLElement, acao: string, fazer: () => void): void {
-  raiz.querySelectorAll<HTMLElement>(`[data-acao="${acao}"]`).forEach((botao) =>
-    botao.addEventListener("click", (e) => {
-      e.stopPropagation();
-      fazer();
-    }),
-  );
-}
-
-function saudacao(): string {
-  const hora = new Date().getHours();
-  if (hora < 5) return "Boa noite";
-  if (hora < 12) return "Bom dia";
-  if (hora < 18) return "Boa tarde";
-  return "Boa noite";
+function relogio(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const min = Math.floor(total / 60);
+  const seg = total % 60;
+  return `${min}:${String(seg).padStart(2, "0")}`;
 }
 
 export const ESTADOS: Record<NomeEstado, Estado> = {
@@ -94,8 +35,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
     largura: 190,
     raio: 20,
     compacto: true,
-    montar: () =>
-      html(`<div class="estado repouso"><i data-carinha="normal"></i></div>`),
+    montar: () => html(`<div class="estado repouso"><i data-carinha="normal"></i></div>`),
   },
 
   ouvindo: {
@@ -113,7 +53,6 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
           </div>
           <div class="onda" aria-hidden="true">${barras}</div>
         </div>`);
-      // No teste, "solta o botão" depois de alguns segundos.
       ctx.depois(() => ctx.ir("trabalhando"), 4000);
       return raiz;
     },
@@ -141,7 +80,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
         feitos = Math.min(total, feitos + 1);
         contagem.textContent = `${feitos} de ${total}`;
         cheia.style.width = `${(feitos / total) * 100}%`;
-        if (feitos === total) ctx.depois(() => ctx.ir("pronta"), 600);
+        if (feitos === total) ctx.depois(() => ctx.fechar(), 600);
       }, 700);
       aoClicar(raiz, "parar", () => ctx.fechar());
       return raiz;
@@ -153,16 +92,25 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
     raio: 24,
     compacto: true,
     montar: (ctx) => {
+      const n = ctx.notificacao ?? {
+        titulo: "Claude Code terminou",
+        detalhe: "ilha",
+        expressao: "feliz" as const,
+        botao: undefined,
+      };
+      const botao = n.botao
+        ? `<button type="button" class="botao ciano" data-acao="botao">${escapar(n.botao.texto)}</button>`
+        : "";
       const raiz = html(`
         <div class="estado compacto">
-          <i data-carinha="feliz"></i>
+          <i data-carinha="${n.expressao ?? "feliz"}"></i>
           <div class="coluna">
-            <span class="principal">${EXEMPLO.pronta.titulo}</span>
-            <span class="secundario">${EXEMPLO.pronta.detalhe}</span>
+            <span class="principal">${escapar(n.titulo)}</span>
+            <span class="secundario">${escapar(n.detalhe || "agora")}</span>
           </div>
-          <button type="button" class="botao ciano" data-acao="abrir">Abrir</button>
+          ${botao}
         </div>`);
-      aoClicar(raiz, "abrir", () => ctx.ir("aberta"));
+      aoClicar(raiz, "botao", () => n.botao?.fazer());
       ctx.depois(() => ctx.fechar(), 12000);
       return raiz;
     },
@@ -172,14 +120,41 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
     largura: 380,
     raio: 22,
     compacto: true,
-    montar: () =>
-      html(`
+    montar: () => {
+      const urgente = pendentes(ler().assinaturas)[0];
+      const nome = urgente ? urgente.nome : "Créditos do Claude";
+      const quando = urgente ? prazo(urgente.dias) : "em 3 dias";
+      return html(`
         <div class="estado aviso">
           <i data-carinha="alerta"></i>
-          <span class="principal">${EXEMPLO.aviso.titulo}</span>
+          <span class="principal">${escapar(nome)}</span>
           <span class="espaco"></span>
-          <span class="selo">${EXEMPLO.aviso.prazo}</span>
-        </div>`),
+          <span class="selo">${quando}</span>
+        </div>`);
+    },
+  },
+
+  foco: {
+    largura: 300,
+    raio: 22,
+    compacto: true,
+    montar: (ctx) => {
+      const pausa = ctx.foco?.tipo === "pausa";
+      const raiz = html(`
+        <div class="estado aviso">
+          <i data-carinha="${pausa ? "feliz" : "foco"}"></i>
+          <span class="principal">${pausa ? "Pausa" : "Foco"}</span>
+          <span class="espaco"></span>
+          <span class="tempo">--:--</span>
+        </div>`);
+      const tempo = raiz.querySelector<HTMLElement>(".tempo")!;
+      const atualizar = () => {
+        if (ctx.foco) tempo.textContent = relogio(ctx.foco.fim - Date.now());
+      };
+      atualizar();
+      ctx.aCada(atualizar, 1000);
+      return raiz;
+    },
   },
 
   confirmacao: {
@@ -187,9 +162,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
     raio: 26,
     compacto: false,
     montar: (ctx) => {
-      const arquivos = EXEMPLO.apagar
-        .map((nome) => `<li>${ICONES.arquivo}<span>${nome}</span></li>`)
-        .join("");
+      const arquivos = EXEMPLO.apagar.map((nome) => `<li>${ICONES.arquivo}<span>${nome}</span></li>`).join("");
       const raiz = html(`
         <div class="estado confirmacao">
           <div class="linha">
@@ -198,13 +171,12 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
           </div>
           <ul class="arquivos">${arquivos}</ul>
           <div class="linha fim">
-            <span class="secundario">Ou diga “sim” para confirmar.</span>
+            <span class="secundario">Teste: nada é apagado de verdade.</span>
             <span class="espaco"></span>
             <button type="button" class="botao" data-acao="cancelar">Cancelar</button>
             <button type="button" class="botao vermelho" data-acao="confirmar">Apagar</button>
           </div>
         </div>`);
-      // Teste: nenhum arquivo é apagado de verdade.
       aoClicar(raiz, "cancelar", () => ctx.fechar());
       aoClicar(raiz, "confirmar", () => ctx.fechar());
       return raiz;
@@ -215,133 +187,8 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
     largura: 620,
     raio: 32,
     compacto: false,
-    montar: (ctx) => {
-      const lancador = LANCADOR.map(
-        (app) => `
-          <button type="button" class="app" data-acao="em-breve">
-            <span class="app-icone" style="color:${app.cor}">${app.letra}</span>${app.nome}
-          </button>`,
-      ).join("");
-
-      const aviso = ctx.temAviso
-        ? `
-          <section class="secao">
-            <p class="titulo-secao laranja">Precisa de você</p>
-            <div class="item">
-              <span class="ponto laranja"></span>
-              <div class="coluna">
-                <span class="principal">${EXEMPLO.aviso.titulo} vencem ${EXEMPLO.aviso.prazo}</span>
-                <span class="secundario">${EXEMPLO.aviso.quando}</span>
-              </div>
-              <button type="button" class="botao" data-acao="paguei">Paguei</button>
-            </div>
-          </section>`
-        : "";
-
-      const atualizacao = ctx.novidade
-        ? `
-          <div class="item">
-            <span class="ponto ciano"></span>
-            <div class="coluna">
-              <span class="principal">Nova versão da Ilha</span>
-              <span class="secundario progresso-atualizacao">${ctx.novidade.versao} · instala e reabre sozinha</span>
-            </div>
-            <button type="button" class="botao ciano" data-acao="atualizar">Atualizar</button>
-          </div>`
-        : "";
-
-      const raiz = html(`
-        <div class="estado aberta">
-          <header class="linha">
-            <img src="/robozinho.png" alt="Robozinho" class="cabeca" width="52" height="52">
-            <div class="coluna">
-              <span class="saudacao">${saudacao()}, Dan</span>
-              <span class="secundario subtitulo">Segure o botão para falar · toque para digitar</span>
-            </div>
-            <button type="button" class="redondo" aria-label="Digitar" data-acao="em-breve">${ICONES.teclado}</button>
-            <button type="button" class="redondo grande vermelho" aria-label="Falar" data-acao="falar">${ICONES.microfone}</button>
-          </header>
-          ${atualizacao}
-          ${aviso}
-          <section class="secao">
-            <p class="titulo-secao">Tarefas</p>
-            <div class="item">
-              <span class="verde">${ICONES.certo}</span>
-              <div class="coluna">
-                <span class="principal">Claude Code terminou</span>
-                <span class="secundario">Ilha · fase 1</span>
-              </div>
-              <button type="button" class="botao ciano" data-acao="em-breve">Abrir</button>
-            </div>
-            <div class="item">
-              <span class="ponto ciano"></span>
-              <div class="coluna">
-                <span class="principal">DeepSeek Harness trabalhando</span>
-                <span class="secundario">começou há 12 min</span>
-              </div>
-              <span class="secundario">acompanhando</span>
-            </div>
-          </section>
-          <div class="item">
-            <span class="capa">${ICONES.musica}</span>
-            <div class="coluna">
-              <span class="principal">${EXEMPLO.musica.nome}</span>
-              <span class="secundario">${EXEMPLO.musica.artista}</span>
-            </div>
-            <button type="button" class="redondo" aria-label="Anterior" data-acao="em-breve">${ICONES.anterior}</button>
-            <button type="button" class="redondo claro" aria-label="Pausar" data-acao="em-breve">${ICONES.pausar}</button>
-            <button type="button" class="redondo" aria-label="Próxima" data-acao="em-breve">${ICONES.proxima}</button>
-          </div>
-          <div class="lancador">
-            ${lancador}
-            <button type="button" class="app" data-acao="em-breve">
-              <span class="app-icone tracejado">${ICONES.mais}</span>Mais
-            </button>
-          </div>
-          <footer class="linha">
-            <button type="button" class="botao" data-acao="em-breve">${ICONES.notas}Notas</button>
-            <button type="button" class="botao" data-acao="em-breve">${ICONES.cartao}Assinaturas</button>
-            <button type="button" class="botao" data-acao="em-breve">${ICONES.relogio}Foco</button>
-            <span class="espaco"></span>
-            <span class="versao">versão ${ctx.versao} · dados de exemplo</span>
-          </footer>
-        </div>`);
-
-      const subtitulo = raiz.querySelector<HTMLElement>(".subtitulo")!;
-      const textoOriginal = subtitulo.textContent ?? "";
-      let relogio = 0;
-      const recado = (texto: string, ms = 2500) => {
-        subtitulo.textContent = texto;
-        subtitulo.classList.add("destaque");
-        window.clearTimeout(relogio);
-        relogio = window.setTimeout(() => {
-          subtitulo.textContent = textoOriginal;
-          subtitulo.classList.remove("destaque");
-        }, ms);
-      };
-      if (ctx.mensagem) recado(ctx.mensagem, 5000);
-      aoClicar(raiz, "em-breve", () => recado("Isso chega numa das próximas versões."));
-
-      const novidade = ctx.novidade;
-      aoClicar(raiz, "atualizar", () => {
-        if (!novidade) return;
-        const botao = raiz.querySelector<HTMLButtonElement>('[data-acao="atualizar"]')!;
-        const progresso = raiz.querySelector<HTMLElement>(".progresso-atualizacao")!;
-        botao.disabled = true;
-        botao.textContent = "Baixando…";
-        novidade
-          .instalar((fracao) => {
-            progresso.textContent = `${novidade.versao} · ${Math.round(fracao * 100)}% baixado`;
-          })
-          .catch(() => {
-            botao.disabled = false;
-            botao.textContent = "Tentar de novo";
-            progresso.textContent = "Não consegui atualizar agora. Confira a internet.";
-          });
-      });
-      aoClicar(raiz, "falar", () => ctx.ir("ouvindo"));
-      aoClicar(raiz, "paguei", () => ctx.pagarAviso());
-      return raiz;
-    },
+    // A tela de dentro (início, notas, ajustes…) vem de ./telas.
+    montar: (ctx) => TELAS[ctx.tela].montar(ctx),
   },
 };
+

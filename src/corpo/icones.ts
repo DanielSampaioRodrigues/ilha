@@ -10,6 +10,7 @@ export const ICONES = {
   musica: icone(20, '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>'),
   anterior: icone(18, '<path d="M19 5 9 12l10 7zM5 5v14"/>'),
   pausar: icone(18, '<path d="M8 5v14M16 5v14"/>'),
+  tocar: icone(18, '<path d="M7 5v14l12-7z"/>'),
   proxima: icone(18, '<path d="m5 5 10 7-10 7zM19 5v14"/>'),
   mais: icone(18, '<path d="M12 5v14M5 12h14"/>'),
   notas: icone(16, '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>'),
