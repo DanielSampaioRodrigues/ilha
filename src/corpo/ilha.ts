@@ -1,6 +1,6 @@
 // A ilha: desenha a forma preta, anima a gota e troca o conteúdo de cada estado.
 
-import { caminho, OMBRO } from "./forma";
+import { caminho } from "./forma";
 import { Mola, type Firmeza } from "./mola";
 import { ESTADOS, type Contexto, type NomeEstado } from "./estados";
 import { informarArea } from "../ponte";
@@ -236,12 +236,14 @@ export class Ilha {
   }
 
   /**
-   * Informa a área clicável. Durante a animação usa a maior entre a forma atual
-   * e a final, para o clique nunca "atravessar" a ilha.
+   * Informa a área clicável: só o corpo preto, com os cantos redondos (os
+   * "ombros" são enfeite e deixam o clique passar). Durante a animação usa a
+   * maior entre a forma atual e a final, para o clique nunca "atravessar" a ilha.
    */
   private informarArea(): void {
-    const largura = Math.max(this.largura.valor, this.largura.alvo) + OMBRO * 2;
+    const largura = Math.max(this.largura.valor, this.largura.alvo);
     const altura = Math.max(this.altura.valor, this.altura.alvo) + Math.max(this.gota, 0);
-    informarArea({ x: this.centro - largura / 2, y: 0, largura, altura: altura + 2 });
+    const raio = Math.min(this.raio.valor, this.raio.alvo);
+    informarArea({ x: this.centro - largura / 2, y: 0, largura, altura, raio });
   }
 }

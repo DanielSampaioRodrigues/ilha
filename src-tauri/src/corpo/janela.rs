@@ -14,19 +14,58 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewWindow};
 
 use crate::JANELA;
 
-/// Retângulo ocupado pela ilha, em pixels lógicos, medido a partir do canto
-/// superior esquerdo da janela. Quem informa é a interface (TypeScript).
+/// Corpo preto da ilha, em pixels lógicos, medido a partir do canto superior
+/// esquerdo da janela: um retângulo com os cantos de baixo arredondados.
+/// Quem informa é a interface (TypeScript).
 #[derive(Default, Clone, Copy, Deserialize)]
 pub struct Retangulo {
     pub x: f64,
     pub y: f64,
     pub largura: f64,
     pub altura: f64,
+    #[serde(default)]
+    pub raio: f64,
 }
 
 impl Retangulo {
+    /// Confere se o ponto está na parte preta, respeitando os cantos redondos
+    /// (assim o clique ao lado da curva vai para o programa de trás).
     fn contem(&self, x: f64, y: f64) -> bool {
-        x >= self.x && x <= self.x + self.largura && y >= self.y && y <= self.y + self.altura
+        let dentro_do_retangulo =
+            x >= self.x && x <= self.x + self.largura && y >= self.y && y <= self.y + self.altura;
+        if !dentro_do_retangulo {
+            return false;
+        }
+        let raio = self.raio.max(0.0).min(self.largura / 2.0).min(self.altura);
+        let inicio_da_curva = self.y + self.altura - raio;
+        if y <= inicio_da_curva {
+            return true;
+        }
+        let centro_x = if x < self.x + raio {
+            self.x + raio
+        } else if x > self.x + self.largura - raio {
+            self.x + self.largura - raio
+        } else {
+            return true;
+        };
+        let (dx, dy) = (x - centro_x, y - inicio_da_curva);
+        dx * dx + dy * dy <= raio * raio
+    }
+}
+
+#[cfg(test)]
+mod testes {
+    use super::Retangulo;
+
+    #[test]
+    fn so_a_parte_preta_recebe_clique() {
+        let ilha = Retangulo { x: 100.0, y: 0.0, largura: 190.0, altura: 40.0, raio: 20.0 };
+        assert!(ilha.contem(195.0, 20.0)); // meio
+        assert!(ilha.contem(195.0, 39.0)); // borda de baixo, no meio
+        assert!(!ilha.contem(101.0, 39.0)); // canto de baixo, fora da curva
+        assert!(ilha.contem(106.0, 34.0)); // canto de baixo, dentro da curva
+        assert!(!ilha.contem(95.0, 5.0)); // ao lado (onde fica o ombro)
+        assert!(!ilha.contem(195.0, 42.0)); // logo abaixo
     }
 }
 

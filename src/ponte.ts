@@ -11,6 +11,8 @@ export interface Retangulo {
   y: number;
   largura: number;
   altura: number;
+  /** Raio dos cantos de baixo. */
+  raio: number;
 }
 
 /** Diz ao Rust onde a ilha está, para só essa parte receber cliques. */
