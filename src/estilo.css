@@ -1423,6 +1423,18 @@ body.modo-traducao #palco {
 .caixas {
   position: absolute;
   inset: 0;
+  pointer-events: none;
+}
+
+.caixa {
+  pointer-events: auto;
+}
+
+/* Véu leve sobre o print: mostra que a tela está "congelada" para escolher. */
+.veu {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.18);
 }
 
 .caixa {

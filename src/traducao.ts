@@ -32,15 +32,17 @@ export async function iniciarTraducao(): Promise<void> {
 
   palco.innerHTML = `
     ${c.imagem ? `<img class="print" src="${c.imagem}" alt="">` : '<div class="print vazio-print"></div>'}
+    <div class="veu"></div>
     <div class="caixas"></div>
     <div class="selecao" hidden></div>
     <div class="barra-traducao">
-      <span class="estado-traducao">Traduzindo ${c.linhas.length} linhas…</span>
-      <button type="button" class="botao" data-acao="trecho">Só um trecho</button>
-      <button type="button" class="botao" data-acao="original">Ver original</button>
-      <button type="button" class="botao ciano" data-acao="copiar">Copiar tradução</button>
+      <span class="estado-traducao">Arraste um retângulo em volta do texto.</span>
+      <button type="button" class="botao" data-acao="inteira">Tela inteira</button>
+      <button type="button" class="botao" data-acao="original" hidden>Ver original</button>
+      <button type="button" class="botao ciano" data-acao="copiar" hidden>Copiar tradução</button>
       <button type="button" class="botao" data-acao="fechar">Fechar (Esc)</button>
     </div>`;
+  document.body.classList.add("escolhendo");
 
   const estado = palco.querySelector<HTMLElement>(".estado-traducao")!;
   const caixas = palco.querySelector<HTMLElement>(".caixas")!;
@@ -49,19 +51,21 @@ export async function iniciarTraducao(): Promise<void> {
 
   if (!c.linhas.length) {
     estado.textContent = "Não encontrei texto nesta tela.";
+    botao("inteira").hidden = true;
     return;
   }
 
   // Imagem em pixels físicos; a janela em pixels da tela do Windows.
   const escala = window.innerWidth / c.largura;
-  let traducoes: string[] = [];
-  let visiveis = c.linhas.map(() => true);
+  // Traduções já feitas (por linha) e quais linhas estão à mostra.
+  const traducoes: (string | undefined)[] = [];
+  const visiveis = c.linhas.map(() => false);
 
   const desenhar = () => {
     caixas.innerHTML = c.linhas
       .map((l, i) =>
         visiveis[i] && traducoes[i]
-          ? `<div class="caixa" title="${escapar(l.texto)}" style="left:${l.x * escala}px;top:${l.y * escala}px;min-width:${l.largura * escala}px;height:${l.altura * escala}px;font-size:${Math.max(10, l.altura * escala * 0.78)}px">${escapar(traducoes[i])}</div>`
+          ? `<div class="caixa" title="${escapar(l.texto)}" style="left:${l.x * escala}px;top:${l.y * escala}px;min-width:${l.largura * escala}px;height:${l.altura * escala}px;font-size:${Math.max(10, l.altura * escala * 0.78)}px">${escapar(traducoes[i]!)}</div>`
           : "",
       )
       .join("");
@@ -74,17 +78,32 @@ export async function iniciarTraducao(): Promise<void> {
         caixa.style.fontSize = `${tamanho}px`;
       }
     });
+    const algum = visiveis.some(Boolean);
+    botao("original").hidden = !algum;
+    botao("copiar").hidden = !algum;
   };
 
-  try {
-    traducoes = await traduzirLinhas(c.linhas.map((l) => l.texto));
-    estado.textContent = "Pronto. Passe o mouse num texto para ver o original.";
+  /** Traduz só as linhas pedidas que ainda não foram traduzidas, e mostra. */
+  const traduzir = async (indices: number[]) => {
+    indices.forEach((i) => (visiveis[i] = true));
+    const faltam = indices.filter((i) => traducoes[i] === undefined);
+    if (faltam.length) {
+      estado.textContent = `Traduzindo ${faltam.length} ${faltam.length === 1 ? "linha" : "linhas"}…`;
+      try {
+        const feitas = await traduzirLinhas(faltam.map((i) => c.linhas[i].texto));
+        faltam.forEach((i, k) => (traducoes[i] = feitas[k]));
+      } catch (erro) {
+        estado.textContent = String(erro);
+        estado.classList.add("erro");
+        return;
+      }
+    }
+    estado.classList.remove("erro");
+    estado.textContent = "Pronto. Arraste de novo para outro trecho; passe o mouse para ver o original.";
     desenhar();
-  } catch (erro) {
-    estado.textContent = String(erro);
-    estado.classList.add("erro");
-    return;
-  }
+  };
+
+  botao("inteira").addEventListener("click", () => traduzir(c.linhas.map((_, i) => i)));
 
   // Ver original: esconde/mostra as traduções.
   botao("original").addEventListener("click", () => {
@@ -94,49 +113,47 @@ export async function iniciarTraducao(): Promise<void> {
   });
 
   botao("copiar").addEventListener("click", () => {
-    const texto = traducoes.filter((_, i) => visiveis[i]).join("\n");
+    const texto = c.linhas.map((_, i) => (visiveis[i] ? traducoes[i] : undefined)).filter(Boolean).join("\n");
     copiar(texto)
       .then(() => (estado.textContent = "Tradução copiada."))
       .catch(() => (estado.textContent = "Não consegui copiar."));
   });
 
-  // Só um trecho: arrastar um retângulo; ficam só as linhas dentro dele.
+  // Arrastar um retângulo: traduz as linhas cujo meio fica dentro dele.
   const selecao = palco.querySelector<HTMLElement>(".selecao")!;
-  let escolhendo = false;
   let inicio: { x: number; y: number } | null = null;
-  botao("trecho").addEventListener("click", () => {
-    escolhendo = true;
-    document.body.classList.add("escolhendo");
-    estado.textContent = "Arraste um retângulo em volta do trecho.";
-  });
   palco.addEventListener("mousedown", (e) => {
-    if (!escolhendo || (e.target as HTMLElement).closest(".barra-traducao")) return;
+    if (e.button !== 0 || (e.target as HTMLElement).closest(".barra-traducao")) return;
     inicio = { x: e.clientX, y: e.clientY };
+    Object.assign(selecao.style, { left: `${e.clientX}px`, top: `${e.clientY}px`, width: "0px", height: "0px" });
     selecao.hidden = false;
   });
   palco.addEventListener("mousemove", (e) => {
     if (!inicio) return;
-    const x = Math.min(inicio.x, e.clientX);
-    const y = Math.min(inicio.y, e.clientY);
     Object.assign(selecao.style, {
-      left: `${x}px`,
-      top: `${y}px`,
+      left: `${Math.min(inicio.x, e.clientX)}px`,
+      top: `${Math.min(inicio.y, e.clientY)}px`,
       width: `${Math.abs(e.clientX - inicio.x)}px`,
       height: `${Math.abs(e.clientY - inicio.y)}px`,
     });
   });
   palco.addEventListener("mouseup", (e) => {
     if (!inicio) return;
+    const largura = Math.abs(e.clientX - inicio.x);
+    const altura = Math.abs(e.clientY - inicio.y);
     const [x0, x1] = [Math.min(inicio.x, e.clientX), Math.max(inicio.x, e.clientX)].map((v) => v / escala);
     const [y0, y1] = [Math.min(inicio.y, e.clientY), Math.max(inicio.y, e.clientY)].map((v) => v / escala);
     inicio = null;
-    escolhendo = false;
     selecao.hidden = true;
-    document.body.classList.remove("escolhendo");
-    visiveis = c.linhas.map((l) => l.x < x1 && l.x + l.largura > x0 && l.y < y1 && l.y + l.altura > y0);
-    const quantas = visiveis.filter(Boolean).length;
-    estado.textContent = quantas ? `${quantas} linhas no trecho.` : "Nenhum texto no trecho. Tente de novo.";
-    if (!quantas) visiveis = c.linhas.map(() => true);
-    desenhar();
+    if (largura < 6 || altura < 6) return; // foi só um clique
+    const dentro = c.linhas
+      .map((l, i) => ({ i, cx: l.x + l.largura / 2, cy: l.y + l.altura / 2 }))
+      .filter(({ cx, cy }) => cx > x0 && cx < x1 && cy > y0 && cy < y1)
+      .map(({ i }) => i);
+    if (!dentro.length) {
+      estado.textContent = "Não achei texto nesse trecho. Tente pegar a linha inteira.";
+      return;
+    }
+    traduzir(dentro);
   });
 }
