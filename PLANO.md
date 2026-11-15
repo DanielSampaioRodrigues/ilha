@@ -41,6 +41,11 @@ Rascunho visual (Design): https://claude.ai/artifact/L1YSV2mpHdq1jUw1gTC9Xp
 - Configuração: **tarefas rápidas** (padrão DeepSeek API) e **tarefas pesadas** (padrão Claude Code). Trocável a qualquer momento (ex.: gastar créditos acumulados antes de renovar).
 - Botão "Passar para…" troca de motor no meio da conversa enviando um resumo.
 
+### Conversa falada (estilo Alexa)
+- O robô **dialoga**: ouve (Whisper local), pensa com uma IA rápida e barata pela API (padrão DeepSeek; os CLIs ficam para tarefas pesadas, porque demoram a começar) e responde em voz.
+- Voz da resposta: começar com as vozes do Windows (grátis); depois testar vozes locais melhores (Piper) e, se valer, vozes da internet.
+- Precisa: começar a responder em ~2 s, poder interromper a fala, não ouvir a própria voz (cancelamento de eco) e lembrar do contexto da conversa.
+
 ### Conversa, projetos e histórico
 - Tela de conversa completa; arrastar imagens, PDFs e pastas para a ilha. Sem limite próprio de tamanho: para os CLIs, passa o caminho do arquivo; para APIs, divide em partes.
 - Histórico separado por Claude Code, Codex e Gemini; botão Continuar (retoma a mesma sessão) e Abrir no terminal.
