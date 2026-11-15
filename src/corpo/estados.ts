@@ -158,31 +158,53 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
     },
   },
 
+  // Uma IA trabalhando numa conversa da Central (ou o exemplo do menu de teste).
   trabalhando: {
     largura: 480,
     raio: 24,
-    compacto: false,
+    compacto: true,
     montar: (ctx) => {
-      const { nome, total } = EXEMPLO.tarefa;
+      const t = ctx.trabalho;
+      if (!t) {
+        const { nome, total } = EXEMPLO.tarefa;
+        const raiz = html(`
+          <div class="estado compacto">
+            <i data-carinha="foco"></i>
+            <div class="coluna">
+              <div class="entre"><span class="principal">${nome}</span><span class="secundario contagem">0 de ${total}</span></div>
+              <div class="barra"><div class="barra-cheia"></div></div>
+            </div>
+            <button type="button" class="botao" data-acao="parar">Parar</button>
+          </div>`);
+        const contagem = raiz.querySelector<HTMLElement>(".contagem")!;
+        const cheia = raiz.querySelector<HTMLElement>(".barra-cheia")!;
+        let feitos = 0;
+        ctx.aCada(() => {
+          feitos = Math.min(total, feitos + 1);
+          contagem.textContent = `${feitos} de ${total}`;
+          cheia.style.width = `${(feitos / total) * 100}%`;
+          if (feitos === total) ctx.depois(() => ctx.fechar(), 600);
+        }, 700);
+        aoClicar(raiz, "parar", () => ctx.fechar());
+        return raiz;
+      }
+      const nomes: Record<string, string> = { deepseek: "DeepSeek", claude: "Claude Code", codex: "Codex", gemini: "Gemini" };
       const raiz = html(`
         <div class="estado compacto">
-          <i data-carinha="foco"></i>
+          <i data-carinha="pensando"></i>
           <div class="coluna">
-            <div class="entre"><span class="principal">${nome}</span><span class="secundario contagem">0 de ${total}</span></div>
-            <div class="barra"><div class="barra-cheia"></div></div>
+            <span class="principal">${escapar(t.titulo || "Pensando…")}</span>
+            <span class="secundario">${nomes[t.motor] ?? t.motor} · <span class="tempo-trabalho">0:00</span></span>
           </div>
           <button type="button" class="botao" data-acao="parar">Parar</button>
         </div>`);
-      const contagem = raiz.querySelector<HTMLElement>(".contagem")!;
-      const cheia = raiz.querySelector<HTMLElement>(".barra-cheia")!;
-      let feitos = 0;
-      ctx.aCada(() => {
-        feitos = Math.min(total, feitos + 1);
-        contagem.textContent = `${feitos} de ${total}`;
-        cheia.style.width = `${(feitos / total) * 100}%`;
-        if (feitos === total) ctx.depois(() => ctx.fechar(), 600);
-      }, 700);
-      aoClicar(raiz, "parar", () => ctx.fechar());
+      const tempo = raiz.querySelector<HTMLElement>(".tempo-trabalho")!;
+      const atualizar = () => (tempo.textContent = relogio(Date.now() - t.inicio));
+      atualizar();
+      ctx.aCada(atualizar, 1000);
+      aoClicar(raiz, "parar", () => {
+        import("@tauri-apps/api/event").then(({ emit }) => emit("central:parar", { id: t.id })).catch(() => {});
+      });
       return raiz;
     },
   },

@@ -2,6 +2,7 @@
 import { ler, mudar } from "../../dados/armazem";
 import { diaEscrito, faltaEscrito, haQuanto, paraISO, pendentes, pertoDeRenovar, prazo, quandoEscrito } from "../../dados/datas";
 import {
+  abrirCentral,
   abrirPrograma,
   atalhoLegivel,
   definirVolume,
@@ -146,7 +147,7 @@ export function montarInicio(ctx: Contexto): HTMLElement {
           <span class="secundario subtitulo">${ctx.atalho ? `${atalhoLegivel(ctx.atalho)} abre e fecha a ilha` : "Clique na carinha para abrir a ilha"}</span>
         </div>
         <button type="button" class="redondo" aria-label="Traduzir a tela" title="Traduzir a tela (Win+Alt+T)" data-acao="traduzir">${ICONES.traduzir}</button>
-        <button type="button" class="redondo" aria-label="Digitar" data-acao="em-breve">${ICONES.teclado}</button>
+        <button type="button" class="redondo" aria-label="Conversar (abre a Central)" title="Conversar" data-acao="digitar">${ICONES.teclado}</button>
         <button type="button" class="redondo grande vermelho" aria-label="Falar" data-acao="em-breve">${ICONES.microfone}</button>
       </header>
       ${atualizacao}
@@ -201,7 +202,7 @@ export function montarInicio(ctx: Contexto): HTMLElement {
   const recado = (texto: string, ms?: number) => recadoTemporario(subtitulo, texto, ms);
   if (ctx.mensagem) recado(ctx.mensagem, 5000);
 
-  aoClicar(raiz, "em-breve", () => recado("Voz e conversa chegam nas próximas fases."));
+  aoClicar(raiz, "em-breve", () => recado("Falar com a voz chega na fase 3. Por enquanto, use o teclado ao lado."));
   aoClicar(raiz, "tela", (b) => ctx.irPara(b.dataset.tela as never));
   aoClicar(raiz, "paguei", (b) => {
     mudar((d) => {
@@ -211,6 +212,11 @@ export function montarInicio(ctx: Contexto): HTMLElement {
     });
     ctx.renovar();
   });
+  aoClicar(raiz, "digitar", () => {
+    ctx.fechar();
+    abrirCentral("conversa").catch(() => {});
+  });
+
   aoClicar(raiz, "traduzir", () => {
     ctx.fechar();
     traduzirTela().catch((erro) => recado(String(erro)));

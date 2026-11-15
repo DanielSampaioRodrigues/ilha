@@ -4,7 +4,8 @@
   "description": "Permissões da janela da ilha",
   "windows": [
     "ilha",
-    "traducao"
+    "traducao",
+    "central"
   ],
   "permissions": [
     "core:default",

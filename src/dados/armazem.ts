@@ -1,6 +1,7 @@
 // Onde a ilha guarda o que o Dan cadastra: assinaturas, lembretes, apps,
 // notas e ajustes. Fica num arquivo "dados.json" na pasta do app no PC
 // (%APPDATA%\com.danielsampaio.ilha). Nada disso vai para a internet.
+import { emit, listen } from "@tauri-apps/api/event";
 import { load, type Store } from "@tauri-apps/plugin-store";
 import { dentroDoApp } from "../ponte";
 
@@ -127,6 +128,15 @@ export interface Config {
   pausaMinutos: number;
 }
 
+export interface Projeto {
+  id: string;
+  nome: string;
+  /** Pasta onde os motores trabalham. */
+  pasta: string;
+  /** Instruções próprias, iguais para todos os motores. */
+  instrucoes: string;
+}
+
 export interface Dados {
   assinaturas: Assinatura[];
   redefinicoes: Redefinicao[];
@@ -137,6 +147,7 @@ export interface Dados {
   habitos: Habito[];
   textos: TextoRapido[];
   timers: Timer[];
+  projetos: Projeto[];
   config: Config;
 }
 
@@ -166,6 +177,7 @@ function padrao(): Dados {
     ],
     textos: [],
     timers: [],
+    projetos: [],
     config: {
       nome: "Dan",
       corOlhos: "#3FE6EE",
@@ -215,12 +227,27 @@ const CHAVE = "dados";
 let dados: Dados = padrao();
 let loja: Store | null = null;
 let relogio = 0;
+let pendente = false;
+
+// Várias janelas (ilha, Central) usam os mesmos dados: quem muda avisa as outras.
+const ORIGEM = Math.random().toString(36).slice(2);
+const ouvintes = new Set<() => void>();
+
+/** Chamado quando outra janela mudou os dados. */
+export function aoMudarDeFora(fazer: () => void): void {
+  ouvintes.add(fazer);
+}
 
 export async function carregar(): Promise<void> {
   try {
     if (dentroDoApp) {
       loja = await load("dados.json", { defaults: {}, autoSave: false });
       dados = completar(await loja.get<Dados>(CHAVE));
+      await listen<{ origem: string; dados: Dados }>("dados:mudaram", (e) => {
+        if (e.payload.origem === ORIGEM) return;
+        dados = completar(e.payload.dados);
+        ouvintes.forEach((f) => f());
+      });
     } else {
       dados = completar(JSON.parse(localStorage.getItem("ilha-dados") ?? "null"));
     }
@@ -237,21 +264,25 @@ export function ler(): Dados {
 /** Muda os dados e salva logo em seguida (salvamento automático). */
 export function mudar(fazer: (d: Dados) => void): void {
   fazer(dados);
+  pendente = true;
   window.clearTimeout(relogio);
   relogio = window.setTimeout(salvar, 400);
 }
 
 // Se a ilha for fechada logo depois de uma mudança, salva na hora.
 window.addEventListener("pagehide", () => {
+  if (!pendente) return;
   window.clearTimeout(relogio);
   void salvar();
 });
 
 async function salvar(): Promise<void> {
+  pendente = false;
   try {
     if (loja) {
       await loja.set(CHAVE, dados);
       await loja.save();
+      await emit("dados:mudaram", { origem: ORIGEM, dados });
     } else {
       localStorage.setItem("ilha-dados", JSON.stringify(dados));
     }

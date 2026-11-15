@@ -3,7 +3,7 @@
 import { caminho, OMBRO } from "./forma";
 import { Mola, type Firmeza } from "./mola";
 import { ESTADOS, temSinalVerde } from "./estados";
-import type { Contexto, NomeEstado, NomeTela, Notificacao, SessaoFoco } from "./contexto";
+import type { Contexto, NomeEstado, NomeTela, Notificacao, SessaoFoco, Trabalho } from "./contexto";
 import { informarArea } from "../ponte";
 import type { Novidade } from "../atualizacao";
 import { ler, mudar, type ModoDiscreto } from "../dados/armazem";
@@ -53,6 +53,7 @@ export class Ilha {
   private volume: Volume | null = null;
   private relogioVolume = 0;
   private dormindo = false;
+  private trabalho: Trabalho | null = null;
   /** Quem cuida de procurar atualização (definido no main.ts). */
   aoProcurarAtualizacao: () => void = () => {};
   private novidade: Novidade | null = null;
@@ -124,6 +125,7 @@ export class Ilha {
     const discreto =
       this.modoDiscreto === "sempre" || (this.modoDiscreto === "automatico" && this.janelaComAbas);
     if (discreto && !this.expandida) return "discreto";
+    if (this.trabalho) return "trabalhando";
     if (this.foco || ler().timers.length) return "foco";
     if (pendentes(ler().assinaturas).length) return "aviso";
     if (this.musica?.tocando && ler().config.musicaNaIlha) return "musica";
@@ -138,7 +140,7 @@ export class Ilha {
 
   /** Estados de descanso, que podem ser trocados sem atrapalhar o Dan. */
   private emDescanso(): boolean {
-    return ["repouso", "aviso", "foco", "discreto", "renovacao", "musica", "volume"].includes(this.estado);
+    return ["repouso", "aviso", "foco", "discreto", "renovacao", "musica", "volume", "trabalhando"].includes(this.estado);
   }
 
   /** O que está tocando mudou (vem a cada 2 s do main.ts). */
@@ -161,6 +163,43 @@ export class Ilha {
     this.relogioVolume = window.setTimeout(() => {
       if (this.estado === "volume") this.fechar();
     }, 1600);
+  }
+
+  /** Uma IA começou a trabalhar numa conversa da Central. */
+  comecarTrabalho(id: string, titulo: string, motor: string): void {
+    this.trabalho = { id, titulo, motor, inicio: Date.now() };
+    if (this.emDescanso()) this.fechar();
+  }
+
+  /** Terminou: volta ao descanso e, se demorou ou é um motor "pesado", avisa. */
+  terminarTrabalho(id: string, titulo: string, motor: string, ok: boolean, segundos: number): void {
+    if (this.trabalho?.id === id) this.trabalho = null;
+    const nomes: Record<string, string> = { deepseek: "DeepSeek", claude: "Claude Code", codex: "Codex", gemini: "Gemini" };
+    if (motor !== "deepseek" || segundos > 20 || !ok) {
+      this.notificar({
+        titulo: ok ? `${nomes[motor] ?? motor} respondeu` : `${nomes[motor] ?? motor} parou`,
+        detalhe: titulo,
+        expressao: ok ? "feliz" : "triste",
+        botao: {
+          texto: "Ver",
+          fazer: () => {
+            import("../maos/sistema").then((m) => m.abrirCentral("conversa-atual")).catch(() => {});
+            this.fechar();
+          },
+        },
+      });
+    } else if (this.emDescanso()) {
+      this.fechar();
+    }
+  }
+
+  /** Outra janela (a Central) mudou os dados. */
+  dadosMudaram(): void {
+    if (this.estado === "aberta") {
+      if (this.tela !== "notas") this.renovar();
+    } else if (this.emDescanso() && this.estadoBase() !== this.estado) {
+      this.fechar();
+    }
   }
 
   /** Mouse parado há 5 min (ou voltou a mexer): cochila ou acorda. */
@@ -399,6 +438,7 @@ export class Ilha {
       foco: this.foco,
       musica: this.musica,
       dormindo: this.dormindo,
+      trabalho: this.trabalho,
       volume: this.volume,
       ir: (estado) => this.mostrar(estado),
       fechar: () => this.fechar(),

@@ -1,6 +1,6 @@
 // Pedidos ao lado Rust e aos plugins do Tauri. Fora do app (navegador de
 // teste) tudo responde com valores neutros.
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import * as inicioAutomatico from "@tauri-apps/plugin-autostart";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -216,4 +216,64 @@ export const apagarTraducao = (id: string) => pedir<void>("apagar_traducao", { i
 export function nomeDoPrograma(exe: string): string {
   if (!exe) return "";
   return PROGRAMAS_COM_ABAS[exe.toLowerCase()] ?? exe.replace(/\.exe$/i, "");
+}
+
+// ---------- Central e conversa ----------
+
+export type Motor = "deepseek" | "claude" | "codex" | "gemini";
+
+export const NOMES_MOTORES: Record<Motor, string> = {
+  deepseek: "DeepSeek",
+  claude: "Claude Code",
+  codex: "Codex",
+  gemini: "Gemini CLI",
+};
+
+export type EventoMotor =
+  | { tipo: "sessao"; id: string }
+  | { tipo: "texto"; texto: string }
+  | { tipo: "ferramenta"; nome: string; detalhe: string }
+  | { tipo: "fim"; erro: string | null; custo: number | null };
+
+export interface PedidoConversa {
+  conversaId: string;
+  motor: Motor;
+  mensagens: { papel: string; texto: string }[];
+  prompt: string;
+  sessao: string | null;
+  pasta: string | null;
+  modo: "conversar" | "editar";
+  sistema: string;
+}
+
+export const abrirCentral = (tela?: string) => pedir<void>("abrir_central", { tela: tela ?? null });
+export const telaInicialCentral = () => pedir<string | null>("tela_inicial_central", undefined, null);
+export const motoresDisponiveis = () =>
+  pedir<{ motor: Motor; encontrado: boolean }[]>("motores_disponiveis", undefined, [
+    { motor: "deepseek", encontrado: true },
+    { motor: "claude", encontrado: true },
+    { motor: "codex", encontrado: true },
+    { motor: "gemini", encontrado: false },
+  ]);
+export const pararConversa = (conversaId: string) => pedir<void>("parar_conversa", { conversaId });
+export const abrirNoTerminal = (motor: Motor, sessao: string | null, pasta: string | null) =>
+  pedir<void>("abrir_no_terminal", { motor, sessao, pasta });
+
+/** Conversa com um motor; a resposta chega aos poucos em "aoEvento". */
+export async function conversar(pedido: PedidoConversa, aoEvento: (e: EventoMotor) => void): Promise<void> {
+  if (!dentroDoApp) {
+    // Navegador de teste: finge uma resposta escrevendo aos poucos.
+    aoEvento({ tipo: "sessao", id: "teste-123" });
+    if (pedido.motor !== "deepseek") aoEvento({ tipo: "ferramenta", nome: "Read", detalhe: "PLANO.md" });
+    const resposta = `Resposta de teste do **${NOMES_MOTORES[pedido.motor]}** para: “${pedido.prompt.slice(0, 60)}”.\n\n- primeiro ponto\n- segundo ponto\n\n\`\`\`\nexemplo de código\n\`\`\``;
+    for (const pedaco of resposta.match(/.{1,12}/gs) ?? []) {
+      await new Promise((r) => setTimeout(r, 40));
+      aoEvento({ tipo: "texto", texto: pedaco });
+    }
+    aoEvento({ tipo: "fim", erro: null, custo: null });
+    return;
+  }
+  const canal = new Channel<EventoMotor>();
+  canal.onmessage = aoEvento;
+  await invoke("conversar", { pedido, canal });
 }

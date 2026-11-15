@@ -2,6 +2,7 @@
 pub mod atalho;
 pub mod avisos;
 pub mod bandeja;
+pub mod central;
 pub mod historico;
 pub mod janela;
 pub mod janela_ativa;

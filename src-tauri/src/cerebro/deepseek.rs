@@ -3,6 +3,11 @@
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use tauri::ipc::Channel;
+
+use super::motores::{Evento, Mensagem as MensagemConversa};
 use crate::maos::cofre;
 
 const ENDERECO: &str = "https://api.deepseek.com/chat/completions";
@@ -94,4 +99,64 @@ pub async fn traduzir(linhas: &[String]) -> Result<Vec<String>, String> {
         }
     }
     Ok(traducoes)
+}
+
+/// Conversa com a resposta chegando aos poucos (para aparecer enquanto escreve).
+pub async fn conversar(
+    sistema: &str,
+    mensagens: &[MensagemConversa],
+    canal: &Channel<Evento>,
+    parar: &AtomicBool,
+) -> Result<(), String> {
+    let chave = cofre::ler("deepseek")
+        .ok_or("Falta a chave da DeepSeek: abra Ajustes › Chaves de IA.")?;
+    let mut lista = vec![json!({ "role": "system", "content": sistema })];
+    for m in mensagens {
+        let papel = if m.papel == "voce" { "user" } else { "assistant" };
+        lista.push(json!({ "role": papel, "content": m.texto }));
+    }
+    let corpo = json!({ "model": "deepseek-chat", "stream": true, "temperature": 0.7, "messages": lista });
+    let mut resposta = reqwest::Client::new()
+        .post(ENDERECO)
+        .bearer_auth(chave)
+        .json(&corpo)
+        .timeout(std::time::Duration::from_secs(180))
+        .send()
+        .await
+        .map_err(|e| format!("Sem conexão com a DeepSeek: {e}"))?;
+    let situacao = resposta.status();
+    if situacao == reqwest::StatusCode::UNAUTHORIZED {
+        return Err("A DeepSeek recusou a chave. Confira em Ajustes › Chaves de IA.".into());
+    }
+    if situacao == reqwest::StatusCode::PAYMENT_REQUIRED {
+        return Err("Acabou o saldo da DeepSeek. Recarregue no site deles.".into());
+    }
+    if !situacao.is_success() {
+        return Err(format!("A DeepSeek respondeu com erro ({situacao})."));
+    }
+    // Os pedaços chegam no formato "data: {json}" (um por linha).
+    let mut sobra: Vec<u8> = Vec::new();
+    while let Some(pedaco) = resposta.chunk().await.map_err(|e| e.to_string())? {
+        if parar.load(Ordering::Relaxed) {
+            break;
+        }
+        sobra.extend_from_slice(&pedaco);
+        while let Some(fim) = sobra.iter().position(|&b| b == b'\n') {
+            let linha: Vec<u8> = sobra.drain(..=fim).collect();
+            let linha = String::from_utf8_lossy(&linha);
+            let Some(dados) = linha.trim().strip_prefix("data:") else { continue };
+            let dados = dados.trim();
+            if dados == "[DONE]" {
+                return Ok(());
+            }
+            if let Ok(v) = serde_json::from_str::<Value>(dados) {
+                if let Some(t) = v["choices"][0]["delta"]["content"].as_str() {
+                    if !t.is_empty() {
+                        let _ = canal.send(Evento::Texto { texto: t.to_string() });
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }

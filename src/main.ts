@@ -4,7 +4,7 @@ import { Ilha } from "./corpo/ilha";
 import type { NomeEstado, NomeTela } from "./corpo/contexto";
 import { aoPerderFoco, dentroDoApp, ouvir } from "./ponte";
 import { procurar, versaoAtual } from "./atualizacao";
-import { carregar, ler, mudar } from "./dados/armazem";
+import { aoMudarDeFora, carregar, ler, mudar } from "./dados/armazem";
 import { avancar, paraISO } from "./dados/datas";
 import { aplicarCor } from "./corpo/tema";
 import { olharTodas } from "./corpo/carinha";
@@ -104,6 +104,21 @@ async function iniciar(): Promise<void> {
         : undefined,
     });
   }, 30_000);
+
+  // Recados da Central (outra janela).
+  aoMudarDeFora(() => {
+    aplicarCor(ler().config.corDestaque);
+    ilha.dadosMudaram();
+  });
+  ouvir<{ id: string; titulo: string; motor: string }>("ilha:trabalho", (t) => ilha.comecarTrabalho(t.id, t.titulo, t.motor));
+  ouvir<{ id: string; titulo: string; motor: string; ok: boolean; segundos: number }>("ilha:trabalho-fim", (t) =>
+    ilha.terminarTrabalho(t.id, t.titulo, t.motor, t.ok, t.segundos),
+  );
+  ouvir<{ tipo: "foco" | "pausa"; minutos: number }>("ilha:comecar-foco", (f) => ilha.comecarFoco(f.tipo, f.minutos));
+  ouvir("ilha:parar-foco", () => ilha.pararFoco());
+  ouvir<{ nome: string; minutos: number }>("ilha:comecar-timer", (t) => ilha.comecarTimer(t.nome, t.minutos));
+  ouvir<"desligado" | "automatico" | "sempre">("ilha:modo-discreto", (m) => ilha.definirModoDiscreto(m));
+  ouvir<string>("ilha:atalho", (a) => ilha.definirAtalho(a));
 
   ouvir("ilha:abrir", () => ilha.abrir());
   ouvir("ilha:alternar", () => ilha.alternar());
@@ -234,9 +249,10 @@ function montarTeste(ilha: Ilha): void {
   Object.assign(window, { ilha });
 }
 
-// A mesma interface serve a duas janelas: a ilha e a tradução da tela.
-const ehTraducao = dentroDoApp
-  ? (await import("@tauri-apps/api/window")).getCurrentWindow().label === "traducao"
-  : new URLSearchParams(location.search).get("modo") === "traducao";
-if (ehTraducao) (await import("./traducao")).iniciarTraducao();
+// A mesma interface serve a três janelas: a ilha, a tradução da tela e a Central.
+const janela = dentroDoApp
+  ? (await import("@tauri-apps/api/window")).getCurrentWindow().label
+  : (new URLSearchParams(location.search).get("modo") ?? "ilha");
+if (janela === "traducao") (await import("./traducao")).iniciarTraducao();
+else if (janela === "central") (await import("./central/central")).iniciarCentral();
 else iniciar();

@@ -43,6 +43,13 @@ export interface Notificacao {
   botao?: { texto: string; fazer: () => void };
 }
 
+export interface Trabalho {
+  id: string;
+  titulo: string;
+  motor: string;
+  inicio: number;
+}
+
 export interface SessaoFoco {
   tipo: "foco" | "pausa";
   inicio: number;
@@ -77,6 +84,8 @@ export interface Contexto {
   /** A notificação mostrada no estado "pronta". */
   notificacao: Notificacao | null;
   foco: SessaoFoco | null;
+  /** Uma IA trabalhando numa conversa da Central (para o estado "trabalhando"). */
+  trabalho?: Trabalho | null;
   /** O robô está cochilando (mouse parado há muito tempo). */
   dormindo: boolean;
   /** Música tocando no Windows (para a ilha fechada). */

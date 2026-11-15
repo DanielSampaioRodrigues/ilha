@@ -92,7 +92,10 @@ Rascunho visual (Design): https://claude.ai/artifact/L1YSV2mpHdq1jUw1gTC9Xp
 - **Fase 1, etapa 7 (feita):** histórico das traduções (recorte do print, original, tradução, data e programa; busca; copiar; apagar; até 300) na tela Traduções. Personagem: 13 expressões, olhos seguem o mouse, mosquinha quando parado, cochilo com "zzz" depois de 5 min de mouse parado, respiração e troca de expressão com piscada; cor dos olhos e das bochechas, 6 acessórios de pixel, escolher robô vermelho ou carinha na ilha aberta. Grade de atalhos 4×3.
 - **Falta na tradução:** tradução por IA com visão para imagens com pouco texto.
 - **Fase 1 praticamente fechada.** Pendências pequenas: ícones reais dos programas no lançador; personagens extras (outros modelos de robô).
-- **Próximo: fase 2** — a "Central" (janela grande com menu lateral) e a conversa com os motores (DeepSeek rápido; Claude Code, Codex e Gemini para o pesado).
+- **Fase 2, parte 1 (feita):** Central (janela grande com menu lateral; reaproveita as telas da ilha; dados sincronizados entre janelas). Conversa com DeepSeek (API, resposta ao vivo) e com Claude Code, Codex e Gemini CLI pelos programas oficiais (pergunta pelo stdin, respostas em JSON, sessão guardada para continuar, Parar, Abrir no terminal, Passar para…). Projetos (pasta + instruções). Histórico separado por motor (filtro). A ilha mostra "trabalhando" com Parar e avisa quando a IA termina; "Digitar" abre a conversa.
+- **Modos dos programas:** "só conversar e ler" (Claude: plan; Codex: sandbox somente leitura; Gemini: padrão) e "pode editar arquivos" (Claude: acceptEdits; Codex: workspace-write; Gemini: auto_edit). Comandos no computador ficam bloqueados até a fase 3 (confirmação pelo Dan dentro da ilha).
+- **Termos de uso:** os três são os programas oficiais, usados no modo "sem tela" que eles mesmos documentam, com a conta do próprio Dan — uso pessoal normal.
+- **Próximo (fase 2, parte 2):** escolher motor rápido/pesado padrão em Ajustes; anexar arquivos e imagens na conversa; memória ("guardar algo importante"); conversa rápida dentro da própria ilha.
 - **Defender:** a versão 0.1.4 foi bloqueada como "Cavalo de Troia" (alarme falso de programa novo sem assinatura digital). Restaurada pelo Dan. Falta enviar o alarme falso para a Microsoft e estudar assinatura digital.
 
 ## Ideias vistas no Kobi (concorrente, 16/11/2026)

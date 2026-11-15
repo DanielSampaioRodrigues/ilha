@@ -52,6 +52,8 @@ pub fn run() {
         .manage(corpo::tela_cheia::EsconderEmTelaCheia::default())
         .manage(corpo::traducao::CapturaAtual::default())
         .manage(corpo::historico::Trava::default())
+        .manage(corpo::central::TelaPendente::default())
+        .manage(cerebro::motores::Andamento::default())
         .invoke_handler(tauri::generate_handler![
             janela::definir_area,
             atalho::definir_atalho,
@@ -70,6 +72,12 @@ pub fn run() {
             maos::cofre::tem_chave,
             maos::cofre::apagar_chave,
             cerebro::deepseek::testar_deepseek,
+            cerebro::motores::conversar,
+            cerebro::motores::parar_conversa,
+            cerebro::motores::motores_disponiveis,
+            cerebro::motores::abrir_no_terminal,
+            corpo::central::abrir_central,
+            corpo::central::tela_inicial_central,
             maos::volume::volume_atual,
             maos::volume::definir_volume,
             maos::pc::diagnostico_pc,

@@ -19,6 +19,7 @@ const ESTADOS_DE_TESTE: [(&str, &str); 6] = [
 
 pub fn criar(app: &AppHandle) -> tauri::Result<()> {
     let abrir = MenuItem::with_id(app, "abrir", "Abrir a ilha", true, None::<&str>)?;
+    let central = MenuItem::with_id(app, "central", "Abrir a Central", true, None::<&str>)?;
     let ajustes = MenuItem::with_id(app, "ajustes", "Ajustes", true, None::<&str>)?;
     let traduzir = MenuItem::with_id(app, "traduzir", "Traduzir a tela (Win+Alt+T)", true, None::<&str>)?;
 
@@ -34,7 +35,7 @@ pub fn criar(app: &AppHandle) -> tauri::Result<()> {
     let registros = MenuItem::with_id(app, "registros", "Abrir registro de erros", true, None::<&str>)?;
     let separador = PredefinedMenuItem::separator(app)?;
     let sair = MenuItem::with_id(app, "sair", "Sair", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&abrir, &traduzir, &ajustes, &teste, &atualizar, &registros, &separador, &sair])?;
+    let menu = Menu::with_items(app, &[&abrir, &central, &traduzir, &ajustes, &teste, &atualizar, &registros, &separador, &sair])?;
 
     let mut construtor = TrayIconBuilder::with_id("ilha")
         .tooltip("Ilha")
@@ -51,6 +52,7 @@ pub fn criar(app: &AppHandle) -> tauri::Result<()> {
                 let _ = app.emit("ilha:tela", "ajustes");
             }
             "traduzir" => super::traducao::iniciar(app.clone()),
+            "central" => super::central::abrir(app, None),
             "registros" => {
                 let _ = crate::maos::programas::abrir_registros(app.clone());
             }
