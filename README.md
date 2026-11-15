@@ -5,12 +5,17 @@ As decisões do projeto estão em [PLANO.md](PLANO.md).
 
 ## Como instalar
 
-1. No GitHub, abra **Actions** › a execução mais recente de "Instalador do Windows" ›
-   em **Artifacts**, baixe `Ilha-instalador-windows` (vem em .zip).
-   Quando o código estiver no ramo `main`, o instalador também aparece em **Releases**.
+1. Baixe o `Ilha_..._x64-setup.exe` da versão mais nova em **Releases**
+   (ou, para versões de teste fora do `main`: **Actions** › execução › **Artifacts**).
 2. Abra o `.exe`. Como o instalador ainda não tem assinatura digital, o Windows
    pode mostrar "O Windows protegeu o computador": clique em **Mais informações** ›
    **Executar assim mesmo**.
+
+## Como atualizar
+
+Só a primeira instalação é manual. Depois, a Ilha procura versão nova sozinha (ao
+ligar e a cada 6 horas); quando houver, aparece **Nova versão da Ilha › Atualizar**
+na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualização**.
 
 ## Como usar (versão de teste)
 
@@ -29,5 +34,8 @@ As decisões do projeto estão em [PLANO.md](PLANO.md).
   (`estados.ts`) e a orquestração (`ilha.ts`).
 - `src-tauri/` — lado Rust. `src/corpo/janela.rs` posiciona a janela e deixa o
   clique atravessar a parte transparente; `src/corpo/bandeja.rs` é o ícone do relógio.
+- `src/atualizacao.ts` — botão Atualizar (plugin updater do Tauri). As versões são
+  assinadas com a chave do segredo `TAURI_SIGNING_PRIVATE_KEY`; a chave pública fica
+  em `tauri.conf.json`. Se a chave privada se perder, gerar outra e reinstalar à mão.
 - Testar a aparência sem Windows: `npm run dev` e abrir `http://localhost:1420`
   (aparecem botões para trocar de estado; `?estado=aberta` abre direto num estado).

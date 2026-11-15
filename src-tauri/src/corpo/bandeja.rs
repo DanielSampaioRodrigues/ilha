@@ -28,9 +28,10 @@ pub fn criar(app: &AppHandle) -> tauri::Result<()> {
         itens_teste.iter().map(|item| item as &dyn IsMenuItem<tauri::Wry>).collect();
     let teste = Submenu::with_items(app, "Ver os estados (teste)", true, &referencias)?;
 
+    let atualizar = MenuItem::with_id(app, "atualizar", "Procurar atualização", true, None::<&str>)?;
     let separador = PredefinedMenuItem::separator(app)?;
     let sair = MenuItem::with_id(app, "sair", "Sair", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&abrir, &teste, &separador, &sair])?;
+    let menu = Menu::with_items(app, &[&abrir, &teste, &atualizar, &separador, &sair])?;
 
     let mut construtor = TrayIconBuilder::with_id("ilha")
         .tooltip("Ilha")
@@ -38,6 +39,10 @@ pub fn criar(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, evento| match evento.id().as_ref() {
             "abrir" => janela::abrir(app),
+            "atualizar" => {
+                janela::abrir(app);
+                let _ = app.emit("ilha:procurar-atualizacao", ());
+            }
             "sair" => app.exit(0),
             outro => {
                 if let Some(estado) = outro.strip_prefix("teste:") {

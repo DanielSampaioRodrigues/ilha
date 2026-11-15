@@ -2,12 +2,30 @@ import "./estilo.css";
 import { Ilha } from "./corpo/ilha";
 import type { NomeEstado } from "./corpo/estados";
 import { aoPerderFoco, dentroDoApp, ouvir } from "./ponte";
+import { procurar, versaoAtual } from "./atualizacao";
 
 const ilha = new Ilha(document.getElementById("palco")!);
 
 ouvir("ilha:abrir", () => ilha.abrir());
 ouvir("ilha:alternar", () => ilha.alternar());
 ouvir<NomeEstado>("ilha:estado", (estado) => ilha.mostrar(estado));
+
+// Atualização: procura sozinha ao ligar e a cada 6 horas, sem interromper.
+// Pelo menu da bandeja ("Procurar atualização"), avisa o resultado.
+versaoAtual().then((versao) => ilha.definirVersao(versao));
+const procurarEmSilencio = () => procurar().then((n) => ilha.definirNovidade(n)).catch(() => {});
+window.setTimeout(procurarEmSilencio, 15_000);
+window.setInterval(procurarEmSilencio, 6 * 60 * 60 * 1000);
+ouvir("ilha:procurar-atualizacao", async () => {
+  try {
+    const novidade = await procurar();
+    ilha.definirNovidade(novidade);
+    if (novidade) ilha.abrir();
+    else ilha.avisar(`Você já tem a versão mais nova (${await versaoAtual()}).`);
+  } catch {
+    ilha.avisar("Não consegui procurar atualização agora.");
+  }
+});
 
 // Clicar fora ou apertar Esc fecha a ilha aberta.
 aoPerderFoco(() => {

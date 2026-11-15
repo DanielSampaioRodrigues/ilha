@@ -4,6 +4,7 @@ import { caminho, OMBRO } from "./forma";
 import { Mola, type Firmeza } from "./mola";
 import { ESTADOS, type Contexto, type NomeEstado } from "./estados";
 import { informarArea } from "../ponte";
+import type { Novidade } from "../atualizacao";
 
 // Abrindo: a altura desce rápido e balança; a largura vem um pouco depois.
 // Isso faz a ilha parecer uma gota escorrendo antes de se espalhar.
@@ -28,6 +29,9 @@ export class Ilha {
 
   private estado: NomeEstado = "repouso";
   private temAviso = false;
+  private versao = "";
+  private novidade: Novidade | null = null;
+  private mensagem: string | null = null;
   private atual: HTMLElement | null = null;
   private esperando: HTMLElement | null = null;
   private relogios: number[] = [];
@@ -74,6 +78,23 @@ export class Ilha {
     else this.abrir();
   }
 
+  definirVersao(versao: string): void {
+    this.versao = versao;
+    if (this.estado === "aberta") this.mostrar("aberta");
+  }
+
+  /** Guarda a versão nova encontrada; ela aparece na ilha aberta. */
+  definirNovidade(novidade: Novidade | null): void {
+    this.novidade = novidade;
+    if (this.estado === "aberta") this.mostrar("aberta");
+  }
+
+  /** Abre a ilha mostrando um recado curto. */
+  avisar(texto: string): void {
+    this.mensagem = texto;
+    this.mostrar("aberta");
+  }
+
   /** Troca o estado. Usado pelo menu de teste da bandeja e pelos botões. */
   mostrar(estado: NomeEstado, imediato = false): void {
     if (estado === "aviso") this.temAviso = true;
@@ -114,7 +135,12 @@ export class Ilha {
   }
 
   private contexto(): Contexto {
+    const mensagem = this.mensagem;
+    this.mensagem = null;
     return {
+      versao: this.versao,
+      novidade: this.novidade,
+      mensagem,
       ir: (estado) => this.mostrar(estado),
       fechar: () => this.fechar(),
       pagarAviso: () => {

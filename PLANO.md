@@ -72,6 +72,7 @@ Rascunho visual (Design): https://claude.ai/artifact/L1YSV2mpHdq1jUw1gTC9Xp
 
 ## Andamento
 - **Fase 1, etapa 1 (feita):** app Tauri com a janela da ilha no topo central, clique que atravessa a parte transparente, efeito de gota ao abrir/fechar, carinha de pixel (pisca e olha para os lados), todos os estados com dados de exemplo, ícone na bandeja com menu de teste, atalho Ctrl+Alt+Espaço, instalador pelo GitHub Actions.
+- **Atualização pelo próprio app (feita):** a ilha procura versão nova nos Releases do GitHub e mostra o botão "Atualizar". Repositório público para isso funcionar sem senha e para o GitHub Actions não ter custo.
 - **Próximas etapas da fase 1:** avisos e assinaturas de verdade (com "Paguei" e salvamento), lançador de apps, mídia do Windows, notas, foco e pausas, iniciar com o Windows, aviso de fim de tarefa do Claude Code, tradução da tela.
 
 ## Pendências a conferir

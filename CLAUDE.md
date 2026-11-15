@@ -5,3 +5,4 @@
 - Commits sempre no nome do Dan (autor Daniel Sampaio Rodrigues), nunca com outro autor.
 - App alvo: Windows (Tauri 2 + TypeScript). Instalador gerado pelo GitHub Actions.
 - Ações que não têm volta (apagar, enviar, pagar, publicar, mudar configurações do sistema) sempre passam pela confirmação do Dan dentro do app.
+- Chaves de API, senhas e tokens nunca entram no código nem em commits (o repositório é público): ficam guardados só no PC do Dan, no cofre de senhas do Windows.

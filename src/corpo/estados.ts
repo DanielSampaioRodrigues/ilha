@@ -4,6 +4,7 @@
 
 import { criarCarinha, type Expressao } from "./carinha";
 import { ICONES } from "./icones";
+import type { Novidade } from "../atualizacao";
 
 export type NomeEstado =
   | "repouso"
@@ -22,6 +23,11 @@ export interface Contexto {
   /** Marca o aviso fixo como pago. */
   pagarAviso(): void;
   temAviso: boolean;
+  /** Versão instalada e versão nova (se houver). */
+  versao: string;
+  novidade: Novidade | null;
+  /** Recado para mostrar uma vez ao abrir (ex.: "você já tem a versão mais nova"). */
+  mensagem: string | null;
   /** Relógios que são cancelados sozinhos quando o estado muda. */
   depois(fazer: () => void, ms: number): void;
   aCada(fazer: () => void, ms: number): void;
@@ -232,6 +238,18 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
           </section>`
         : "";
 
+      const atualizacao = ctx.novidade
+        ? `
+          <div class="item">
+            <span class="ponto ciano"></span>
+            <div class="coluna">
+              <span class="principal">Nova versão da Ilha</span>
+              <span class="secundario progresso-atualizacao">${ctx.novidade.versao} · instala e reabre sozinha</span>
+            </div>
+            <button type="button" class="botao ciano" data-acao="atualizar">Atualizar</button>
+          </div>`
+        : "";
+
       const raiz = html(`
         <div class="estado aberta">
           <header class="linha">
@@ -243,6 +261,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
             <button type="button" class="redondo" aria-label="Digitar" data-acao="em-breve">${ICONES.teclado}</button>
             <button type="button" class="redondo grande vermelho" aria-label="Falar" data-acao="falar">${ICONES.microfone}</button>
           </header>
+          ${atualizacao}
           ${aviso}
           <section class="secao">
             <p class="titulo-secao">Tarefas</p>
@@ -284,21 +303,41 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
             <button type="button" class="botao" data-acao="em-breve">${ICONES.cartao}Assinaturas</button>
             <button type="button" class="botao" data-acao="em-breve">${ICONES.relogio}Foco</button>
             <span class="espaco"></span>
-            <span class="versao">versão de teste · dados de exemplo</span>
+            <span class="versao">versão ${ctx.versao} · dados de exemplo</span>
           </footer>
         </div>`);
 
       const subtitulo = raiz.querySelector<HTMLElement>(".subtitulo")!;
       const textoOriginal = subtitulo.textContent ?? "";
       let relogio = 0;
-      aoClicar(raiz, "em-breve", () => {
-        subtitulo.textContent = "Isso chega numa das próximas versões.";
+      const recado = (texto: string, ms = 2500) => {
+        subtitulo.textContent = texto;
         subtitulo.classList.add("destaque");
         window.clearTimeout(relogio);
         relogio = window.setTimeout(() => {
           subtitulo.textContent = textoOriginal;
           subtitulo.classList.remove("destaque");
-        }, 2500);
+        }, ms);
+      };
+      if (ctx.mensagem) recado(ctx.mensagem, 5000);
+      aoClicar(raiz, "em-breve", () => recado("Isso chega numa das próximas versões."));
+
+      const novidade = ctx.novidade;
+      aoClicar(raiz, "atualizar", () => {
+        if (!novidade) return;
+        const botao = raiz.querySelector<HTMLButtonElement>('[data-acao="atualizar"]')!;
+        const progresso = raiz.querySelector<HTMLElement>(".progresso-atualizacao")!;
+        botao.disabled = true;
+        botao.textContent = "Baixando…";
+        novidade
+          .instalar((fracao) => {
+            progresso.textContent = `${novidade.versao} · ${Math.round(fracao * 100)}% baixado`;
+          })
+          .catch(() => {
+            botao.disabled = false;
+            botao.textContent = "Tentar de novo";
+            progresso.textContent = "Não consegui atualizar agora. Confira a internet.";
+          });
       });
       aoClicar(raiz, "falar", () => ctx.ir("ouvindo"));
       aoClicar(raiz, "paguei", () => ctx.pagarAviso());
