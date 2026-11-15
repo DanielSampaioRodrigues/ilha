@@ -39,6 +39,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -47,11 +48,17 @@ pub fn run() {
         .manage(atalho::AtalhoAtual::default())
         .manage(avisos::AvisoPendente::default())
         .manage(corpo::janela_ativa::VigiarJanelas::default())
+        .manage(corpo::tela_cheia::EsconderEmTelaCheia::default())
         .invoke_handler(tauri::generate_handler![
             janela::definir_area,
             atalho::definir_atalho,
             atalho::atalho_atual,
             corpo::janela_ativa::vigiar_janelas,
+            corpo::tela_cheia::esconder_em_tela_cheia,
+            maos::volume::volume_atual,
+            maos::volume::definir_volume,
+            maos::pc::diagnostico_pc,
+            maos::pc::limpar_temporarios,
             avisos::aviso_pendente,
             maos::programas::abrir_programa,
             maos::programas::listar_programas,
@@ -70,6 +77,9 @@ pub fn run() {
             janela::preparar(app)?;
             corpo::bandeja::criar(app)?;
             corpo::janela_ativa::iniciar(app.clone());
+            corpo::tela_cheia::vigiar(app.clone());
+            maos::volume::vigiar(app.clone());
+            maos::pc::vigiar(app.clone());
             atalho::registrar_padrao(app, &app.state::<atalho::AtalhoAtual>());
 
             // Aberta por outro programa com um aviso: guarda para a interface mostrar.

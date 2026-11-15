@@ -5,14 +5,17 @@ import type { NomeEstado, NomeTela } from "./corpo/contexto";
 import { aoPerderFoco, dentroDoApp, ouvir } from "./ponte";
 import { procurar, versaoAtual } from "./atualizacao";
 import { carregar, ler, mudar } from "./dados/armazem";
-import { avancar } from "./dados/datas";
+import { avancar, paraISO } from "./dados/datas";
 import { aplicarCor } from "./corpo/tema";
 import {
   atalhoAtual,
   avisoPendente,
   definirAtalho,
+  esconderEmTelaCheia,
   listarProgramas,
+  midiaAtual,
   PROGRAMAS_COM_ABAS,
+  type Volume,
   type AvisoExterno,
   type JanelaAtiva,
 } from "./maos/sistema";
@@ -42,6 +45,58 @@ async function iniciar(): Promise<void> {
   ilha.definirModoDiscreto(ler().config.modoDiscreto);
   ouvir<JanelaAtiva>("ilha:janela-ativa", (j) => ilha.definirJanelaComAbas(j.noTopo && j.programa in PROGRAMAS_COM_ABAS));
   ouvir<boolean>("ilha:mouse", (dentro) => ilha.mouse(dentro));
+
+  // Atividades ao vivo na ilha fechada: música tocando e volume mudando.
+  const conferirMusica = () => midiaAtual(false).then((m) => ilha.definirMusica(m)).catch(() => {});
+  if (dentroDoApp) {
+    conferirMusica();
+    window.setInterval(conferirMusica, 2000);
+  }
+  ouvir<Volume>("ilha:volume", (v) => ilha.mostrarVolume(v));
+
+  // Esconder em jogo/vídeo em tela cheia (o Rust começa ligado; aqui vale o que o Dan escolheu).
+  esconderEmTelaCheia(ler().config.esconderTelaCheia).catch(() => {});
+
+  // PC pesado por um tempo: avisa com o culpado.
+  ouvir<{ motivo: string; programa: string }>("ilha:pc-pesado", (p) =>
+    ilha.notificar({
+      titulo: `PC pesado: ${p.motivo}`,
+      detalhe: p.programa ? `quem mais pesa: ${p.programa}` : "",
+      expressao: "alerta",
+      botao: { texto: "Ver", fazer: () => ilha.abrir("pc") },
+    }),
+  );
+
+  // Lembrete de pausa (Hábitos): a cada X minutos com o PC ligado.
+  let ultimaPausa = Date.now();
+  window.setInterval(() => {
+    const minutos = ler().config.pausaACada;
+    if (!minutos) {
+      ultimaPausa = Date.now();
+      return;
+    }
+    if (Date.now() - ultimaPausa < minutos * 60_000) return;
+    ultimaPausa = Date.now();
+    const agua = ler().habitos.find((h) => h.nome.toLowerCase().includes("água"));
+    ilha.notificar({
+      titulo: "Hora de uma pausa",
+      detalhe: "Levanta, alonga e bebe água",
+      expressao: "feliz",
+      botao: agua
+        ? {
+            texto: "Bebi água",
+            fazer: () => {
+              const dia = paraISO(new Date());
+              mudar((d) => {
+                const h = d.habitos.find((x) => x.id === agua.id);
+                if (h) h.registros[dia] = (h.registros[dia] ?? 0) + 1;
+              });
+              ilha.fechar();
+            },
+          }
+        : undefined,
+    });
+  }, 30_000);
 
   ouvir("ilha:abrir", () => ilha.abrir());
   ouvir("ilha:alternar", () => ilha.alternar());
@@ -137,10 +192,13 @@ function montarTeste(ilha: Ilha): void {
     ["aviso", () => ilha.mostrar("aviso")],
     ["foco", () => ilha.comecarFoco("foco", 25)],
     ["discreto", () => ilha.definirModoDiscreto("sempre")],
+    ["música", () => ilha.definirMusica({ titulo: "Highway to Hell", artista: "AC/DC", tocando: true, capa: null })],
+    ["volume", () => ilha.mostrarVolume({ nivel: 64, mudo: false })],
+    ["timer", () => ilha.comecarTimer("Macarrão", 10)],
     ["mouse ↓", () => ilha.mouse(true)],
     ["mouse ↑", () => ilha.mouse(false)],
     ["confirmação", () => ilha.mostrar("confirmacao")],
-    ...(["inicio", "avisos", "tabela", "redefinicoes", "notas", "apps", "foco", "ajustes"] as NomeTela[]).map(
+    ...(["inicio", "tarefas", "habitos", "timers", "textos", "pc", "redefinicoes", "ajustes"] as NomeTela[]).map(
       (t): [string, () => void] => [`tela ${t}`, () => ilha.abrir(t)],
     ),
   ];

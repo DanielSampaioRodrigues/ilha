@@ -1,7 +1,16 @@
 // Tela inicial da ilha aberta.
 import { ler, mudar } from "../../dados/armazem";
 import { diaEscrito, faltaEscrito, haQuanto, paraISO, pendentes, pertoDeRenovar, prazo, quandoEscrito } from "../../dados/datas";
-import { abrirPrograma, atalhoLegivel, midiaAtual, midiaComando, type Midia } from "../../maos/sistema";
+import {
+  abrirPrograma,
+  atalhoLegivel,
+  definirVolume,
+  midiaAtual,
+  midiaComando,
+  volumeAtual,
+  type Midia,
+} from "../../maos/sistema";
+import { ordenar } from "./tarefas";
 import type { Contexto } from "../contexto";
 import { seloDa } from "../selos";
 import { ICONES } from "../icones";
@@ -14,9 +23,6 @@ function saudacao(): string {
   if (hora < 18) return "Boa tarde";
   return "Boa noite";
 }
-
-const ENGRENAGEM =
-  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
 
 export function montarInicio(ctx: Contexto): HTMLElement {
   const dados = ler();
@@ -78,6 +84,27 @@ export function montarInicio(ctx: Contexto): HTMLElement {
       </section>`
     : "";
 
+  // Tarefas para hoje (ou atrasadas) e as mais importantes.
+  const fimDeHoje = `${paraISO(agora)}T23:59`;
+  const paraHoje = ordenar(dados.tarefas)
+    .filter((t) => !t.feita && ((t.quando && t.quando <= fimDeHoje) || t.prioridade >= 2))
+    .slice(0, 3);
+  const secaoTarefas = paraHoje.length
+    ? `
+      <section class="secao">
+        <p class="titulo-secao">Tarefas de hoje</p>
+        ${paraHoje
+          .map(
+            (t) => `
+          <div class="item">
+            <button type="button" class="circulo" aria-label="Concluir ${escapar(t.texto)}" data-acao="concluir" data-id="${t.id}"></button>
+            <div class="coluna"><span class="principal">${t.prioridade ? `<span class="prioridade">${"!".repeat(t.prioridade)}</span>` : ""}${escapar(t.texto)}</span></div>
+          </div>`,
+          )
+          .join("")}
+      </section>`
+    : "";
+
   const recentes = ctx.notificacoes.slice(0, 3);
   const agenda = recentes.length
     ? `
@@ -122,6 +149,7 @@ export function montarInicio(ctx: Contexto): HTMLElement {
       </header>
       ${atualizacao}
       ${precisa}
+      ${secaoTarefas}
       ${secaoRenovam}
       ${agenda}
       <div class="item musica" hidden>
@@ -134,20 +162,35 @@ export function montarInicio(ctx: Contexto): HTMLElement {
         <button type="button" class="redondo claro" aria-label="Tocar ou pausar" data-acao="alternar">${ICONES.pausar}</button>
         <button type="button" class="redondo" aria-label="Próxima" data-acao="proxima">${ICONES.proxima}</button>
       </div>
+      <div class="item volume-item">
+        <button type="button" class="redondo" aria-label="Silenciar" data-acao="mudo">${ICONES.som}</button>
+        <input type="range" class="deslizante" min="0" max="100" step="1" value="50" aria-label="Volume">
+        <span class="secundario volume-num">—</span>
+      </div>
       <div class="lancador">
         ${apps}
         <button type="button" class="app" data-acao="tela" data-tela="apps">
           <span class="app-icone tracejado">${ICONES.mais}</span><span class="app-nome">Editar</span>
         </button>
       </div>
-      <footer class="linha">
-        <button type="button" class="botao" data-acao="tela" data-tela="notas">${ICONES.notas}Notas</button>
-        <button type="button" class="botao" data-acao="tela" data-tela="avisos">${ICONES.cartao}Assinaturas</button>
-        <button type="button" class="botao" data-acao="tela" data-tela="redefinicoes">${ICONES.renovar}Redefinições</button>
-        <button type="button" class="botao" data-acao="tela" data-tela="foco">${ICONES.relogio}Foco</button>
-        <span class="espaco"></span>
-        <button type="button" class="redondo" aria-label="Ajustes" data-acao="tela" data-tela="ajustes">${ENGRENAGEM}</button>
-      </footer>
+      <nav class="atalhos" aria-label="Atalhos">
+        ${(
+          [
+            ["tarefas", ICONES.tarefas, "Tarefas"],
+            ["notas", ICONES.notas, "Notas"],
+            ["avisos", ICONES.cartao, "Assinaturas"],
+            ["redefinicoes", ICONES.renovar, "Redefinições"],
+            ["foco", ICONES.relogio, "Foco"],
+            ["timers", ICONES.timer, "Timers"],
+            ["habitos", ICONES.habitos, "Hábitos"],
+            ["textos", ICONES.textos, "Textos"],
+            ["pc", ICONES.pc, "Meu PC"],
+            ["ajustes", ICONES.ajustes, "Ajustes"],
+          ] as const
+        )
+          .map(([tela, icone, nome]) => `<button type="button" class="atalho-tela" data-acao="tela" data-tela="${tela}">${icone}<span>${nome}</span></button>`)
+          .join("")}
+      </nav>
     </div>`);
 
   const subtitulo = raiz.querySelector<HTMLElement>(".subtitulo")!;
@@ -164,6 +207,39 @@ export function montarInicio(ctx: Contexto): HTMLElement {
     });
     ctx.renovar();
   });
+  aoClicar(raiz, "concluir", (b) => {
+    mudar((d) => {
+      const t = d.tarefas.find((x) => x.id === b.dataset.id);
+      if (t) t.feita = true;
+    });
+    ctx.renovar();
+  });
+
+  // Volume do Windows.
+  const deslizante = raiz.querySelector<HTMLInputElement>(".deslizante")!;
+  const numero = raiz.querySelector<HTMLElement>(".volume-num")!;
+  const botaoMudo = raiz.querySelector<HTMLElement>('[data-acao="mudo"]')!;
+  let mudo = false;
+  const mostrarVolume = (nivel: number, estaMudo: boolean) => {
+    mudo = estaMudo;
+    deslizante.value = String(nivel);
+    numero.textContent = estaMudo ? "mudo" : `${nivel}%`;
+    botaoMudo.innerHTML = estaMudo ? ICONES.mudo : ICONES.som;
+    deslizante.style.setProperty("--nivel", `${estaMudo ? 0 : nivel}%`);
+  };
+  volumeAtual()
+    .then((v) => (v ? mostrarVolume(v.nivel, v.mudo) : (raiz.querySelector<HTMLElement>(".volume-item")!.hidden = true)))
+    .catch(() => {});
+  deslizante.addEventListener("input", () => {
+    const nivel = Number(deslizante.value);
+    mostrarVolume(nivel, false);
+    definirVolume(nivel, false).catch(() => {});
+  });
+  aoClicar(raiz, "mudo", () => {
+    mostrarVolume(Number(deslizante.value), !mudo);
+    definirVolume(undefined, mudo).catch(() => {});
+  });
+
   aoClicar(raiz, "lancar", (b) => {
     const app = dados.apps.find((x) => x.id === b.dataset.id);
     if (!app) return;

@@ -12,6 +12,7 @@
     "store:default",
     "log:default",
     "dialog:default",
-    "autostart:default"
+    "autostart:default",
+    "clipboard-manager:allow-write-text"
   ]
 }

@@ -1,6 +1,7 @@
 // O que cada estado e cada tela da ilha pode ver e pedir.
 import type { Novidade } from "../atualizacao";
 import type { Expressao } from "./carinha";
+import type { Midia, Volume } from "../maos/sistema";
 
 export type NomeEstado =
   | "repouso"
@@ -12,6 +13,8 @@ export type NomeEstado =
   | "foco"
   | "discreto"
   | "renovacao"
+  | "musica"
+  | "volume"
   | "aberta";
 
 export type NomeTela =
@@ -22,7 +25,12 @@ export type NomeTela =
   | "notas"
   | "apps"
   | "foco"
-  | "ajustes";
+  | "ajustes"
+  | "tarefas"
+  | "habitos"
+  | "timers"
+  | "textos"
+  | "pc";
 
 export interface Notificacao {
   id: string;
@@ -67,8 +75,13 @@ export interface Contexto {
   /** A notificação mostrada no estado "pronta". */
   notificacao: Notificacao | null;
   foco: SessaoFoco | null;
+  /** Música tocando no Windows (para a ilha fechada). */
+  musica: Midia | null;
+  /** Último volume visto (para o aviso de volume). */
+  volume: Volume | null;
   comecarFoco(tipo: SessaoFoco["tipo"], minutos: number): void;
   /** Liga/desliga o modo discreto (risquinho em repouso). */
   definirModoDiscreto(modo: import("../dados/armazem").ModoDiscreto): void;
   pararFoco(): void;
+  comecarTimer(nome: string, minutos: number): void;
 }

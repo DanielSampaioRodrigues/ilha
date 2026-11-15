@@ -30,6 +30,11 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
 - **Modo discreto** (Ajustes): em repouso a ilha vira um risquinho para não tampar
   as abas. "Automático" faz isso só com navegador (e afins) na frente.
 - **Notas** com abas, salvas sozinhas. **Foco**: cronômetro com pausa no fim.
+- **Tarefas** (prioridade, data, etapas), **Timers** com nome e cronômetro,
+  **Hábitos** (água, leitura…) com lembrete de pausa, **Textos rápidos** (PIX,
+  endereço) e gerador de senha, **Meu PC** (como está o computador e limpeza).
+- A ilha fechada mostra a **música tocando** e o **volume** quando ele muda, e some
+  em jogos/vídeos em **tela cheia**.
 - **Programas e sites**: o botão **Editar** na ilha aberta adiciona programas do PC
   ou endereços de sites.
 - **Música**: o que estiver tocando no Windows (Apple Music, Spotify, navegador)

@@ -49,6 +49,46 @@ export interface AppLancador {
   cor: string;
 }
 
+export interface Subtarefa {
+  id: string;
+  texto: string;
+  feita: boolean;
+}
+
+export interface Tarefa {
+  id: string;
+  texto: string;
+  /** 0 = normal, 1 a 3 = importante (!, !!, !!!). */
+  prioridade: number;
+  /** Data (AAAA-MM-DD) ou data e hora (AAAA-MM-DDTHH:MM), opcional. */
+  quando: string | null;
+  feita: boolean;
+  subtarefas: Subtarefa[];
+}
+
+export interface Habito {
+  id: string;
+  nome: string;
+  /** Quantas vezes por dia (ex.: 8 copos de água). */
+  meta: number;
+  /** Quantas vezes em cada dia (AAAA-MM-DD → número). */
+  registros: Record<string, number>;
+}
+
+export interface TextoRapido {
+  id: string;
+  nome: string;
+  texto: string;
+}
+
+export interface Timer {
+  id: string;
+  nome: string;
+  /** Quando termina (milissegundos desde 1970). */
+  fim: number;
+  minutos: number;
+}
+
 export interface Nota {
   id: string;
   texto: string;
@@ -56,10 +96,18 @@ export interface Nota {
 
 export interface Config {
   nome: string;
+  /** Nome do robô: é a palavra que vai chamá-lo quando a voz chegar (fase 3). */
+  nomeRobo: string;
   /** Cor dos botões e destaques. */
   corDestaque: string;
   /** Ilha vira um risquinho em repouso (sempre, ou com navegador na frente). */
   modoDiscreto: ModoDiscreto;
+  /** Mostrar a música que está tocando na ilha fechada. */
+  musicaNaIlha: boolean;
+  /** Esconder a ilha em jogos, vídeos e apresentações em tela cheia. */
+  esconderTelaCheia: boolean;
+  /** Lembrar de fazer uma pausa a cada X minutos (0 = não lembrar). */
+  pausaACada: number;
   /** Já trocou os sites padrão pelos programas instalados com o mesmo nome. */
   appsConferidos: boolean;
   /** Atalho escolhido em Ajustes (null = o padrão). */
@@ -74,6 +122,10 @@ export interface Dados {
   apps: AppLancador[];
   notas: Nota[];
   notaAtual: string | null;
+  tarefas: Tarefa[];
+  habitos: Habito[];
+  textos: TextoRapido[];
+  timers: Timer[];
   config: Config;
 }
 
@@ -95,10 +147,22 @@ function padrao(): Dados {
     ],
     notas: [{ id: novoId(), texto: "" }],
     notaAtual: null,
+    tarefas: [],
+    habitos: [
+      { id: novoId(), nome: "Água (copos)", meta: 8, registros: {} },
+      { id: novoId(), nome: "Leitura", meta: 1, registros: {} },
+      { id: novoId(), nome: "Exercício", meta: 1, registros: {} },
+    ],
+    textos: [],
+    timers: [],
     config: {
       nome: "Dan",
+      nomeRobo: "Robozinho",
       corDestaque: "#3FE6EE",
       modoDiscreto: "desligado",
+      musicaNaIlha: true,
+      esconderTelaCheia: true,
+      pausaACada: 0,
       appsConferidos: false,
       atalho: null,
       focoMinutos: 25,

@@ -116,11 +116,39 @@ fn desligar_json(config: &mut Value) {
 
 // ---------- TOML (Codex) ----------
 
+/// É a linha "notify = ..." do topo do arquivo (antes de qualquer [seção])?
+/// Cuidado: "notifications = ..." (dentro de [tui]) é outra coisa.
+fn eh_notify(linha: &str) -> bool {
+    linha
+        .split_once('=')
+        .is_some_and(|(chave, _)| chave.trim().trim_matches('"') == "notify")
+}
+
+fn linhas_do_topo(texto: &str) -> impl Iterator<Item = &str> {
+    texto.lines().take_while(|l| !l.trim_start().starts_with('['))
+}
+
+/// "notify = []" (vazio) não avisa ninguém: pode ser trocado.
+fn notify_vazio(linha: &str) -> bool {
+    linha
+        .split_once('=')
+        .is_some_and(|(_, valor)| valor.split('#').next().unwrap_or("").trim().replace(' ', "") == "[]")
+}
+
 /// O Codex aceita um único programa em "notify", que precisa ficar no topo do arquivo.
 fn ligar_codex(texto: &str) -> Result<String, String> {
-    let ja_tem = texto.lines().any(|l| l.trim_start().starts_with("notify"));
-    if ja_tem {
-        return Err("O Codex já avisa outro programa quando termina; não mexi para não atrapalhar.".into());
+    // Um "notify = []" vazio sai para dar lugar ao da ilha.
+    let sem_vazio: String = texto
+        .lines()
+        .filter(|l| !(eh_notify(l) && notify_vazio(l)))
+        .map(|l| format!("{l}\n"))
+        .collect();
+    let texto = if texto.lines().any(|l| eh_notify(l) && notify_vazio(l)) { sem_vazio.as_str() } else { texto };
+    if let Some(outro) = linhas_do_topo(texto).find(|l| eh_notify(l)) {
+        return Err(format!(
+            "O Codex já avisa outro programa quando termina ({}); não mexi para não atrapalhar.",
+            outro.trim()
+        ));
     }
     Ok(format!("notify = [\"{}\", \"{MARCA}\", \"codex\"]\n{texto}", exe()?))
 }
@@ -128,7 +156,7 @@ fn ligar_codex(texto: &str) -> Result<String, String> {
 fn desligar_codex(texto: &str) -> String {
     texto
         .lines()
-        .filter(|l| !(l.trim_start().starts_with("notify") && l.contains(MARCA)))
+        .filter(|l| !(eh_notify(l) && l.contains(MARCA)))
         .map(|l| format!("{l}\n"))
         .collect()
 }
@@ -207,5 +235,12 @@ mod testes {
         assert!(ligado.starts_with("notify = ["));
         assert_eq!(desligar_codex(&ligado), original);
         assert!(ligar_codex("notify = [\"outro\"]\n").is_err());
+        // "notifications" dentro de [tui] não é um aviso para outro programa.
+        assert!(ligar_codex("[tui]\nnotifications = true\n").is_ok());
+        // "notify" dentro de outra seção também não conta.
+        assert!(ligar_codex("[algo]\nnotify = 1\n").is_ok());
+        // Um "notify" vazio é trocado pelo da ilha.
+        let trocado = ligar_codex("notify = []\nmodel = \"o3\"\n").unwrap();
+        assert_eq!(trocado.matches("notify").count(), 1);
     }
 }

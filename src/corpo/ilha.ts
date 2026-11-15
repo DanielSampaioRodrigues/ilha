@@ -6,9 +6,10 @@ import { ESTADOS, temSinalVerde } from "./estados";
 import type { Contexto, NomeEstado, NomeTela, Notificacao, SessaoFoco } from "./contexto";
 import { informarArea } from "../ponte";
 import type { Novidade } from "../atualizacao";
-import { ler, type ModoDiscreto } from "../dados/armazem";
+import { ler, mudar, type ModoDiscreto } from "../dados/armazem";
 import { pendentes } from "../dados/datas";
-import { vigiarJanelas } from "../maos/sistema";
+import { vigiarJanelas, type Midia, type Volume } from "../maos/sistema";
+import { tocarAlarme } from "./som";
 
 // Abrindo: a altura desce rápido e balança; a largura vem um pouco depois.
 // Isso faz a ilha parecer uma gota escorrendo antes de se espalhar.
@@ -47,6 +48,10 @@ export class Ilha {
   private mouseDentro = false;
   private expandida = false;
   private relogioMouse = 0;
+  // Atividades ao vivo na ilha fechada.
+  private musica: Midia | null = null;
+  private volume: Volume | null = null;
+  private relogioVolume = 0;
   /** Quem cuida de procurar atualização (definido no main.ts). */
   aoProcurarAtualizacao: () => void = () => {};
   private novidade: Novidade | null = null;
@@ -118,8 +123,9 @@ export class Ilha {
     const discreto =
       this.modoDiscreto === "sempre" || (this.modoDiscreto === "automatico" && this.janelaComAbas);
     if (discreto && !this.expandida) return "discreto";
-    if (this.foco) return "foco";
+    if (this.foco || ler().timers.length) return "foco";
     if (pendentes(ler().assinaturas).length) return "aviso";
+    if (this.musica?.tocando && ler().config.musicaNaIlha) return "musica";
     return "repouso";
   }
 
@@ -131,7 +137,37 @@ export class Ilha {
 
   /** Estados de descanso, que podem ser trocados sem atrapalhar o Dan. */
   private emDescanso(): boolean {
-    return ["repouso", "aviso", "foco", "discreto", "renovacao"].includes(this.estado);
+    return ["repouso", "aviso", "foco", "discreto", "renovacao", "musica", "volume"].includes(this.estado);
+  }
+
+  /** O que está tocando mudou (vem a cada 2 s do main.ts). */
+  definirMusica(m: Midia | null): void {
+    const antes = this.musica;
+    this.musica = m;
+    const mudou = antes?.titulo !== m?.titulo || antes?.tocando !== m?.tocando;
+    if (!mudou || !this.emDescanso() || this.estado === "volume" || this.mouseDentro) return;
+    if (this.estadoBase() !== this.estado) this.fechar();
+    else if (this.estado === "musica") this.renovar();
+  }
+
+  /** O volume mudou: mostra por um instante na ilha (só se ela estiver fechada). */
+  mostrarVolume(v: Volume): void {
+    this.volume = v;
+    if (!this.emDescanso()) return;
+    if (this.estado === "volume") this.renovar();
+    else this.mostrar("volume");
+    window.clearTimeout(this.relogioVolume);
+    this.relogioVolume = window.setTimeout(() => {
+      if (this.estado === "volume") this.fechar();
+    }, 1600);
+  }
+
+  /** Começa um timer com nome (fica salvo: sobrevive a fechar a ilha). */
+  comecarTimer(nome: string, minutos: number): void {
+    mudar((d) =>
+      d.timers.push({ id: String(Date.now()), nome, minutos, fim: Date.now() + minutos * 60_000 }),
+    );
+    if (this.emDescanso()) this.fechar();
   }
 
   definirModoDiscreto(modo: ModoDiscreto): void {
@@ -210,9 +246,19 @@ export class Ilha {
 
   private conferirRelogio(): void {
     const agora = Date.now();
+    // Timers que acabaram: toca o alarme e avisa.
+    const acabaram = ler().timers.filter((t) => t.fim <= agora);
+    if (acabaram.length) {
+      mudar((d) => (d.timers = d.timers.filter((t) => t.fim > agora)));
+      tocarAlarme();
+      for (const t of acabaram) {
+        this.notificar({ titulo: `${t.nome}: acabou o tempo`, detalhe: `Timer de ${t.minutos} min`, expressao: "alerta" });
+      }
+    }
     if (this.foco && agora >= this.foco.fim) {
       const terminou = this.foco.tipo;
       this.foco = null;
+      tocarAlarme();
       const pausa = ler().config.pausaMinutos;
       if (terminou === "foco") {
         this.notificar({
@@ -337,6 +383,8 @@ export class Ilha {
       notificacoes: this.notificacoes,
       notificacao: this.notificacao,
       foco: this.foco,
+      musica: this.musica,
+      volume: this.volume,
       ir: (estado) => this.mostrar(estado),
       fechar: () => this.fechar(),
       irPara: (tela) => this.irPara(tela),
@@ -352,6 +400,7 @@ export class Ilha {
       comecarFoco: (tipo, minutos) => this.comecarFoco(tipo, minutos),
       pararFoco: () => this.pararFoco(),
       definirModoDiscreto: (modo) => this.definirModoDiscreto(modo),
+      comecarTimer: (nome, minutos) => this.comecarTimer(nome, minutos),
     };
   }
 

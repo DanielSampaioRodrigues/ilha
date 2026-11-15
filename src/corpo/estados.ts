@@ -198,26 +198,64 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
     },
   },
 
+  // Foco, pausa ou timer rodando: mostra o que termina primeiro.
   foco: {
     largura: 300,
     raio: 22,
     compacto: true,
     montar: (ctx) => {
-      const pausa = ctx.foco?.tipo === "pausa";
+      const opcoes = [
+        ...(ctx.foco ? [{ nome: ctx.foco.tipo === "pausa" ? "Pausa" : "Foco", fim: ctx.foco.fim, cara: ctx.foco.tipo === "pausa" ? "feliz" : "foco" }] : []),
+        ...ler().timers.map((t) => ({ nome: t.nome, fim: t.fim, cara: "normal" })),
+      ].sort((a, b) => a.fim - b.fim);
+      const atual = opcoes[0] ?? { nome: "Foco", fim: Date.now(), cara: "foco" };
+      const mais = opcoes.length > 1 ? `<span class="secundario">+${opcoes.length - 1}</span>` : "";
       const raiz = html(`
         <div class="estado aviso">
-          <i data-carinha="${pausa ? "feliz" : "foco"}"></i>
-          <span class="principal">${pausa ? "Pausa" : "Foco"}</span>
+          <i data-carinha="${atual.cara}"></i>
+          <span class="principal">${escapar(atual.nome)}</span>
+          ${mais}
           <span class="espaco"></span>
           <span class="tempo">--:--</span>
         </div>`);
       const tempo = raiz.querySelector<HTMLElement>(".tempo")!;
-      const atualizar = () => {
-        if (ctx.foco) tempo.textContent = relogio(ctx.foco.fim - Date.now());
-      };
+      const atualizar = () => (tempo.textContent = relogio(atual.fim - Date.now()));
       atualizar();
       ctx.aCada(atualizar, 1000);
       return raiz;
+    },
+  },
+
+  // Música tocando, como uma "atividade ao vivo" na ilha fechada.
+  musica: {
+    largura: 300,
+    raio: 20,
+    compacto: true,
+    montar: (ctx) => {
+      const m = ctx.musica;
+      return html(`
+        <div class="estado aviso musica-viva">
+          <i data-carinha="feliz"></i>
+          <span class="barrinhas" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+          <span class="principal">${escapar(m?.titulo ?? "")}</span>
+        </div>`);
+    },
+  },
+
+  // Aviso rápido quando o volume muda.
+  volume: {
+    largura: 300,
+    raio: 20,
+    compacto: false,
+    montar: (ctx) => {
+      const v = ctx.volume ?? { nivel: 0, mudo: false };
+      const nivel = v.mudo ? 0 : v.nivel;
+      return html(`
+        <div class="estado aviso">
+          <span class="icone-volume">${v.mudo || nivel === 0 ? ICONES.mudo : ICONES.som}</span>
+          <div class="barra volume-barra"><div class="barra-cheia" style="width:${nivel}%"></div></div>
+          <span class="tempo">${v.mudo ? "mudo" : `${nivel}%`}</span>
+        </div>`);
     },
   },
 

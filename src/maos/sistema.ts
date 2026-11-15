@@ -3,6 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import * as inicioAutomatico from "@tauri-apps/plugin-autostart";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { dentroDoApp } from "../ponte";
 
 export interface Midia {
@@ -104,4 +105,47 @@ export function atalhoLegivel(atalho: string | null): string {
     .split("+")
     .map((p) => ({ Super: "Win", Space: "Espaço", Ctrl: "Ctrl", Shift: "Shift", Alt: "Alt" })[p] ?? p)
     .join(" + ");
+}
+
+export interface Volume {
+  nivel: number;
+  mudo: boolean;
+}
+
+export const volumeAtual = () => pedir<Volume | null>("volume_atual", undefined, { nivel: 40, mudo: false });
+export const definirVolume = (nivel?: number, mudo?: boolean) => pedir<void>("definir_volume", { nivel, mudo });
+export const esconderEmTelaCheia = (ligar: boolean) => pedir<void>("esconder_em_tela_cheia", { ligar });
+
+export interface Diagnostico {
+  processador: number;
+  memoria_usada_gb: number;
+  memoria_total_gb: number;
+  disco_livre_gb: number;
+  disco_total_gb: number;
+  ligado_horas: number;
+  temporarios_mb: number;
+  pesados: { nome: string; memoria_mb: number }[];
+}
+
+export const diagnosticoPc = () =>
+  pedir<Diagnostico | null>("diagnostico_pc", undefined, {
+    processador: 23,
+    memoria_usada_gb: 11.2,
+    memoria_total_gb: 16,
+    disco_livre_gb: 48,
+    disco_total_gb: 476,
+    ligado_horas: 81,
+    temporarios_mb: 1840,
+    pesados: [
+      { nome: "chrome", memoria_mb: 3120 },
+      { nome: "InDesign", memoria_mb: 1450 },
+      { nome: "Claude", memoria_mb: 610 },
+    ],
+  });
+export const limparTemporarios = () => pedir<number>("limpar_temporarios", undefined, 0);
+
+/** Copia um texto para a área de transferência. */
+export async function copiar(texto: string): Promise<void> {
+  if (dentroDoApp) await writeText(texto);
+  else await navigator.clipboard.writeText(texto);
 }

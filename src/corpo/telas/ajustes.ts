@@ -6,6 +6,7 @@ import {
   atalhoLegivel,
   definirAtalho,
   definirInicioComWindows,
+  esconderEmTelaCheia,
   iniciaComWindows,
   mudarAviso,
   PROGRAMAS_COM_ABAS,
@@ -62,6 +63,10 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       <section class="secao">
         <p class="titulo-secao">Você</p>
         <div class="item">
+          <div class="coluna"><span class="principal">Nome do robô</span><span class="secundario">Quando a voz chegar, é só falar esse nome para ele atender.</span></div>
+          <input class="entrada curta2" name="nomeRobo" maxlength="20" value="${escapar(dados.config.nomeRobo)}" aria-label="Nome do robô">
+        </div>
+        <div class="item">
           <div class="coluna"><span class="principal">Como a ilha te chama</span></div>
           <input class="entrada curta2" name="nome" maxlength="30" value="${escapar(dados.config.nome)}" aria-label="Seu nome">
         </div>
@@ -114,6 +119,8 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       <section class="secao">
         <p class="titulo-secao">Computador</p>
         ${interruptor("windows", "Abrir a ilha quando o Windows ligar")}
+        ${interruptor("telacheia", "Esconder em jogos, vídeos e apresentações em tela cheia")}
+        ${interruptor("musica", "Mostrar a música tocando na ilha fechada")}
       </section>
 
       <section class="secao">
@@ -141,6 +148,8 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   // Nome
   const nome = raiz.querySelector<HTMLInputElement>('[name="nome"]')!;
   nome.addEventListener("input", () => mudar((d) => (d.config.nome = nome.value.trim() || "Dan")));
+  const nomeRobo = raiz.querySelector<HTMLInputElement>('[name="nomeRobo"]')!;
+  nomeRobo.addEventListener("input", () => mudar((d) => (d.config.nomeRobo = nomeRobo.value.trim() || "Robozinho")));
 
   // Cor
   aoClicar(raiz, "cor", (b) => {
@@ -219,12 +228,32 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       .catch(() => mostrarChave("windows", !ligar, "Não consegui mudar agora."));
   });
 
-  // Avisos dos programas de IA (mudam a configuração deles: pede confirmação)
+  // Opções simples da ilha (salvas na hora).
+  const opcaoSimples = (id: string, ligado: boolean, textos: [string, string], salvar: (v: boolean) => void) => {
+    mostrarChave(id, ligado, textos[ligado ? 0 : 1]);
+    chave(id).botao.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const novo = chave(id).botao.getAttribute("aria-checked") !== "true";
+      salvar(novo);
+      mostrarChave(id, novo, textos[novo ? 0 : 1]);
+    });
+  };
+  opcaoSimples("telacheia", dados.config.esconderTelaCheia, ["Ligado: some e volta sozinha.", "Desligado."], (v) => {
+    mudar((d) => (d.config.esconderTelaCheia = v));
+    esconderEmTelaCheia(v).catch(() => {});
+  });
+  opcaoSimples("musica", dados.config.musicaNaIlha, ["Ligado: nome da música e barrinhas na ilha.", "Desligado."], (v) => {
+    mudar((d) => (d.config.musicaNaIlha = v));
+  });
+
+  // Avisos dos programas de IA. Ligar coloca uma linha na configuração do
+  // programa ("quando terminar, chame a ilha"); desligar tira. Dá para desfazer
+  // e guardamos cópia do arquivo, então um clique basta.
   const textoAviso = (s: SituacaoAviso) =>
     !s.encontrado
       ? `Não encontrei o ${NOMES[s.programa]} neste computador.`
       : s.ligado
-        ? "Ligado: a ilha avisa quando ele termina."
+        ? "Ligado: a ilha avisa quando ele termina. Para isso, há uma linha na configuração dele (guardei cópia do original)."
         : "Desligado.";
   const situacoes = new Map<ProgramaIA, SituacaoAviso>();
   situacaoAvisos()
@@ -236,22 +265,12 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     )
     .catch(() => {});
   for (const programa of ["claude", "codex", "gemini"] as ProgramaIA[]) {
-    const { botao, situacao } = chave(programa);
+    const { botao } = chave(programa);
     botao.addEventListener("click", (e) => {
       e.stopPropagation();
       const atual = situacoes.get(programa);
       if (!atual) return;
       const ligar = !atual.ligado;
-      // Primeiro clique: explica e pede confirmação.
-      if (!botao.dataset.confirmando) {
-        botao.dataset.confirmando = "1";
-        botao.classList.add("confirmando");
-        situacao.textContent = `Isso muda a configuração do ${NOMES[programa]} (guardo uma cópia antes). Clique de novo para ${ligar ? "ligar" : "desligar"}.`;
-        window.setTimeout(() => {
-          if (botao.dataset.confirmando) mostrarChave(programa, atual.ligado, textoAviso(atual));
-        }, 6000);
-        return;
-      }
       botao.disabled = true;
       mudarAviso(programa, ligar)
         .then(() => {
