@@ -7,12 +7,16 @@
 
 use std::path::{Path, PathBuf};
 
+use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Serialize;
 use serde_json::{json, Value};
+use toml_edit::{value, Array, DocumentMut};
 use tauri::{AppHandle, Manager};
 
 /// Marca usada para reconhecer o que a ilha colocou nos arquivos dos outros.
 const MARCA: &str = "--aviso";
+/// Depois disto vem o aviso original do programa, para a ilha repassar.
+pub const REPASSAR: &str = "--repassar";
 
 #[derive(Serialize)]
 pub struct SituacaoAviso {
@@ -116,49 +120,67 @@ fn desligar_json(config: &mut Value) {
 
 // ---------- TOML (Codex) ----------
 
-/// É a linha "notify = ..." do topo do arquivo (antes de qualquer [seção])?
-/// Cuidado: "notifications = ..." (dentro de [tui]) é outra coisa.
-fn eh_notify(linha: &str) -> bool {
-    linha
-        .split_once('=')
-        .is_some_and(|(chave, _)| chave.trim().trim_matches('"') == "notify")
-}
-
-fn linhas_do_topo(texto: &str) -> impl Iterator<Item = &str> {
-    texto.lines().take_while(|l| !l.trim_start().starts_with('['))
-}
-
-/// "notify = []" (vazio) não avisa ninguém: pode ser trocado.
-fn notify_vazio(linha: &str) -> bool {
-    linha
-        .split_once('=')
-        .is_some_and(|(_, valor)| valor.split('#').next().unwrap_or("").trim().replace(' ', "") == "[]")
-}
-
-/// O Codex aceita um único programa em "notify", que precisa ficar no topo do arquivo.
+/// O Codex aceita um único programa em "notify". Se já houver um (o próprio app
+/// do Codex usa para o "computer-use"), a ilha entra na frente e repassa: ela
+/// guarda o original (em base64) depois de "--repassar" e, ao ser chamada,
+/// chama o original também. Desligar devolve o original.
 fn ligar_codex(texto: &str) -> Result<String, String> {
-    // Um "notify = []" vazio sai para dar lugar ao da ilha.
-    let sem_vazio: String = texto
-        .lines()
-        .filter(|l| !(eh_notify(l) && notify_vazio(l)))
-        .map(|l| format!("{l}\n"))
-        .collect();
-    let texto = if texto.lines().any(|l| eh_notify(l) && notify_vazio(l)) { sem_vazio.as_str() } else { texto };
-    if let Some(outro) = linhas_do_topo(texto).find(|l| eh_notify(l)) {
-        return Err(format!(
-            "O Codex já avisa outro programa quando termina ({}); não mexi para não atrapalhar.",
-            outro.trim()
-        ));
+    let mut doc: DocumentMut = texto
+        .parse()
+        .map_err(|_| "Não reconheci o arquivo de configuração do Codex, então não mexi nele.".to_string())?;
+    let original: Vec<String> = doc
+        .get("notify")
+        .and_then(|i| i.as_array())
+        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .unwrap_or_default();
+    if original.iter().any(|a| a == MARCA) {
+        return Ok(texto.to_string());
     }
-    Ok(format!("notify = [\"{}\", \"{MARCA}\", \"codex\"]\n{texto}", exe()?))
+    let mut novo = Array::new();
+    novo.push(exe()?);
+    novo.push(MARCA);
+    novo.push("codex");
+    if !original.is_empty() {
+        let guardado = serde_json::to_string(&original).map_err(|e| e.to_string())?;
+        novo.push(REPASSAR);
+        novo.push(STANDARD.encode(guardado));
+    }
+    doc["notify"] = value(novo);
+    Ok(doc.to_string())
 }
 
 fn desligar_codex(texto: &str) -> String {
-    texto
-        .lines()
-        .filter(|l| !(eh_notify(l) && l.contains(MARCA)))
-        .map(|l| format!("{l}\n"))
-        .collect()
+    let Ok(mut doc) = texto.parse::<DocumentMut>() else {
+        return texto.to_string();
+    };
+    let atual: Vec<String> = doc
+        .get("notify")
+        .and_then(|i| i.as_array())
+        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .unwrap_or_default();
+    if !atual.iter().any(|a| a == MARCA) {
+        return texto.to_string();
+    }
+    match original_guardado(&atual) {
+        Some(original) => {
+            let mut a = Array::new();
+            for parte in original {
+                a.push(parte);
+            }
+            doc["notify"] = value(a);
+        }
+        None => {
+            doc.remove("notify");
+        }
+    }
+    doc.to_string()
+}
+
+/// Lê o programa original guardado depois de "--repassar".
+pub fn original_guardado(args: &[String]) -> Option<Vec<String>> {
+    let i = args.iter().position(|a| a == REPASSAR)?;
+    let bytes = STANDARD.decode(args.get(i + 1)?).ok()?;
+    serde_json::from_slice(&bytes).ok()
 }
 
 // ---------- Comandos ----------
@@ -229,18 +251,30 @@ mod testes {
     }
 
     #[test]
-    fn codex_no_topo_e_volta() {
+    fn codex_liga_e_desliga() {
         let original = "model = \"o3\"\n\n[tui]\nnotifications = true\n";
         let ligado = ligar_codex(original).unwrap();
-        assert!(ligado.starts_with("notify = ["));
-        assert_eq!(desligar_codex(&ligado), original);
-        assert!(ligar_codex("notify = [\"outro\"]\n").is_err());
-        // "notifications" dentro de [tui] não é um aviso para outro programa.
-        assert!(ligar_codex("[tui]\nnotifications = true\n").is_ok());
-        // "notify" dentro de outra seção também não conta.
-        assert!(ligar_codex("[algo]\nnotify = 1\n").is_ok());
-        // Um "notify" vazio é trocado pelo da ilha.
-        let trocado = ligar_codex("notify = []\nmodel = \"o3\"\n").unwrap();
-        assert_eq!(trocado.matches("notify").count(), 1);
+        let doc: DocumentMut = ligado.parse().unwrap();
+        assert_eq!(doc["notify"][1].as_str(), Some("--aviso"));
+        assert!(doc["tui"]["notifications"].as_bool().unwrap());
+        let desligado: DocumentMut = desligar_codex(&ligado).parse().unwrap();
+        assert!(desligado.get("notify").is_none());
+    }
+
+    #[test]
+    fn codex_repassa_o_aviso_que_ja_existia() {
+        let original = "notify = [\"C:\\\\Codex\\\\computer-use.exe\", \"turn-ended\"]\nmodel = \"o3\"\n";
+        let ligado = ligar_codex(original).unwrap();
+        let doc: DocumentMut = ligado.parse().unwrap();
+        let args: Vec<String> = doc["notify"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_string()).collect();
+        assert_eq!(
+            original_guardado(&args).unwrap(),
+            vec!["C:\\Codex\\computer-use.exe".to_string(), "turn-ended".to_string()]
+        );
+        // Ligar de novo não duplica; desligar devolve o original.
+        assert_eq!(ligar_codex(&ligado).unwrap(), ligado);
+        let volta: DocumentMut = desligar_codex(&ligado).parse().unwrap();
+        assert_eq!(volta["notify"][0].as_str(), Some("C:\\Codex\\computer-use.exe"));
+        assert_eq!(volta["notify"][1].as_str(), Some("turn-ended"));
     }
 }

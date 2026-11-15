@@ -149,3 +149,32 @@ export async function copiar(texto: string): Promise<void> {
   if (dentroDoApp) await writeText(texto);
   else await navigator.clipboard.writeText(texto);
 }
+
+// ---------- Chaves de IA (ficam no cofre do Windows; a interface nunca lê a chave) ----------
+
+export const salvarChave = (provedor: string, chave: string) => pedir<void>("salvar_chave", { provedor, chave });
+export const temChave = (provedor: string) => pedir<boolean>("tem_chave", { provedor }, false);
+export const apagarChave = (provedor: string) => pedir<void>("apagar_chave", { provedor });
+export const testarDeepseek = () => pedir<string>("testar_deepseek", undefined, "Funcionando! (teste)");
+
+// ---------- Tradução da tela ----------
+
+export interface LinhaLida {
+  texto: string;
+  x: number;
+  y: number;
+  largura: number;
+  altura: number;
+}
+
+export interface Captura {
+  imagem: string;
+  largura: number;
+  altura: number;
+  linhas: LinhaLida[];
+}
+
+export const traduzirTela = () => pedir<void>("traduzir_tela");
+export const capturaAtual = () => pedir<Captura | null>("captura_atual", undefined, null);
+export const traduzirLinhas = (linhas: string[]) => pedir<string[]>("traduzir_linhas", { linhas }, linhas.map((l) => `[pt] ${l}`));
+export const fecharTraducao = () => pedir<void>("fechar_traducao");

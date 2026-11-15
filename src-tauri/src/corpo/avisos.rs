@@ -90,6 +90,10 @@ pub fn soltar_se_chamada_por_outro_programa() -> bool {
     if !args.iter().any(|a| a == "--aviso") || args.iter().any(|a| a == "--solta") {
         return false;
     }
+    // Se a ilha entrou na frente de outro aviso (ex.: o computer-use do Codex),
+    // chama o original também, com os mesmos dados que o programa mandou.
+    repassar(&args);
+
     // O Gemini CLI espera uma resposta em JSON; "{}" quer dizer "nada a fazer".
     {
         use std::io::Write;
@@ -112,6 +116,28 @@ pub fn soltar_se_chamada_por_outro_programa() -> bool {
         }
     }
     false
+}
+
+fn repassar(args: &[String]) {
+    let Some(original) = crate::maos::integracoes::original_guardado(args) else { return };
+    let Some((programa, fixos)) = original.split_first() else { return };
+    // O que vem depois do valor guardado é o que o programa mandou (ex.: o JSON do Codex).
+    let extras = args
+        .iter()
+        .position(|a| a == crate::maos::integracoes::REPASSAR)
+        .map(|i| &args[(i + 2).min(args.len())..])
+        .unwrap_or(&[]);
+    let mut comando = std::process::Command::new(programa);
+    comando.args(fixos).args(extras);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        comando.creation_flags(CREATE_NO_WINDOW);
+    }
+    if let Err(erro) = comando.spawn() {
+        log::warn!("Não consegui repassar o aviso para {programa}: {erro}");
+    }
 }
 
 #[cfg(test)]

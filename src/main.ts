@@ -221,4 +221,9 @@ function montarTeste(ilha: Ilha): void {
   Object.assign(window, { ilha });
 }
 
-iniciar();
+// A mesma interface serve a duas janelas: a ilha e a tradução da tela.
+const ehTraducao = dentroDoApp
+  ? (await import("@tauri-apps/api/window")).getCurrentWindow().label === "traducao"
+  : new URLSearchParams(location.search).get("modo") === "traducao";
+if (ehTraducao) (await import("./traducao")).iniciarTraducao();
+else iniciar();

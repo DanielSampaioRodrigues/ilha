@@ -1382,3 +1382,90 @@ select option {
 .formulario .chips .chip {
   padding: 0 10px;
 }
+
+/* Textos longos (caminhos, mensagens de erro) quebram em vez de empurrar a tela. */
+.item .secundario,
+.item .principal {
+  overflow-wrap: anywhere;
+}
+
+.situacao {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---------- Tradução da tela ---------- */
+
+body.modo-traducao {
+  background: #000;
+}
+
+body.modo-traducao #palco {
+  height: 100%;
+}
+
+.print {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.vazio-print {
+  background: #e9edf1;
+}
+
+.caixas {
+  position: absolute;
+  inset: 0;
+}
+
+.caixa {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(14, 16, 20, 0.93);
+  color: #f6f7f8;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+.barra-traducao {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 999px;
+  background: rgba(7, 8, 10, 0.94);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  color: var(--texto);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.estado-traducao.erro {
+  color: var(--laranja);
+}
+
+.selecao {
+  position: absolute;
+  border: 2px solid var(--ciano);
+  background: color-mix(in srgb, var(--ciano) 12%, transparent);
+  pointer-events: none;
+}
+
+body.escolhendo #palco {
+  cursor: crosshair;
+}

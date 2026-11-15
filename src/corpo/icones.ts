@@ -29,5 +29,7 @@ export const ICONES = {
   som: icone(18, '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>'),
   mudo: icone(18, '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="m17 9 5 6M22 9l-5 6"/>'),
   copiar: icone(16, '<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>'),
+  traduzir: icone(18, '<path d="M4 5h9M8.5 3v2M6 5c.5 3 3 6 6 7.5M11 5c-.8 3.5-3.5 6.5-7 8"/><path d="m12 21 4.5-10 4.5 10M13.8 17h5.4"/>'),
+  chave: icone(16, '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.3-9.3M17 6l3 3M14 9l2 2"/>'),
   arquivo: icone(14, '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/>'),
 };

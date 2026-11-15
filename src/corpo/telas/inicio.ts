@@ -7,6 +7,7 @@ import {
   definirVolume,
   midiaAtual,
   midiaComando,
+  traduzirTela,
   volumeAtual,
   type Midia,
 } from "../../maos/sistema";
@@ -144,6 +145,7 @@ export function montarInicio(ctx: Contexto): HTMLElement {
           <span class="saudacao">${saudacao()}, ${escapar(dados.config.nome || "Dan")}</span>
           <span class="secundario subtitulo">${ctx.atalho ? `${atalhoLegivel(ctx.atalho)} abre e fecha a ilha` : "Clique na carinha para abrir a ilha"}</span>
         </div>
+        <button type="button" class="redondo" aria-label="Traduzir a tela" title="Traduzir a tela (Win+Alt+T)" data-acao="traduzir">${ICONES.traduzir}</button>
         <button type="button" class="redondo" aria-label="Digitar" data-acao="em-breve">${ICONES.teclado}</button>
         <button type="button" class="redondo grande vermelho" aria-label="Falar" data-acao="em-breve">${ICONES.microfone}</button>
       </header>
@@ -207,6 +209,11 @@ export function montarInicio(ctx: Contexto): HTMLElement {
     });
     ctx.renovar();
   });
+  aoClicar(raiz, "traduzir", () => {
+    ctx.fechar();
+    traduzirTela().catch((erro) => recado(String(erro)));
+  });
+
   aoClicar(raiz, "concluir", (b) => {
     mudar((d) => {
       const t = d.tarefas.find((x) => x.id === b.dataset.id);

@@ -2,7 +2,12 @@
 // Tudo que liga/desliga usa o mesmo interruptor: à direita, verde/cor = ligado.
 import { ler, mudar, type ModoDiscreto } from "../../dados/armazem";
 import {
+  abrirPrograma,
   abrirRegistros,
+  apagarChave,
+  salvarChave,
+  temChave,
+  testarDeepseek,
   atalhoLegivel,
   definirAtalho,
   definirInicioComWindows,
@@ -128,6 +133,25 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         ${interruptor("claude", NOMES.claude)}
         ${interruptor("codex", NOMES.codex)}
         ${interruptor("gemini", NOMES.gemini)}
+      </section>
+
+      <section class="secao">
+        <p class="titulo-secao">Chaves de IA</p>
+        <div class="item coluna-item chave-deepseek">
+          <div class="linha">
+            <div class="coluna">
+              <span class="principal">DeepSeek</span>
+              <span class="secundario situacao-chave">Conferindo…</span>
+            </div>
+            <button type="button" class="botao" data-acao="testar-chave" hidden>Testar</button>
+            <button type="button" class="botao" data-acao="apagar-chave" hidden>Apagar</button>
+          </div>
+          <form class="linha form-chave">
+            <input class="entrada" type="password" name="chave" placeholder="Cole aqui a chave (começa com sk-)" autocomplete="off" spellcheck="false" aria-label="Chave da DeepSeek">
+            <button type="submit" class="botao ciano">Guardar</button>
+          </form>
+          <span class="secundario">Usada na tradução da tela e, depois, na conversa. Fica no cofre de senhas do Windows. <button type="button" class="link" data-acao="como-chave">Como pegar a chave</button></span>
+        </div>
       </section>
 
       <section class="secao">
@@ -281,6 +305,45 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         .catch((erro: unknown) => mostrarChave(programa, atual.ligado, String(erro)));
     });
   }
+
+  // Chave da DeepSeek: a interface só manda guardar/apagar; ler, só o Rust.
+  const situacaoChave = raiz.querySelector<HTMLElement>(".situacao-chave")!;
+  const botaoTestar = raiz.querySelector<HTMLElement>('[data-acao="testar-chave"]')!;
+  const botaoApagar = raiz.querySelector<HTMLElement>('[data-acao="apagar-chave"]')!;
+  const formChave = raiz.querySelector<HTMLFormElement>(".form-chave")!;
+  const mostrarChaveIA = (tem: boolean, texto?: string) => {
+    situacaoChave.textContent = texto ?? (tem ? "Chave guardada." : "Nenhuma chave guardada.");
+    botaoTestar.hidden = !tem;
+    botaoApagar.hidden = !tem;
+    formChave.hidden = tem;
+  };
+  temChave("deepseek").then((t) => mostrarChaveIA(t)).catch(() => mostrarChaveIA(false));
+  formChave.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const campo = formChave.querySelector<HTMLInputElement>("input")!;
+    salvarChave("deepseek", campo.value)
+      .then(() => {
+        campo.value = "";
+        mostrarChaveIA(true, "Chave guardada. Testando…");
+        return testarDeepseek();
+      })
+      .then((r) => mostrarChaveIA(true, `Chave guardada. ${r}`))
+      .catch((erro: unknown) => mostrarChaveIA(true, String(erro)));
+  });
+  aoClicar(raiz, "testar-chave", () => {
+    situacaoChave.textContent = "Testando…";
+    testarDeepseek()
+      .then((r) => (situacaoChave.textContent = r))
+      .catch((erro: unknown) => (situacaoChave.textContent = String(erro)));
+  });
+  aoClicar(raiz, "apagar-chave", () => {
+    apagarChave("deepseek")
+      .then(() => mostrarChaveIA(false, "Chave apagada."))
+      .catch(() => {});
+  });
+  aoClicar(raiz, "como-chave", () => {
+    abrirPrograma("https://platform.deepseek.com/api_keys").catch(() => {});
+  });
 
   aoClicar(raiz, "procurar", () => ctx.procurarAtualizacao());
   aoClicar(raiz, "registros", () => {

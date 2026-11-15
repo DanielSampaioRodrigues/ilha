@@ -2,6 +2,7 @@
 // - cérebro: agentes e provedores de IA (fase 2)
 // - mãos: ferramentas que mexem no computador (abrir programas, música…)
 // - corpo: a ilha na tela, a carinha, o atalho e os avisos
+mod cerebro;
 mod corpo;
 mod maos;
 
@@ -49,12 +50,21 @@ pub fn run() {
         .manage(avisos::AvisoPendente::default())
         .manage(corpo::janela_ativa::VigiarJanelas::default())
         .manage(corpo::tela_cheia::EsconderEmTelaCheia::default())
+        .manage(corpo::traducao::CapturaAtual::default())
         .invoke_handler(tauri::generate_handler![
             janela::definir_area,
             atalho::definir_atalho,
             atalho::atalho_atual,
             corpo::janela_ativa::vigiar_janelas,
             corpo::tela_cheia::esconder_em_tela_cheia,
+            corpo::traducao::captura_atual,
+            corpo::traducao::traduzir_linhas,
+            corpo::traducao::traduzir_tela,
+            corpo::traducao::fechar_traducao,
+            maos::cofre::salvar_chave,
+            maos::cofre::tem_chave,
+            maos::cofre::apagar_chave,
+            cerebro::deepseek::testar_deepseek,
             maos::volume::volume_atual,
             maos::volume::definir_volume,
             maos::pc::diagnostico_pc,
@@ -81,6 +91,7 @@ pub fn run() {
             maos::volume::vigiar(app.clone());
             maos::pc::vigiar(app.clone());
             atalho::registrar_padrao(app, &app.state::<atalho::AtalhoAtual>());
+            corpo::traducao::registrar_atalho(app);
 
             // Aberta por outro programa com um aviso: guarda para a interface mostrar.
             let args: Vec<String> = std::env::args().collect();
