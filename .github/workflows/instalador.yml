@@ -1,0 +1,54 @@
+# Gera o instalador da Ilha para Windows a cada atualização.
+# - Em qualquer ramo: o instalador fica em "Actions" > execução > "Artifacts".
+# - No ramo main: também vira uma versão em "Releases", pronta para baixar.
+name: Instalador do Windows
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: instalador-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar instalador
+        run: npx tauri build --bundles nsis
+
+      - name: Guardar instalador
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ilha-instalador-windows
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+      - name: Publicar versão (só no main)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Ilha (build ${{ github.run_number }})
+          body: Instalador gerado automaticamente a partir de ${{ github.sha }}.
+          make_latest: true
+          files: src-tauri/target/release/bundle/nsis/*.exe

@@ -1,0 +1,27 @@
+[package]
+name = "ilha"
+version = "0.1.0"
+description = "Ilha: central de IA e copiloto do computador"
+authors = ["Daniel Sampaio Rodrigues"]
+edition = "2021"
+
+[lib]
+name = "ilha_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = ["tray-icon", "image-png"] }
+tauri-plugin-global-shortcut = "2.4"
+tauri-plugin-single-instance = "2.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
