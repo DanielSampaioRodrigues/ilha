@@ -5,7 +5,9 @@ import type { NomeEstado, NomeTela } from "./corpo/contexto";
 import { aoPerderFoco, dentroDoApp, ouvir } from "./ponte";
 import { procurar, versaoAtual } from "./atualizacao";
 import { carregar, ler, mudar } from "./dados/armazem";
-import { atalhoAtual, avisoPendente, definirAtalho, type AvisoExterno } from "./maos/sistema";
+import { avancar } from "./dados/datas";
+import { aplicarCor } from "./corpo/tema";
+import { atalhoAtual, avisoPendente, definirAtalho, listarProgramas, type AvisoExterno } from "./maos/sistema";
 
 // Erros da interface também vão para o registro de erros.
 if (dentroDoApp) {
@@ -17,6 +19,7 @@ if (dentroDoApp) {
 
 async function iniciar(): Promise<void> {
   await carregar();
+  aplicarCor(ler().config.corDestaque);
   const ilha = new Ilha(document.getElementById("palco")!);
 
   // Atalho: usa o que o Dan escolheu em Ajustes; senão, o padrão que o Rust registrou.
@@ -42,14 +45,39 @@ async function iniciar(): Promise<void> {
     .then((aviso) => aviso && mostrarAviso(aviso))
     .catch(() => {});
 
-  // Lembretes: quando chega a hora, avisa uma vez e tira da lista.
-  window.setInterval(() => {
+  // Redefinições: quando chega a hora, avisa que renovou e passa para a próxima
+  // data (ou sai da lista, se não se repete).
+  const conferirRedefinicoes = () => {
     const agora = new Date();
-    const vencidos = ler().lembretes.filter((l) => new Date(l.quando) <= agora);
-    if (!vencidos.length) return;
-    mudar((d) => (d.lembretes = d.lembretes.filter((l) => new Date(l.quando) > agora)));
-    for (const l of vencidos) ilha.notificar({ titulo: l.titulo, detalhe: "Lembrete", expressao: "alerta" });
-  }, 15_000);
+    const renovadas = ler().redefinicoes.filter((r) => avancar(r, agora) !== r.proxima);
+    if (!renovadas.length) return;
+    mudar((d) => {
+      d.redefinicoes = d.redefinicoes.flatMap((r) => {
+        const proxima = avancar(r, agora);
+        return proxima ? [{ ...r, proxima }] : [];
+      });
+    });
+    for (const r of renovadas) ilha.notificar({ titulo: `${r.nome} renovou`, detalhe: "O limite voltou", expressao: "feliz" });
+  };
+  conferirRedefinicoes();
+  window.setInterval(conferirRedefinicoes, 15_000);
+
+  // Uma vez só: troca os sites padrão (Claude, ChatGPT…) pelo programa instalado
+  // com o mesmo nome, se existir. Assim abre o app em vez do navegador.
+  if (!ler().config.appsConferidos && dentroDoApp) {
+    listarProgramas()
+      .then((instalados) => {
+        mudar((d) => {
+          for (const app of d.apps) {
+            if (!/^https?:/i.test(app.caminho)) continue;
+            const mesmo = instalados.find((p) => p.nome.trim().toLowerCase() === app.nome.trim().toLowerCase());
+            if (mesmo) app.caminho = mesmo.caminho;
+          }
+          d.config.appsConferidos = true;
+        });
+      })
+      .catch(() => {});
+  }
 
   // Atualização: procura sozinha ao ligar e a cada 6 horas, sem interromper.
   versaoAtual().then((versao) => ilha.definirVersao(versao));
@@ -95,7 +123,7 @@ function montarTeste(ilha: Ilha): void {
     ["aviso", () => ilha.mostrar("aviso")],
     ["foco", () => ilha.comecarFoco("foco", 25)],
     ["confirmação", () => ilha.mostrar("confirmacao")],
-    ...(["inicio", "avisos", "notas", "apps", "foco", "ajustes"] as NomeTela[]).map(
+    ...(["inicio", "avisos", "tabela", "redefinicoes", "notas", "apps", "foco", "ajustes"] as NomeTela[]).map(
       (t): [string, () => void] => [`tela ${t}`, () => ilha.abrir(t)],
     ),
   ];

@@ -52,11 +52,12 @@ pub fn run() {
             atalho::atalho_atual,
             avisos::aviso_pendente,
             maos::programas::abrir_programa,
+            maos::programas::listar_programas,
             maos::programas::abrir_registros,
             maos::midia::midia_atual,
             maos::midia::midia_comando,
-            maos::claude::aviso_claude_ligado,
-            maos::claude::ligar_aviso_claude,
+            maos::integracoes::situacao_avisos,
+            maos::integracoes::mudar_aviso,
         ])
         .setup(|app| {
             // Se a ilha travar, o motivo fica anotado no registro de erros.

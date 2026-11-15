@@ -12,7 +12,15 @@ export type NomeEstado =
   | "foco"
   | "aberta";
 
-export type NomeTela = "inicio" | "avisos" | "notas" | "apps" | "foco" | "ajustes";
+export type NomeTela =
+  | "inicio"
+  | "avisos"
+  | "tabela"
+  | "redefinicoes"
+  | "notas"
+  | "apps"
+  | "foco"
+  | "ajustes";
 
 export interface Notificacao {
   id: string;

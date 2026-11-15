@@ -16,5 +16,9 @@ export const ICONES = {
   notas: icone(16, '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/>'),
   cartao: icone(16, '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>'),
   relogio: icone(16, '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/>'),
+  lixeira: icone(16, '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>'),
+  lapis: icone(16, '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'),
+  tabela: icone(16, '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/>'),
+  renovar: icone(16, '<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/>'),
   arquivo: icone(14, '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/>'),
 };

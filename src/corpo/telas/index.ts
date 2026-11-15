@@ -5,10 +5,14 @@ import { montarAvisos } from "./avisos";
 import { montarFoco } from "./foco";
 import { montarInicio } from "./inicio";
 import { montarNotas } from "./notas";
+import { montarRedefinicoes } from "./redefinicoes";
+import { montarTabela } from "./tabela";
 
 export const TELAS: Record<NomeTela, { montar(ctx: Contexto): HTMLElement }> = {
   inicio: { montar: montarInicio },
   avisos: { montar: montarAvisos },
+  tabela: { montar: montarTabela },
+  redefinicoes: { montar: montarRedefinicoes },
   notas: { montar: montarNotas },
   apps: { montar: montarApps },
   foco: { montar: montarFoco },

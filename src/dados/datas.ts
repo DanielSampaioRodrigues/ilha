@@ -1,5 +1,5 @@
 // Contas de datas: vencimento das assinaturas e textos como "em 3 dias".
-import type { Assinatura, Lembrete } from "./armazem";
+import type { Assinatura, Redefinicao } from "./armazem";
 
 const DIA = 24 * 60 * 60 * 1000;
 const SEMANA = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
@@ -82,11 +82,69 @@ export function horaEscrita(d: Date): string {
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function quandoLembrete(l: Lembrete, agora = new Date()): string {
-  const d = new Date(l.quando);
+export function quandoEscrito(d: Date, agora = new Date()): string {
   const dias = diasAte(d, agora);
   const dia = dias === 0 ? "hoje" : dias === 1 ? "amanhã" : diaEscrito(d);
   return `${dia}, às ${horaEscrita(d)}`;
+}
+
+/** Soma um período (dia, semana ou mês) a uma data. */
+function somarPeriodo(d: Date, repete: Redefinicao["repete"]): Date {
+  const n = new Date(d);
+  if (repete === "diario") n.setDate(n.getDate() + 1);
+  if (repete === "semanal") n.setDate(n.getDate() + 7);
+  if (repete === "mensal") n.setMonth(n.getMonth() + 1);
+  return n;
+}
+
+function paraDataHora(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${paraISO(d)}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/**
+ * Passou a hora de uma redefinição? Devolve a próxima data (ou null se ela
+ * não se repete e deve sair da lista). Se ainda não passou, devolve a mesma.
+ */
+export function avancar(r: Redefinicao, agora = new Date()): string | null {
+  let d = new Date(r.proxima);
+  if (d > agora) return r.proxima;
+  if (r.repete === "nao") return null;
+  for (let i = 0; i < 1000 && d <= agora; i++) d = somarPeriodo(d, r.repete);
+  return paraDataHora(d);
+}
+
+/** Está perto de renovar (dentro dos dias escolhidos)? */
+export function pertoDeRenovar(r: Redefinicao, agora = new Date()): boolean {
+  if (r.avisarDias <= 0) return false;
+  const falta = new Date(r.proxima).getTime() - agora.getTime();
+  return falta > 0 && falta <= r.avisarDias * DIA;
+}
+
+export function faltaEscrito(d: Date, agora = new Date()): string {
+  const min = Math.round((d.getTime() - agora.getTime()) / 60000);
+  if (min <= 0) return "agora";
+  if (min < 60) return `em ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `em ${h} h`;
+  const dias = diasAte(d, agora);
+  return dias === 1 ? "amanhã" : `em ${dias} dias`;
+}
+
+export const REPETE: Record<Redefinicao["repete"], string> = {
+  nao: "uma vez",
+  diario: "todo dia",
+  semanal: "toda semana",
+  mensal: "todo mês",
+};
+
+/** "R$ 21,90" → 21.9 (null se não der para ler). */
+export function valorEmNumero(texto: string): number | null {
+  const limpo = texto.replace(/[^\d,.-]/g, "");
+  if (!limpo) return null;
+  const normal = limpo.includes(",") ? limpo.replace(/\./g, "").replace(",", ".") : limpo;
+  const n = Number(normal);
+  return Number.isFinite(n) ? n : null;
 }
 
 export function haQuanto(d: Date, agora = new Date()): string {

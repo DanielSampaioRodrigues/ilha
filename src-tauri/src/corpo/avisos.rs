@@ -51,6 +51,18 @@ pub fn ler(args: &[String], pasta: &str) -> Option<Aviso> {
             titulo: "Claude Code está esperando você".into(),
             detalhe: projeto,
         },
+        "codex" => Aviso {
+            titulo: "Codex terminou".into(),
+            detalhe: projeto,
+        },
+        "gemini" => Aviso {
+            titulo: "Gemini terminou".into(),
+            detalhe: projeto,
+        },
+        "gemini-espera" => Aviso {
+            titulo: "Gemini está esperando você".into(),
+            detalhe: projeto,
+        },
         _ => Aviso {
             titulo: tipo,
             detalhe: valor_depois(args, "--detalhe").unwrap_or_default(),
@@ -77,6 +89,13 @@ pub fn soltar_se_chamada_por_outro_programa() -> bool {
     let args: Vec<String> = std::env::args().collect();
     if !args.iter().any(|a| a == "--aviso") || args.iter().any(|a| a == "--solta") {
         return false;
+    }
+    // O Gemini CLI espera uma resposta em JSON; "{}" quer dizer "nada a fazer".
+    {
+        use std::io::Write;
+        let mut saida = std::io::stdout();
+        let _ = saida.write_all(b"{}");
+        let _ = saida.flush();
     }
     #[cfg(windows)]
     {

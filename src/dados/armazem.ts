@@ -19,10 +19,21 @@ export interface Assinatura {
   pagoAte: string | null;
 }
 
-export interface Lembrete {
+/** Quando o limite de uma IA (ou outra coisa) volta/renova. */
+export interface Redefinicao {
+  id: string;
+  nome: string;
+  /** Próxima redefinição: AAAA-MM-DDTHH:MM, no horário do PC. */
+  proxima: string;
+  repete: "nao" | "diario" | "semanal" | "mensal";
+  /** Quantos dias antes o robô mostra o sinal verde (0 = sem sinal). */
+  avisarDias: number;
+}
+
+/** Versão antiga (até a 0.1.8): lembretes de uma vez só. */
+interface LembreteAntigo {
   id: string;
   titulo: string;
-  /** Data e hora (AAAA-MM-DDTHH:MM, horário do PC). */
   quando: string;
 }
 
@@ -41,6 +52,10 @@ export interface Nota {
 
 export interface Config {
   nome: string;
+  /** Cor dos botões e destaques. */
+  corDestaque: string;
+  /** Já trocou os sites padrão pelos programas instalados com o mesmo nome. */
+  appsConferidos: boolean;
   /** Atalho escolhido em Ajustes (null = o padrão). */
   atalho: string | null;
   focoMinutos: number;
@@ -49,7 +64,7 @@ export interface Config {
 
 export interface Dados {
   assinaturas: Assinatura[];
-  lembretes: Lembrete[];
+  redefinicoes: Redefinicao[];
   apps: AppLancador[];
   notas: Nota[];
   notaAtual: string | null;
@@ -65,7 +80,7 @@ export function novoId(): string {
 function padrao(): Dados {
   return {
     assinaturas: [],
-    lembretes: [],
+    redefinicoes: [],
     apps: [
       { id: novoId(), nome: "Claude", caminho: "https://claude.ai", cor: "#D97757" },
       { id: novoId(), nome: "ChatGPT", caminho: "https://chatgpt.com", cor: "#E9ECEF" },
@@ -74,19 +89,36 @@ function padrao(): Dados {
     ],
     notas: [{ id: novoId(), texto: "" }],
     notaAtual: null,
-    config: { nome: "Dan", atalho: null, focoMinutos: 25, pausaMinutos: 5 },
+    config: {
+      nome: "Dan",
+      corDestaque: "#3FE6EE",
+      appsConferidos: false,
+      atalho: null,
+      focoMinutos: 25,
+      pausaMinutos: 5,
+    },
   };
 }
 
 /** Junta o que foi salvo com o padrão (para versões novas com campos novos). */
-function completar(salvo: Partial<Dados> | null | undefined): Dados {
+function completar(salvo: (Partial<Dados> & { lembretes?: LembreteAntigo[] }) | null | undefined): Dados {
   const base = padrao();
   if (!salvo) return base;
+  const { lembretes, ...resto } = salvo;
+  // Lembretes antigos viram redefinições que não se repetem.
+  const convertidos: Redefinicao[] = (lembretes ?? []).map((l) => ({
+    id: l.id,
+    nome: l.titulo,
+    proxima: l.quando,
+    repete: "nao",
+    avisarDias: 0,
+  }));
   return {
     ...base,
-    ...salvo,
-    config: { ...base.config, ...(salvo.config ?? {}) },
-    notas: salvo.notas?.length ? salvo.notas : base.notas,
+    ...resto,
+    redefinicoes: [...(resto.redefinicoes ?? []), ...convertidos],
+    config: { ...base.config, ...(resto.config ?? {}) },
+    notas: resto.notas?.length ? resto.notas : base.notas,
   };
 }
 

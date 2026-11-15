@@ -1,16 +1,20 @@
-// Ajustes: nome, atalho, iniciar com o Windows, aviso do Claude Code, atualização.
+// Ajustes: nome, cor, atalho, iniciar com o Windows, avisos dos programas de IA.
+// Tudo que liga/desliga usa o mesmo interruptor: à direita, verde/cor = ligado.
 import { ler, mudar } from "../../dados/armazem";
 import {
   abrirRegistros,
   atalhoLegivel,
-  avisoClaudeLigado,
   definirAtalho,
   definirInicioComWindows,
   iniciaComWindows,
-  ligarAvisoClaude,
+  mudarAviso,
+  situacaoAvisos,
+  type ProgramaIA,
+  type SituacaoAviso,
 } from "../../maos/sistema";
+import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
-import { aoClicar, cabecalho, confirmarAntes, escapar, html, recadoTemporario } from "../ui";
+import { aoClicar, cabecalho, escapar, html, recadoTemporario } from "../ui";
 
 const TECLAS = [
   ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split(""),
@@ -18,6 +22,24 @@ const TECLAS = [
   ...Array.from({ length: 12 }, (_, i) => `F${i + 1}`),
   "Space",
 ];
+
+const NOMES: Record<ProgramaIA, string> = {
+  claude: "Claude Code",
+  codex: "Codex",
+  gemini: "Gemini CLI",
+};
+
+/** Um interruptor (liga/desliga) com texto de situação embaixo do título. */
+function interruptor(id: string, titulo: string): string {
+  return `
+    <div class="item" data-chave="${id}">
+      <div class="coluna">
+        <span class="principal">${titulo}</span>
+        <span class="secundario situacao">Conferindo…</span>
+      </div>
+      <button type="button" class="chave" role="switch" aria-checked="false" aria-label="${titulo}" disabled><span></span></button>
+    </div>`;
+}
 
 export function montarAjustes(ctx: Contexto): HTMLElement {
   const dados = ler();
@@ -27,47 +49,61 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   const opcoesTecla = TECLAS.map(
     (t) => `<option value="${t}" ${t === tecla ? "selected" : ""}>${t === "Space" ? "Espaço" : t}</option>`,
   ).join("");
+  const cores = CORES_DESTAQUE.map(
+    (c) =>
+      `<button type="button" class="amostra ${c.cor === dados.config.corDestaque ? "ativa" : ""}" style="background:${c.cor}" aria-label="${c.nome}" title="${c.nome}" data-acao="cor" data-cor="${c.cor}"></button>`,
+  ).join("");
 
   const raiz = html(`
     <div class="estado aberta tela">
       ${cabecalho("Ajustes")}
 
       <section class="secao">
-        <p class="titulo-secao">Como a ilha te chama</p>
-        <div class="linha"><input class="entrada" name="nome" maxlength="30" value="${escapar(dados.config.nome)}"><span class="secundario salvo-nome"></span></div>
+        <p class="titulo-secao">Você</p>
+        <div class="item">
+          <div class="coluna"><span class="principal">Como a ilha te chama</span></div>
+          <input class="entrada curta2" name="nome" maxlength="30" value="${escapar(dados.config.nome)}" aria-label="Seu nome">
+        </div>
+        <div class="item">
+          <div class="coluna"><span class="principal">Cor de destaque</span><span class="secundario">Botões e marcações. Os olhos do robô ficam com os personagens.</span></div>
+          <div class="linha amostras">${cores}</div>
+        </div>
       </section>
 
       <section class="secao">
         <p class="titulo-secao">Atalho para abrir e fechar</p>
-        <p class="secundario">Agora: <strong class="atalho-atual">${atalhoLegivel(ctx.atalho)}</strong></p>
-        <div class="linha atalho">
-          <label class="marca"><input type="checkbox" name="Ctrl" ${tem("Ctrl")}>Ctrl</label>
-          <label class="marca"><input type="checkbox" name="Alt" ${tem("Alt")}>Alt</label>
-          <label class="marca"><input type="checkbox" name="Shift" ${tem("Shift")}>Shift</label>
-          <label class="marca"><input type="checkbox" name="Super" ${tem("Super")}>Win</label>
-          <span>+</span>
-          <select name="tecla" class="entrada curta">${opcoesTecla}</select>
-          <button type="button" class="botao ciano" data-acao="atalho">Usar</button>
+        <div class="item coluna-item">
+          <span class="secundario">Agora: <strong class="atalho-atual">${atalhoLegivel(ctx.atalho)}</strong></span>
+          <div class="linha atalho">
+            <label class="marca"><input type="checkbox" name="Ctrl" ${tem("Ctrl")}>Ctrl</label>
+            <label class="marca"><input type="checkbox" name="Alt" ${tem("Alt")}>Alt</label>
+            <label class="marca"><input type="checkbox" name="Shift" ${tem("Shift")}>Shift</label>
+            <label class="marca"><input type="checkbox" name="Super" ${tem("Super")}>Win</label>
+            <span>+</span>
+            <select name="tecla" class="entrada curta" aria-label="Tecla">${opcoesTecla}</select>
+            <span class="espaco"></span>
+            <button type="button" class="botao ciano" data-acao="atalho">Usar este</button>
+          </div>
+          <span class="secundario resposta-atalho">Combinações com a tecla Win quase nunca são usadas por outros programas.</span>
         </div>
-        <span class="secundario resposta-atalho">Dica: combinações com a tecla Win quase nunca são usadas por outros programas.</span>
       </section>
 
       <section class="secao">
         <p class="titulo-secao">Computador</p>
-        <div class="item">
-          <div class="coluna"><span class="principal">Abrir a ilha quando o Windows ligar</span><span class="secundario">Você pode desligar quando quiser.</span></div>
-          <button type="button" class="botao" data-acao="inicio-windows" disabled>…</button>
-        </div>
-        <div class="item">
-          <div class="coluna"><span class="principal">Aviso quando o Claude Code terminar</span><span class="secundario estado-claude">Conferindo…</span></div>
-          <button type="button" class="botao" data-acao="claude" hidden>Ligar</button>
-        </div>
+        ${interruptor("windows", "Abrir a ilha quando o Windows ligar")}
+      </section>
+
+      <section class="secao">
+        <p class="titulo-secao">Avisar quando terminar</p>
+        ${interruptor("claude", NOMES.claude)}
+        ${interruptor("codex", NOMES.codex)}
+        ${interruptor("gemini", NOMES.gemini)}
       </section>
 
       <section class="secao">
         <p class="titulo-secao">Sobre</p>
         <div class="item">
-          <div class="coluna"><span class="principal">Ilha versão ${escapar(ctx.versao)}</span><span class="secundario">Ela procura versões novas sozinha a cada 6 horas.</span></div>
+          <div class="coluna"><span class="principal">Ilha versão ${escapar(ctx.versao)}</span><span class="secundario">Procura versões novas sozinha a cada 6 horas.</span></div>
           <button type="button" class="botao" data-acao="procurar">Procurar agora</button>
         </div>
         <div class="item">
@@ -81,10 +117,14 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
 
   // Nome
   const nome = raiz.querySelector<HTMLInputElement>('[name="nome"]')!;
-  const salvoNome = raiz.querySelector<HTMLElement>(".salvo-nome")!;
-  nome.addEventListener("input", () => {
-    mudar((d) => (d.config.nome = nome.value.trim() || "Dan"));
-    salvoNome.textContent = "Salvo";
+  nome.addEventListener("input", () => mudar((d) => (d.config.nome = nome.value.trim() || "Dan")));
+
+  // Cor
+  aoClicar(raiz, "cor", (b) => {
+    const cor = b.dataset.cor!;
+    mudar((d) => (d.config.corDestaque = cor));
+    aplicarCor(cor);
+    raiz.querySelectorAll(".amostra").forEach((a) => a.classList.toggle("ativa", a === b));
   });
 
   // Atalho
@@ -105,44 +145,84 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         raiz.querySelector<HTMLElement>(".atalho-atual")!.textContent = atalhoLegivel(registrado);
         recadoTemporario(resposta, "Pronto! Esse é o atalho agora.");
       })
-      .catch((erro) => recadoTemporario(resposta, String(erro), 5000));
+      .catch((erro: unknown) => recadoTemporario(resposta, String(erro), 5000));
   });
 
-  // Iniciar com o Windows
-  const botaoInicio = raiz.querySelector<HTMLButtonElement>('[data-acao="inicio-windows"]')!;
-  const mostrarInicio = (ligado: boolean) => {
-    botaoInicio.disabled = false;
-    botaoInicio.textContent = ligado ? "Ligado" : "Desligado";
-    botaoInicio.classList.toggle("ciano", ligado);
-    botaoInicio.dataset.ligado = ligado ? "1" : "";
+  // Interruptores
+  const chave = (id: string) => {
+    const item = raiz.querySelector<HTMLElement>(`[data-chave="${id}"]`)!;
+    return {
+      botao: item.querySelector<HTMLButtonElement>(".chave")!,
+      situacao: item.querySelector<HTMLElement>(".situacao")!,
+    };
   };
-  iniciaComWindows().then(mostrarInicio).catch(() => mostrarInicio(false));
-  botaoInicio.addEventListener("click", (e) => {
+  const mostrarChave = (id: string, ligado: boolean, texto: string, habilitado = true) => {
+    const { botao, situacao } = chave(id);
+    botao.setAttribute("aria-checked", String(ligado));
+    botao.disabled = !habilitado;
+    delete botao.dataset.confirmando;
+    botao.classList.remove("confirmando");
+    situacao.textContent = texto;
+  };
+
+  // Iniciar com o Windows (só mexe na lista de inicialização do Windows; não precisa confirmar)
+  const textoWindows = (ligado: boolean) =>
+    ligado ? "Ligado: a ilha abre sozinha quando você liga o computador." : "Desligado.";
+  iniciaComWindows()
+    .then((ligado) => mostrarChave("windows", ligado, textoWindows(ligado)))
+    .catch(() => mostrarChave("windows", false, textoWindows(false)));
+  chave("windows").botao.addEventListener("click", (e) => {
     e.stopPropagation();
-    const ligar = !botaoInicio.dataset.ligado;
-    botaoInicio.disabled = true;
+    const ligar = chave("windows").botao.getAttribute("aria-checked") !== "true";
+    chave("windows").botao.disabled = true;
     definirInicioComWindows(ligar)
-      .then(() => mostrarInicio(ligar))
-      .catch(() => mostrarInicio(!ligar));
+      .then(() => mostrarChave("windows", ligar, textoWindows(ligar)))
+      .catch(() => mostrarChave("windows", !ligar, "Não consegui mudar agora."));
   });
 
-  // Claude Code
-  const estadoClaude = raiz.querySelector<HTMLElement>(".estado-claude")!;
-  const botaoClaude = raiz.querySelector<HTMLElement>('[data-acao="claude"]')!;
-  const mostrarClaude = (ligado: boolean) => {
-    estadoClaude.textContent = ligado
-      ? "Ligado: a ilha avisa quando ele termina ou espera você."
-      : "Desligado. Ligar muda a configuração do Claude Code (com cópia de segurança).";
-    botaoClaude.hidden = ligado;
-  };
-  avisoClaudeLigado().then(mostrarClaude).catch(() => mostrarClaude(false));
-  aoClicar(raiz, "claude", (b) =>
-    confirmarAntes(b, "Confirmar?", () => {
-      ligarAvisoClaude()
-        .then(() => mostrarClaude(true))
-        .catch((erro) => (estadoClaude.textContent = String(erro)));
-    }),
-  );
+  // Avisos dos programas de IA (mudam a configuração deles: pede confirmação)
+  const textoAviso = (s: SituacaoAviso) =>
+    !s.encontrado
+      ? `Não encontrei o ${NOMES[s.programa]} neste computador.`
+      : s.ligado
+        ? "Ligado: a ilha avisa quando ele termina."
+        : "Desligado.";
+  const situacoes = new Map<ProgramaIA, SituacaoAviso>();
+  situacaoAvisos()
+    .then((lista) =>
+      lista.forEach((s) => {
+        situacoes.set(s.programa, s);
+        mostrarChave(s.programa, s.ligado, textoAviso(s), s.encontrado);
+      }),
+    )
+    .catch(() => {});
+  for (const programa of ["claude", "codex", "gemini"] as ProgramaIA[]) {
+    const { botao, situacao } = chave(programa);
+    botao.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const atual = situacoes.get(programa);
+      if (!atual) return;
+      const ligar = !atual.ligado;
+      // Primeiro clique: explica e pede confirmação.
+      if (!botao.dataset.confirmando) {
+        botao.dataset.confirmando = "1";
+        botao.classList.add("confirmando");
+        situacao.textContent = `Isso muda a configuração do ${NOMES[programa]} (guardo uma cópia antes). Clique de novo para ${ligar ? "ligar" : "desligar"}.`;
+        window.setTimeout(() => {
+          if (botao.dataset.confirmando) mostrarChave(programa, atual.ligado, textoAviso(atual));
+        }, 6000);
+        return;
+      }
+      botao.disabled = true;
+      mudarAviso(programa, ligar)
+        .then(() => {
+          const novo = { ...atual, ligado: ligar };
+          situacoes.set(programa, novo);
+          mostrarChave(programa, ligar, textoAviso(novo));
+        })
+        .catch((erro: unknown) => mostrarChave(programa, atual.ligado, String(erro)));
+    });
+  }
 
   aoClicar(raiz, "procurar", () => ctx.procurarAtualizacao());
   aoClicar(raiz, "registros", () => {

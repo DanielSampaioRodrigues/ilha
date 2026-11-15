@@ -2,7 +2,7 @@
 
 import { caminho } from "./forma";
 import { Mola, type Firmeza } from "./mola";
-import { ESTADOS } from "./estados";
+import { ESTADOS, temSinalVerde } from "./estados";
 import type { Contexto, NomeEstado, NomeTela, Notificacao, SessaoFoco } from "./contexto";
 import { informarArea } from "../ponte";
 import type { Novidade } from "../atualizacao";
@@ -38,6 +38,7 @@ export class Ilha {
   private notificacao: Notificacao | null = null;
   private foco: SessaoFoco | null = null;
   private segurando = 0;
+  private sinalVerde = false;
   /** Quem cuida de procurar atualização (definido no main.ts). */
   aoProcurarAtualizacao: () => void = () => {};
   private novidade: Novidade | null = null;
@@ -167,12 +168,14 @@ export class Ilha {
     // A cada 30 s: o aviso laranja pode ter começado (virou o dia) ou acabado.
     if (agora % 30_000 < 1000 && (this.estado === "repouso" || this.estado === "aviso")) {
       if (this.estadoBase() !== this.estado) this.fechar();
+      else if (this.estado === "repouso" && temSinalVerde() !== this.sinalVerde) this.renovar();
     }
   }
 
   /** Redesenha a tela atual sem a animação de troca (dados mudaram). */
   renovar(): void {
     this.relogiosLimpar();
+    this.sinalVerde = temSinalVerde();
     const definicao = ESTADOS[this.estado];
     const novo = definicao.montar(this.contexto());
     novo.style.width = `${definicao.largura}px`;
@@ -227,6 +230,7 @@ export class Ilha {
   mostrar(estado: NomeEstado, imediato = false): void {
     this.relogiosLimpar();
     this.estado = estado;
+    this.sinalVerde = temSinalVerde();
 
     const definicao = ESTADOS[estado];
     const conteudo = definicao.montar(this.contexto());

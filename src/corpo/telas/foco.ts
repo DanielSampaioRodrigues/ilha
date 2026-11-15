@@ -8,13 +8,16 @@ const PAUSAS = [5, 10, 15];
 
 export function montarFoco(ctx: Contexto): HTMLElement {
   const { focoMinutos, pausaMinutos } = ler().config;
+  // Opções prontas + um campo para qualquer tempo (1 a 240 min).
   const opcoes = (lista: number[], escolhido: number, grupo: string) =>
     lista
       .map(
         (m) =>
           `<button type="button" class="chip ${m === escolhido ? "ativo" : ""}" data-acao="escolher" data-grupo="${grupo}" data-min="${m}">${m} min</button>`,
       )
-      .join("");
+      .join("") +
+    `<label class="chip campo-chip ${lista.includes(escolhido) ? "" : "ativo"}">outro:
+      <input type="number" min="1" max="240" data-grupo="${grupo}" value="${lista.includes(escolhido) ? "" : escolhido}" placeholder="—" aria-label="Outro tempo em minutos"> min</label>`;
 
   const ativo = ctx.foco
     ? `
@@ -57,6 +60,17 @@ export function montarFoco(ctx: Contexto): HTMLElement {
     });
     ctx.renovar();
   });
+  raiz.querySelectorAll<HTMLInputElement>(".campo-chip input").forEach((campo) =>
+    campo.addEventListener("change", () => {
+      const minutos = Math.round(Number(campo.value));
+      if (!(minutos >= 1 && minutos <= 240)) return;
+      mudar((d) => {
+        if (campo.dataset.grupo === "foco") d.config.focoMinutos = minutos;
+        else d.config.pausaMinutos = minutos;
+      });
+      ctx.renovar();
+    }),
+  );
   aoClicar(raiz, "comecar", () => ctx.comecarFoco("foco", ler().config.focoMinutos));
   aoClicar(raiz, "pausa-agora", () => ctx.comecarFoco("pausa", ler().config.pausaMinutos));
   aoClicar(raiz, "parar", () => {

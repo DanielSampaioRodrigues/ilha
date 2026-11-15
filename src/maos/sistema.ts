@@ -29,8 +29,27 @@ export const midiaComando = (acao: "alternar" | "proxima" | "anterior") => pedir
 export const definirAtalho = (atalho: string) => pedir<string>("definir_atalho", { atalho }, atalho);
 export const atalhoAtual = () => pedir<string | null>("atalho_atual", undefined, "Super+Alt+I");
 export const avisoPendente = () => pedir<AvisoExterno | null>("aviso_pendente", undefined, null);
-export const avisoClaudeLigado = () => pedir<boolean>("aviso_claude_ligado", undefined, false);
-export const ligarAvisoClaude = () => pedir<void>("ligar_aviso_claude");
+export interface ProgramaInstalado {
+  nome: string;
+  caminho: string;
+}
+
+export type ProgramaIA = "claude" | "codex" | "gemini";
+
+export interface SituacaoAviso {
+  programa: ProgramaIA;
+  encontrado: boolean;
+  ligado: boolean;
+}
+
+export const listarProgramas = () => pedir<ProgramaInstalado[]>("listar_programas", undefined, []);
+export const situacaoAvisos = () =>
+  pedir<SituacaoAviso[]>("situacao_avisos", undefined, [
+    { programa: "claude", encontrado: true, ligado: true },
+    { programa: "codex", encontrado: true, ligado: false },
+    { programa: "gemini", encontrado: false, ligado: false },
+  ]);
+export const mudarAviso = (programa: ProgramaIA, ligar: boolean) => pedir<void>("mudar_aviso", { programa, ligar });
 
 export async function iniciaComWindows(): Promise<boolean> {
   return dentroDoApp ? inicioAutomatico.isEnabled() : false;

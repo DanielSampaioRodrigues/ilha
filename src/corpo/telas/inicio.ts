@@ -1,6 +1,6 @@
 // Tela inicial da ilha aberta.
 import { ler, mudar } from "../../dados/armazem";
-import { haQuanto, pendentes, prazo, diaEscrito, quandoLembrete, paraISO } from "../../dados/datas";
+import { diaEscrito, faltaEscrito, haQuanto, paraISO, pendentes, pertoDeRenovar, prazo, quandoEscrito } from "../../dados/datas";
 import { abrirPrograma, atalhoLegivel, midiaAtual, midiaComando, type Midia } from "../../maos/sistema";
 import type { Contexto } from "../contexto";
 import { ICONES } from "../icones";
@@ -54,11 +54,32 @@ export function montarInicio(ctx: Contexto): HTMLElement {
       </section>`
     : "";
 
+  const renovam = dados.redefinicoes
+    .filter((r) => pertoDeRenovar(r, agora))
+    .sort((a, b) => a.proxima.localeCompare(b.proxima));
+  const secaoRenovam = renovam.length
+    ? `
+      <section class="secao">
+        <p class="titulo-secao verde">Renovam em breve · aproveite</p>
+        ${renovam
+          .map((r) => {
+            const quando = new Date(r.proxima);
+            return `
+          <div class="item">
+            <span class="ponto verde-fundo"></span>
+            <div class="coluna">
+              <span class="principal">${escapar(r.nome)} · ${faltaEscrito(quando, agora)}</span>
+              <span class="secundario">${quandoEscrito(quando, agora)}</span>
+            </div>
+          </div>`;
+          })
+          .join("")}
+      </section>`
+    : "";
+
   const recentes = ctx.notificacoes.slice(0, 3);
-  const lembretes = [...dados.lembretes].sort((a, b) => a.quando.localeCompare(b.quando)).slice(0, 3);
-  const agenda =
-    recentes.length || lembretes.length
-      ? `
+  const agenda = recentes.length
+    ? `
       <section class="secao">
         <p class="titulo-secao">Avisos</p>
         ${recentes
@@ -73,20 +94,8 @@ export function montarInicio(ctx: Contexto): HTMLElement {
           </div>`,
           )
           .join("")}
-        ${lembretes
-          .map(
-            (l) => `
-          <div class="item">
-            <span class="ponto amarelo"></span>
-            <div class="coluna">
-              <span class="principal">${escapar(l.titulo)}</span>
-              <span class="secundario">${quandoLembrete(l, agora)}</span>
-            </div>
-          </div>`,
-          )
-          .join("")}
       </section>`
-      : "";
+    : "";
 
   const apps = dados.apps
     .slice(0, 7)
@@ -112,6 +121,7 @@ export function montarInicio(ctx: Contexto): HTMLElement {
       </header>
       ${atualizacao}
       ${precisa}
+      ${secaoRenovam}
       ${agenda}
       <div class="item musica" hidden>
         <span class="capa">${ICONES.musica}</span>
@@ -132,10 +142,10 @@ export function montarInicio(ctx: Contexto): HTMLElement {
       <footer class="linha">
         <button type="button" class="botao" data-acao="tela" data-tela="notas">${ICONES.notas}Notas</button>
         <button type="button" class="botao" data-acao="tela" data-tela="avisos">${ICONES.cartao}Assinaturas</button>
+        <button type="button" class="botao" data-acao="tela" data-tela="redefinicoes">${ICONES.renovar}Redefinições</button>
         <button type="button" class="botao" data-acao="tela" data-tela="foco">${ICONES.relogio}Foco</button>
-        <button type="button" class="redondo" aria-label="Ajustes" data-acao="tela" data-tela="ajustes">${ENGRENAGEM}</button>
         <span class="espaco"></span>
-        <span class="versao">versão ${escapar(ctx.versao)}</span>
+        <button type="button" class="redondo" aria-label="Ajustes" data-acao="tela" data-tela="ajustes">${ENGRENAGEM}</button>
       </footer>
     </div>`);
 

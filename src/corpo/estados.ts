@@ -3,7 +3,7 @@
 // exemplo): ganham vida nas fases 2 e 3, com a voz e os motores de IA.
 
 import { ler } from "../dados/armazem";
-import { pendentes, prazo } from "../dados/datas";
+import { pendentes, pertoDeRenovar, prazo } from "../dados/datas";
 import { ICONES } from "./icones";
 import { TELAS } from "./telas";
 import { aoClicar, escapar, html } from "./ui";
@@ -30,12 +30,20 @@ function relogio(ms: number): string {
   return `${min}:${String(seg).padStart(2, "0")}`;
 }
 
+export function temSinalVerde(): boolean {
+  return ler().redefinicoes.some((r) => pertoDeRenovar(r));
+}
+
 export const ESTADOS: Record<NomeEstado, Estado> = {
   repouso: {
     largura: 190,
     raio: 20,
     compacto: true,
-    montar: () => html(`<div class="estado repouso"><i data-carinha="normal"></i></div>`),
+    // Sinal verde ao lado da carinha: alguma IA está perto de renovar o limite.
+    montar: () =>
+      html(`<div class="estado repouso"><i data-carinha="normal"></i>${
+        temSinalVerde() ? '<span class="sinal" title="Limite de IA renovando em breve: aproveite"></span>' : ""
+      }</div>`),
   },
 
   ouvindo: {

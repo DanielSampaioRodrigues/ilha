@@ -23,14 +23,16 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
 - **Clique na carinha** ou aperte **Win + Alt + I** para abrir. **Esc** volta/fecha;
   clicar fora fecha. O atalho pode ser trocado em **Ajustes** (engrenagem).
 - **Assinaturas**: cadastre o dia do vencimento; alguns dias antes a ilha fica
-  laranja até você clicar em **Paguei**. **Lembretes** avisam uma vez na hora marcada.
+  laranja até você clicar em **Paguei**. **Ver tabela** mostra tudo e o total por mês.
+- **Redefinições**: quando o limite de uma IA volta (todo dia, semana ou mês). Perto
+  da data o robô ganha um **ponto verde**: hora de aproveitar o que sobrou.
 - **Notas** com abas, salvas sozinhas. **Foco**: cronômetro com pausa no fim.
 - **Programas e sites**: o botão **Editar** na ilha aberta adiciona programas do PC
   ou endereços de sites.
 - **Música**: o que estiver tocando no Windows (Apple Music, Spotify, navegador)
   aparece com capa e botões.
-- **Aviso do Claude Code**: ligue em Ajustes; a ilha avisa quando ele termina ou
-  espera você. Outros programas podem avisar com `ilha.exe --aviso "Título" --detalhe "texto"`.
+- **Avisos do Claude Code, Codex e Gemini CLI**: ligue em Ajustes; a ilha avisa
+  quando eles terminam (ou esperam você). Outros programas podem avisar com `ilha.exe --aviso "Título" --detalhe "texto"`.
 - Se algo der errado: menu do ícone › **Abrir registro de erros**.
 - "Ouvindo", "trabalhando" e "confirmação" ainda são de teste (menu do ícone ›
   **Ver os estados**); chegam de verdade nas fases 2 e 3.
