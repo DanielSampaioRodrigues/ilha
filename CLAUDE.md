@@ -6,3 +6,4 @@
 - App alvo: Windows (Tauri 2 + TypeScript). Instalador gerado pelo GitHub Actions.
 - Ações que não têm volta (apagar, enviar, pagar, publicar, mudar configurações do sistema) sempre passam pela confirmação do Dan dentro do app.
 - Chaves de API, senhas e tokens nunca entram no código nem em commits (o repositório é público): ficam guardados só no PC do Dan, no cofre de senhas do Windows.
+- Quando o Dan precisar fazer algo no site do GitHub, explicar passo a passo e de forma didática: onde clicar, o que vai aparecer na tela e o que é normal acontecer.
