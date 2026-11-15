@@ -81,6 +81,15 @@ Rascunho visual (Design): https://claude.ai/artifact/L1YSV2mpHdq1jUw1gTC9Xp
 - **Próximas etapas da fase 1:** tradução da tela; personagens do Robozinho (junto com escolher a cor dos olhos); ícones reais dos programas no lançador.
 - **Defender:** a versão 0.1.4 foi bloqueada como "Cavalo de Troia" (alarme falso de programa novo sem assinatura digital). Restaurada pelo Dan. Falta enviar o alarme falso para a Microsoft e estudar assinatura digital.
 
+## Ideias vistas no Kobi (concorrente, 16/11/2026)
+Produto vendido por R$ 89,90 (pagamento único), Windows e Mac. Inspirar nas ideias, não copiar visual nem nome.
+- **Rápidas (fase 1):** volume na ilha; timers com nome e cronômetro; histórico do que foi copiado e "textos rápidos" (ex.: "copia meu PIX"); gerador de senha; esconder sozinha em jogo/vídeo em tela cheia; hábitos (água, leitura, exercício) e lembrete de pausa; aviso de PC pesado e "como está meu PC"; lista de tarefas com prioridade e subtarefas; música tocando aparecendo na própria ilha fechada (nome + barrinhas).
+- **Personagem:** mais expressões (13) e animações quando parado (cochilar, brincar); cor, olhos e acessórios.
+- **Fase 2:** "Central" em janela grande com menu lateral (conversa, memória, tarefas, ajustes) — a ilha fica para o rápido; comandos simples resolvidos sem IA (volume, abrir app, timer), mais rápidos e grátis; plano grátis de reserva (Gemini/Groq) quando a assinatura bater no limite; botão "testar esta IA"; memória ("guardar algo importante").
+- **Fase 3:** ações com confirmação **e desfazer** (ex.: organizar a área de trabalho); "modo só executar" (sem falar); interromper a qualquer momento.
+- **Celular:** assinaturas, redefinições e tarefas aparecendo no Calendário do iPhone (link de agenda pela rede de casa).
+- **Não copiar:** microfone sempre ligado (decidido contra, por causa do consultório).
+
 ## Pendências a conferir
 - Termos de uso das assinaturas via CLI para uso pessoal.
 - Se o app do Claude para desktop mostra sessões do Claude Code iniciadas pela ilha.
