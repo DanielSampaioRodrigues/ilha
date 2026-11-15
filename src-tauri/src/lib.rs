@@ -46,10 +46,12 @@ pub fn run() {
         .manage(janela::AreaClicavel::default())
         .manage(atalho::AtalhoAtual::default())
         .manage(avisos::AvisoPendente::default())
+        .manage(corpo::janela_ativa::VigiarJanelas::default())
         .invoke_handler(tauri::generate_handler![
             janela::definir_area,
             atalho::definir_atalho,
             atalho::atalho_atual,
+            corpo::janela_ativa::vigiar_janelas,
             avisos::aviso_pendente,
             maos::programas::abrir_programa,
             maos::programas::listar_programas,
@@ -67,6 +69,7 @@ pub fn run() {
             let app = app.handle();
             janela::preparar(app)?;
             corpo::bandeja::criar(app)?;
+            corpo::janela_ativa::iniciar(app.clone());
             atalho::registrar_padrao(app, &app.state::<atalho::AtalhoAtual>());
 
             // Aberta por outro programa com um aviso: guarda para a interface mostrar.

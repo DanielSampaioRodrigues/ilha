@@ -1,6 +1,6 @@
 // Ajustes: nome, cor, atalho, iniciar com o Windows, avisos dos programas de IA.
 // Tudo que liga/desliga usa o mesmo interruptor: à direita, verde/cor = ligado.
-import { ler, mudar } from "../../dados/armazem";
+import { ler, mudar, type ModoDiscreto } from "../../dados/armazem";
 import {
   abrirRegistros,
   atalhoLegivel,
@@ -8,6 +8,7 @@ import {
   definirInicioComWindows,
   iniciaComWindows,
   mudarAviso,
+  PROGRAMAS_COM_ABAS,
   situacaoAvisos,
   type ProgramaIA,
   type SituacaoAviso,
@@ -71,6 +72,28 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       </section>
 
       <section class="secao">
+        <p class="titulo-secao">Modo discreto</p>
+        <div class="item coluna-item">
+          <span class="secundario">A ilha em repouso vira um risquinho no topo, para não tampar abas. Passe o mouse nele para ela crescer.</span>
+          <div class="segmentos" role="radiogroup" aria-label="Modo discreto">
+            ${(
+              [
+                ["desligado", "Desligado"],
+                ["automatico", "Automático"],
+                ["sempre", "Sempre"],
+              ] as [ModoDiscreto, string][]
+            )
+              .map(
+                ([v, t]) =>
+                  `<button type="button" role="radio" class="segmento" aria-checked="${dados.config.modoDiscreto === v}" data-acao="discreto" data-modo="${v}">${t}</button>`,
+              )
+              .join("")}
+          </div>
+          <span class="secundario explica-discreto"></span>
+        </div>
+      </section>
+
+      <section class="secao">
         <p class="titulo-secao">Atalho para abrir e fechar</p>
         <div class="item coluna-item">
           <span class="secundario">Agora: <strong class="atalho-atual">${atalhoLegivel(ctx.atalho)}</strong></span>
@@ -125,6 +148,22 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     mudar((d) => (d.config.corDestaque = cor));
     aplicarCor(cor);
     raiz.querySelectorAll(".amostra").forEach((a) => a.classList.toggle("ativa", a === b));
+  });
+
+  // Modo discreto
+  const explica = raiz.querySelector<HTMLElement>(".explica-discreto")!;
+  const textoDiscreto: Record<ModoDiscreto, string> = {
+    desligado: "A ilha fica sempre do tamanho normal.",
+    automatico: `Vira risquinho quando um destes estiver na frente, encostado no topo: ${Object.values(PROGRAMAS_COM_ABAS).join(", ")}.`,
+    sempre: "Em repouso, a ilha é sempre um risquinho.",
+  };
+  explica.textContent = textoDiscreto[dados.config.modoDiscreto];
+  aoClicar(raiz, "discreto", (b) => {
+    const modo = b.dataset.modo as ModoDiscreto;
+    mudar((d) => (d.config.modoDiscreto = modo));
+    ctx.definirModoDiscreto(modo);
+    raiz.querySelectorAll(".segmento").forEach((s) => s.setAttribute("aria-checked", String(s === b)));
+    explica.textContent = textoDiscreto[modo];
   });
 
   // Atalho

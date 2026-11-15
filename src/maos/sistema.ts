@@ -42,6 +42,30 @@ export interface SituacaoAviso {
   ligado: boolean;
 }
 
+export interface JanelaAtiva {
+  programa: string;
+  noTopo: boolean;
+}
+
+/** Liga a observação do programa em primeiro plano (só no modo discreto automático). */
+export const vigiarJanelas = (ligar: boolean) => pedir<void>("vigiar_janelas", { ligar });
+
+/** Programas com abas no topo, onde a ilha atrapalharia. */
+export const PROGRAMAS_COM_ABAS: Record<string, string> = {
+  "chrome.exe": "Chrome",
+  "msedge.exe": "Edge",
+  "opera.exe": "Opera",
+  "firefox.exe": "Firefox",
+  "brave.exe": "Brave",
+  "vivaldi.exe": "Vivaldi",
+  "arc.exe": "Arc",
+  "zen.exe": "Zen",
+  "explorer.exe": "Explorador de Arquivos",
+  "windowsterminal.exe": "Terminal",
+  "code.exe": "VS Code",
+  "cursor.exe": "Cursor",
+};
+
 export const listarProgramas = () => pedir<ProgramaInstalado[]>("listar_programas", undefined, []);
 export const situacaoAvisos = () =>
   pedir<SituacaoAviso[]>("situacao_avisos", undefined, [

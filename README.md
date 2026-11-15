@@ -25,7 +25,10 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
 - **Assinaturas**: cadastre o dia do vencimento; alguns dias antes a ilha fica
   laranja até você clicar em **Paguei**. **Ver tabela** mostra tudo e o total por mês.
 - **Redefinições**: quando o limite de uma IA volta (todo dia, semana ou mês). Perto
-  da data o robô ganha um **ponto verde**: hora de aproveitar o que sobrou.
+  da data, o **símbolo da IA** aparece ao lado do robô; passe o mouse para ver o
+  modelo e quanto falta.
+- **Modo discreto** (Ajustes): em repouso a ilha vira um risquinho para não tampar
+  as abas. "Automático" faz isso só com navegador (e afins) na frente.
 - **Notas** com abas, salvas sozinhas. **Foco**: cronômetro com pausa no fim.
 - **Programas e sites**: o botão **Editar** na ilha aberta adiciona programas do PC
   ou endereços de sites.

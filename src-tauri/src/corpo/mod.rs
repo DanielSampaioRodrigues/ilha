@@ -3,3 +3,4 @@ pub mod atalho;
 pub mod avisos;
 pub mod bandeja;
 pub mod janela;
+pub mod janela_ativa;

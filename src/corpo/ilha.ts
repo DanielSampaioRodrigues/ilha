@@ -1,13 +1,14 @@
 // A ilha: desenha a forma preta, anima a gota e troca o conteúdo de cada estado.
 
-import { caminho } from "./forma";
+import { caminho, OMBRO } from "./forma";
 import { Mola, type Firmeza } from "./mola";
 import { ESTADOS, temSinalVerde } from "./estados";
 import type { Contexto, NomeEstado, NomeTela, Notificacao, SessaoFoco } from "./contexto";
 import { informarArea } from "../ponte";
 import type { Novidade } from "../atualizacao";
-import { ler } from "../dados/armazem";
+import { ler, type ModoDiscreto } from "../dados/armazem";
 import { pendentes } from "../dados/datas";
+import { vigiarJanelas } from "../maos/sistema";
 
 // Abrindo: a altura desce rápido e balança; a largura vem um pouco depois.
 // Isso faz a ilha parecer uma gota escorrendo antes de se espalhar.
@@ -23,6 +24,7 @@ export class Ilha {
   private readonly largura = new Mola(ESTADOS.repouso.largura);
   private readonly altura = new Mola(40);
   private readonly raio = new Mola(ESTADOS.repouso.raio);
+  private readonly ombro = new Mola(OMBRO);
   private gota = 0;
 
   private readonly forma: SVGPathElement;
@@ -39,6 +41,12 @@ export class Ilha {
   private foco: SessaoFoco | null = null;
   private segurando = 0;
   private sinalVerde = false;
+  // Modo discreto e "passar o mouse".
+  private modoDiscreto: ModoDiscreto = "desligado";
+  private janelaComAbas = false;
+  private mouseDentro = false;
+  private expandida = false;
+  private relogioMouse = 0;
   /** Quem cuida de procurar atualização (definido no main.ts). */
   aoProcurarAtualizacao: () => void = () => {};
   private novidade: Novidade | null = null;
@@ -105,8 +113,11 @@ export class Ilha {
     this.mostrar("aberta");
   }
 
-  /** Estado de descanso: foco > aviso laranja > repouso. */
+  /** Estado de descanso: discreto (se ligado) > foco > aviso laranja > repouso. */
   private estadoBase(): NomeEstado {
+    const discreto =
+      this.modoDiscreto === "sempre" || (this.modoDiscreto === "automatico" && this.janelaComAbas);
+    if (discreto && !this.expandida) return "discreto";
     if (this.foco) return "foco";
     if (pendentes(ler().assinaturas).length) return "aviso";
     return "repouso";
@@ -114,7 +125,56 @@ export class Ilha {
 
   fechar(): void {
     this.tela = "inicio";
+    if (!this.mouseDentro) this.expandida = false;
     this.mostrar(this.estadoBase());
+  }
+
+  /** Estados de descanso, que podem ser trocados sem atrapalhar o Dan. */
+  private emDescanso(): boolean {
+    return ["repouso", "aviso", "foco", "discreto", "renovacao"].includes(this.estado);
+  }
+
+  definirModoDiscreto(modo: ModoDiscreto): void {
+    this.modoDiscreto = modo;
+    vigiarJanelas(modo === "automatico").catch(() => {});
+    if (modo !== "automatico") this.janelaComAbas = false;
+    if (this.emDescanso()) this.fechar();
+  }
+
+  /** Programa na frente mudou (só chega quando o modo é "automático"). */
+  definirJanelaComAbas(comAbas: boolean): void {
+    if (comAbas === this.janelaComAbas) return;
+    this.janelaComAbas = comAbas;
+    if (this.emDescanso() && !this.mouseDentro) this.fechar();
+  }
+
+  /**
+   * O mouse entrou ou saiu da ilha. Parado em cima por um instante: o risquinho
+   * cresce e, se alguma IA está renovando, aparece qual e quanto falta.
+   * Saiu: volta ao descanso pouco depois.
+   */
+  mouse(dentro: boolean): void {
+    this.mouseDentro = dentro;
+    window.clearTimeout(this.relogioMouse);
+    if (dentro) {
+      this.relogioMouse = window.setTimeout(() => {
+        if (!this.mouseDentro) return;
+        if (this.estado === "discreto") {
+          this.expandida = true;
+          if (this.estadoBase() === "repouso" && temSinalVerde()) this.mostrar("renovacao");
+          else this.fechar();
+        } else if (this.estado === "repouso" && temSinalVerde()) {
+          this.mostrar("renovacao");
+        }
+      }, 350);
+    } else {
+      this.relogioMouse = window.setTimeout(() => {
+        if (this.mouseDentro) return;
+        const voltar = this.expandida || this.estado === "renovacao";
+        this.expandida = false;
+        if (voltar && this.emDescanso()) this.fechar();
+      }, 700);
+    }
   }
 
   irPara(tela: NomeTela): void {
@@ -166,9 +226,9 @@ export class Ilha {
       }
     }
     // A cada 30 s: o aviso laranja pode ter começado (virou o dia) ou acabado.
-    if (agora % 30_000 < 1000 && (this.estado === "repouso" || this.estado === "aviso")) {
+    if (agora % 30_000 < 1000 && ["repouso", "aviso", "discreto"].includes(this.estado)) {
       if (this.estadoBase() !== this.estado) this.fechar();
-      else if (this.estado === "repouso" && temSinalVerde() !== this.sinalVerde) this.renovar();
+      else if (temSinalVerde() !== this.sinalVerde) this.renovar();
     }
   }
 
@@ -253,10 +313,12 @@ export class Ilha {
     this.largura.alvo = definicao.largura;
     this.altura.alvo = altura;
     this.raio.alvo = definicao.raio;
+    this.ombro.alvo = definicao.ombro ?? OMBRO;
     if (imediato) {
       this.largura.pular();
       this.altura.pular();
       this.raio.pular();
+      this.ombro.pular();
     }
 
     this.informarArea();
@@ -289,6 +351,7 @@ export class Ilha {
       procurarAtualizacao: () => this.aoProcurarAtualizacao(),
       comecarFoco: (tipo, minutos) => this.comecarFoco(tipo, minutos),
       pararFoco: () => this.pararFoco(),
+      definirModoDiscreto: (modo) => this.definirModoDiscreto(modo),
     };
   }
 
@@ -306,6 +369,7 @@ export class Ilha {
         this.largura.alvo >= this.largura.valor ? ABRINDO_LARGURA : FECHANDO_LARGURA,
       );
       this.raio.passo(segundos, FECHANDO_LARGURA);
+      this.ombro.passo(segundos, FECHANDO_LARGURA);
 
       // A gota acompanha a velocidade com que a ilha desce (ou sobe).
       const alvoGota = Math.max(-8, Math.min(30, this.altura.velocidade * 0.03));
@@ -315,11 +379,16 @@ export class Ilha {
       this.revelarSeChegou();
 
       const parado =
-        this.altura.parada && this.largura.parada && this.raio.parada && Math.abs(this.gota) < 0.2;
+        this.altura.parada &&
+        this.largura.parada &&
+        this.raio.parada &&
+        this.ombro.parada &&
+        Math.abs(this.gota) < 0.2;
       if (parado) {
         this.largura.pular();
         this.altura.pular();
         this.raio.pular();
+        this.ombro.pular();
         this.gota = 0;
         this.redesenhar();
         this.revelarSeChegou(true);
@@ -358,6 +427,7 @@ export class Ilha {
         altura: this.altura.valor,
         raio: this.raio.valor,
         gota: this.gota,
+        ombro: this.ombro.valor,
       },
       this.centro,
     );

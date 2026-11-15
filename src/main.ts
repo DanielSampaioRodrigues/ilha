@@ -7,7 +7,15 @@ import { procurar, versaoAtual } from "./atualizacao";
 import { carregar, ler, mudar } from "./dados/armazem";
 import { avancar } from "./dados/datas";
 import { aplicarCor } from "./corpo/tema";
-import { atalhoAtual, avisoPendente, definirAtalho, listarProgramas, type AvisoExterno } from "./maos/sistema";
+import {
+  atalhoAtual,
+  avisoPendente,
+  definirAtalho,
+  listarProgramas,
+  PROGRAMAS_COM_ABAS,
+  type AvisoExterno,
+  type JanelaAtiva,
+} from "./maos/sistema";
 
 // Erros da interface também vão para o registro de erros.
 if (dentroDoApp) {
@@ -28,6 +36,12 @@ async function iniciar(): Promise<void> {
     ? await definirAtalho(escolhido).catch(() => atalhoAtual())
     : await atalhoAtual().catch(() => null);
   ilha.definirAtalho(registrado);
+
+  // Modo discreto: risquinho em repouso; no automático, só com navegador (ou
+  // outro programa com abas) na frente e encostado no topo da tela.
+  ilha.definirModoDiscreto(ler().config.modoDiscreto);
+  ouvir<JanelaAtiva>("ilha:janela-ativa", (j) => ilha.definirJanelaComAbas(j.noTopo && j.programa in PROGRAMAS_COM_ABAS));
+  ouvir<boolean>("ilha:mouse", (dentro) => ilha.mouse(dentro));
 
   ouvir("ilha:abrir", () => ilha.abrir());
   ouvir("ilha:alternar", () => ilha.alternar());
@@ -122,6 +136,9 @@ function montarTeste(ilha: Ilha): void {
     ["pronta", () => ilha.notificar({ titulo: "Claude Code terminou", detalhe: "ilha", expressao: "feliz" })],
     ["aviso", () => ilha.mostrar("aviso")],
     ["foco", () => ilha.comecarFoco("foco", 25)],
+    ["discreto", () => ilha.definirModoDiscreto("sempre")],
+    ["mouse ↓", () => ilha.mouse(true)],
+    ["mouse ↑", () => ilha.mouse(false)],
     ["confirmação", () => ilha.mostrar("confirmacao")],
     ...(["inicio", "avisos", "tabela", "redefinicoes", "notas", "apps", "foco", "ajustes"] as NomeTela[]).map(
       (t): [string, () => void] => [`tela ${t}`, () => ilha.abrir(t)],

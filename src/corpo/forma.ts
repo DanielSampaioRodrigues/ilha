@@ -3,17 +3,21 @@
 // "gota" empurra o meio da borda de baixo para baixo, como líquido escorrendo.
 
 export const OMBRO = 14;
+const OMBRO_PADRAO = OMBRO;
 
 export interface Forma {
   largura: number;
   altura: number;
   raio: number;
   gota: number;
+  /** Tamanho da curvinha dos ombros (menor no modo discreto). */
+  ombro?: number;
 }
 
 const n = (v: number) => v.toFixed(2);
 
 export function caminho(f: Forma, centro: number): string {
+  const OMBRO = Math.max(1, f.ombro ?? OMBRO_PADRAO);
   const largura = Math.max(f.largura, 8);
   const altura = Math.max(f.altura, OMBRO + 2);
   const raio = Math.max(0, Math.min(f.raio, altura - OMBRO, largura / 2));
@@ -34,13 +38,13 @@ export function caminho(f: Forma, centro: number): string {
   return [
     `M ${n(x0)} 0`,
     `H ${n(x3)}`,
-    `A ${OMBRO} ${OMBRO} 0 0 0 ${n(x2)} ${OMBRO}`,
+    `A ${n(OMBRO)} ${n(OMBRO)} 0 0 0 ${n(x2)} ${n(OMBRO)}`,
     `V ${n(altura - raio)}`,
     `A ${n(raio)} ${n(raio)} 0 0 1 ${n(inicioBase)} ${n(altura)}`,
     `C ${n(inicioBase - vao * 0.2)} ${n(fundo)} ${n(fimBase + vao * 0.2)} ${n(fundo)} ${n(fimBase)} ${n(altura)}`,
     `A ${n(raio)} ${n(raio)} 0 0 1 ${n(x1)} ${n(altura - raio)}`,
-    `V ${OMBRO}`,
-    `A ${OMBRO} ${OMBRO} 0 0 0 ${n(x0)} 0`,
+    `V ${n(OMBRO)}`,
+    `A ${n(OMBRO)} ${n(OMBRO)} 0 0 0 ${n(x0)} 0`,
     "Z",
   ].join(" ");
 }

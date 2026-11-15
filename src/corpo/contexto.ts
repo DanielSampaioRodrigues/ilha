@@ -10,6 +10,8 @@ export type NomeEstado =
   | "aviso"
   | "confirmacao"
   | "foco"
+  | "discreto"
+  | "renovacao"
   | "aberta";
 
 export type NomeTela =
@@ -66,5 +68,7 @@ export interface Contexto {
   notificacao: Notificacao | null;
   foco: SessaoFoco | null;
   comecarFoco(tipo: SessaoFoco["tipo"], minutos: number): void;
+  /** Liga/desliga o modo discreto (risquinho em repouso). */
+  definirModoDiscreto(modo: import("../dados/armazem").ModoDiscreto): void;
   pararFoco(): void;
 }

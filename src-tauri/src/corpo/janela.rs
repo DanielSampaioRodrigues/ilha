@@ -137,6 +137,8 @@ fn vigiar_mouse(app: AppHandle) {
             if dentro == atravessando {
                 atravessando = !dentro;
                 let _ = j.set_ignore_cursor_events(atravessando);
+                // A interface usa isto para "passar o mouse" (modo discreto, sinal das IAs).
+                let _ = app.emit("ilha:mouse", dentro);
             }
         }
     });

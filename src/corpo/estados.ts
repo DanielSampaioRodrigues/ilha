@@ -3,7 +3,8 @@
 // exemplo): ganham vida nas fases 2 e 3, com a voz e os motores de IA.
 
 import { ler } from "../dados/armazem";
-import { pendentes, pertoDeRenovar, prazo } from "../dados/datas";
+import { faltaEscrito, pendentes, pertoDeRenovar, prazo, quandoEscrito } from "../dados/datas";
+import { seloDa } from "./selos";
 import { ICONES } from "./icones";
 import { TELAS } from "./telas";
 import { aoClicar, escapar, html } from "./ui";
@@ -12,6 +13,8 @@ import type { Contexto, NomeEstado } from "./contexto";
 export interface Estado {
   largura: number;
   raio: number;
+  /** Curvinha dos ombros (padrão 14). */
+  ombro?: number;
   /** Estados compactos abrem a ilha completa ao serem clicados. */
   compacto: boolean;
   montar(ctx: Contexto): HTMLElement;
@@ -30,8 +33,15 @@ function relogio(ms: number): string {
   return `${min}:${String(seg).padStart(2, "0")}`;
 }
 
+/** Redefinições perto de renovar, da mais próxima para a mais distante. */
+export function renovandoEmBreve() {
+  return ler()
+    .redefinicoes.filter((r) => pertoDeRenovar(r))
+    .sort((a, b) => a.proxima.localeCompare(b.proxima));
+}
+
 export function temSinalVerde(): boolean {
-  return ler().redefinicoes.some((r) => pertoDeRenovar(r));
+  return renovandoEmBreve().length > 0;
 }
 
 export const ESTADOS: Record<NomeEstado, Estado> = {
@@ -39,11 +49,57 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
     largura: 190,
     raio: 20,
     compacto: true,
-    // Sinal verde ao lado da carinha: alguma IA está perto de renovar o limite.
-    montar: () =>
-      html(`<div class="estado repouso"><i data-carinha="normal"></i>${
-        temSinalVerde() ? '<span class="sinal" title="Limite de IA renovando em breve: aproveite"></span>' : ""
-      }</div>`),
+    // Símbolo da IA ao lado da carinha: o limite dela renova em breve.
+    // Passar o mouse mostra qual modelo e quanto falta (estado "renovacao").
+    montar: () => {
+      const selos = renovandoEmBreve()
+        .slice(0, 2)
+        .map((r) => seloDa(r, 14))
+        .join("");
+      return html(`<div class="estado repouso"><i data-carinha="normal"></i>${selos ? `<span class="sinal-ia">${selos}</span>` : ""}</div>`);
+    },
+  },
+
+  renovacao: {
+    largura: 400,
+    raio: 22,
+    compacto: true,
+    montar: () => {
+      const agora = new Date();
+      const linhas = renovandoEmBreve()
+        .map((r) => {
+          const quando = new Date(r.proxima);
+          return `
+          <div class="linha linha-renova">
+            ${seloDa(r, 22)}
+            <div class="coluna">
+              <span class="principal">${escapar(r.nome)} renova ${faltaEscrito(quando, agora)}</span>
+              <span class="secundario">${quandoEscrito(quando, agora)} · aproveite o que sobrou</span>
+            </div>
+          </div>`;
+        })
+        .join("");
+      return html(`<div class="estado compacto renovacao">${linhas || '<span class="secundario">Nada renovando em breve.</span>'}</div>`);
+    },
+  },
+
+  discreto: {
+    largura: 120,
+    raio: 4,
+    ombro: 4,
+    compacto: true,
+    // Só um risquinho; a faixa colorida no meio diz se há algo (laranja = pagar,
+    // verde = IA renovando, cor de destaque = foco).
+    montar: (ctx) => {
+      const cor = ctx.foco
+        ? "destaque"
+        : pendentes(ler().assinaturas).length
+          ? "laranja"
+          : temSinalVerde()
+            ? "verde"
+            : "";
+      return html(`<div class="estado discreto">${cor ? `<span class="faixa ${cor}"></span>` : ""}</div>`);
+    },
   },
 
   ouvindo: {

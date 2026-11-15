@@ -3,6 +3,7 @@ import { ler, mudar } from "../../dados/armazem";
 import { diaEscrito, faltaEscrito, haQuanto, paraISO, pendentes, pertoDeRenovar, prazo, quandoEscrito } from "../../dados/datas";
 import { abrirPrograma, atalhoLegivel, midiaAtual, midiaComando, type Midia } from "../../maos/sistema";
 import type { Contexto } from "../contexto";
+import { seloDa } from "../selos";
 import { ICONES } from "../icones";
 import { aoClicar, escapar, html, recadoTemporario } from "../ui";
 
@@ -66,9 +67,9 @@ export function montarInicio(ctx: Contexto): HTMLElement {
             const quando = new Date(r.proxima);
             return `
           <div class="item">
-            <span class="ponto verde-fundo"></span>
+            <span class="selo-caixa perto">${seloDa(r, 20)}</span>
             <div class="coluna">
-              <span class="principal">${escapar(r.nome)} · ${faltaEscrito(quando, agora)}</span>
+              <span class="principal">${escapar(r.nome)} · renova ${faltaEscrito(quando, agora)}</span>
               <span class="secundario">${quandoEscrito(quando, agora)}</span>
             </div>
           </div>`;

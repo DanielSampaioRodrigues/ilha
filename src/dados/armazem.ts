@@ -26,9 +26,13 @@ export interface Redefinicao {
   /** Próxima redefinição: AAAA-MM-DDTHH:MM, no horário do PC. */
   proxima: string;
   repete: "nao" | "diario" | "semanal" | "mensal";
-  /** Quantos dias antes o robô mostra o sinal verde (0 = sem sinal). */
+  /** Quantos dias antes o robô mostra o sinal (0 = sem sinal). */
   avisarDias: number;
+  /** Qual IA (para o símbolo). "auto" = descobre pelo nome. */
+  ia?: "auto" | "claude" | "chatgpt" | "gemini" | "deepseek" | "outra";
 }
+
+export type ModoDiscreto = "desligado" | "automatico" | "sempre";
 
 /** Versão antiga (até a 0.1.8): lembretes de uma vez só. */
 interface LembreteAntigo {
@@ -54,6 +58,8 @@ export interface Config {
   nome: string;
   /** Cor dos botões e destaques. */
   corDestaque: string;
+  /** Ilha vira um risquinho em repouso (sempre, ou com navegador na frente). */
+  modoDiscreto: ModoDiscreto;
   /** Já trocou os sites padrão pelos programas instalados com o mesmo nome. */
   appsConferidos: boolean;
   /** Atalho escolhido em Ajustes (null = o padrão). */
@@ -92,6 +98,7 @@ function padrao(): Dados {
     config: {
       nome: "Dan",
       corDestaque: "#3FE6EE",
+      modoDiscreto: "desligado",
       appsConferidos: false,
       atalho: null,
       focoMinutos: 25,
