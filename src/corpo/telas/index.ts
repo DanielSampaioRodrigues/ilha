@@ -12,6 +12,8 @@ import { montarPc } from "./pc";
 import { montarTarefas } from "./tarefas";
 import { montarTextos } from "./textos";
 import { montarTimers } from "./timers";
+import { montarTraducoes } from "./traducoes";
+import { montarPersonagem } from "./personagem";
 
 export const TELAS: Record<NomeTela, { montar(ctx: Contexto): HTMLElement }> = {
   inicio: { montar: montarInicio },
@@ -27,4 +29,6 @@ export const TELAS: Record<NomeTela, { montar(ctx: Contexto): HTMLElement }> = {
   timers: { montar: montarTimers },
   textos: { montar: montarTextos },
   pc: { montar: montarPc },
+  traducoes: { montar: montarTraducoes },
+  personagem: { montar: montarPersonagem },
 };

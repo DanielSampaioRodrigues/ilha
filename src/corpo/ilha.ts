@@ -52,6 +52,7 @@ export class Ilha {
   private musica: Midia | null = null;
   private volume: Volume | null = null;
   private relogioVolume = 0;
+  private dormindo = false;
   /** Quem cuida de procurar atualização (definido no main.ts). */
   aoProcurarAtualizacao: () => void = () => {};
   private novidade: Novidade | null = null;
@@ -162,6 +163,14 @@ export class Ilha {
     }, 1600);
   }
 
+  /** Mouse parado há 5 min (ou voltou a mexer): cochila ou acorda. */
+  ocioso(parado: boolean): void {
+    const dormir = parado && ler().config.cochilar;
+    if (dormir === this.dormindo) return;
+    this.dormindo = dormir;
+    if (this.estado === "repouso") this.renovar();
+  }
+
   /** Começa um timer com nome (fica salvo: sobrevive a fechar a ilha). */
   comecarTimer(nome: string, minutos: number): void {
     mudar((d) =>
@@ -191,6 +200,10 @@ export class Ilha {
    */
   mouse(dentro: boolean): void {
     this.mouseDentro = dentro;
+    if (dentro && this.dormindo) {
+      this.dormindo = false;
+      if (this.estado === "repouso") this.renovar();
+    }
     window.clearTimeout(this.relogioMouse);
     if (dentro) {
       this.relogioMouse = window.setTimeout(() => {
@@ -223,6 +236,7 @@ export class Ilha {
 
   /** Mostra um aviso (de outro programa, de um lembrete, do foco…). */
   notificar(n: Omit<Notificacao, "id" | "quando">): void {
+    this.dormindo = false;
     const completa: Notificacao = { ...n, id: String(Date.now()), quando: new Date() };
     this.notificacoes = [completa, ...this.notificacoes].slice(0, 6);
     if (this.estado === "aberta") {
@@ -252,7 +266,7 @@ export class Ilha {
       mudar((d) => (d.timers = d.timers.filter((t) => t.fim > agora)));
       tocarAlarme();
       for (const t of acabaram) {
-        this.notificar({ titulo: `${t.nome}: acabou o tempo`, detalhe: `Timer de ${t.minutos} min`, expressao: "alerta" });
+        this.notificar({ titulo: `${t.nome}: acabou o tempo`, detalhe: `Timer de ${t.minutos} min`, expressao: "surpreso" });
       }
     }
     if (this.foco && agora >= this.foco.fim) {
@@ -268,7 +282,7 @@ export class Ilha {
           botao: { texto: "Pausar", fazer: () => this.comecarFoco("pausa", pausa) },
         });
       } else {
-        this.notificar({ titulo: "Fim da pausa", detalhe: "Bora voltar?", expressao: "normal" });
+        this.notificar({ titulo: "Fim da pausa", detalhe: "Bora voltar?", expressao: "piscadinha" });
       }
     }
     // A cada 30 s: o aviso laranja pode ter começado (virou o dia) ou acabado.
@@ -384,6 +398,7 @@ export class Ilha {
       notificacao: this.notificacao,
       foco: this.foco,
       musica: this.musica,
+      dormindo: this.dormindo,
       volume: this.volume,
       ir: (estado) => this.mostrar(estado),
       fechar: () => this.fechar(),

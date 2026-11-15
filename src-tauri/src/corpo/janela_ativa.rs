@@ -28,6 +28,11 @@ pub fn vigiar_janelas(ligar: bool, estado: State<'_, VigiarJanelas>) {
     estado.0.store(ligar, Ordering::Relaxed);
 }
 
+/// Nome do programa em primeiro plano agora (ex.: "chrome.exe"), se não for a ilha.
+pub fn programa_agora() -> Option<String> {
+    sistema::janela_ativa().map(|j| j.programa)
+}
+
 pub fn iniciar(app: AppHandle) {
     thread::spawn(move || {
         let mut ultima: Option<JanelaAtiva> = None;

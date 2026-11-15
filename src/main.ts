@@ -7,6 +7,7 @@ import { procurar, versaoAtual } from "./atualizacao";
 import { carregar, ler, mudar } from "./dados/armazem";
 import { avancar, paraISO } from "./dados/datas";
 import { aplicarCor } from "./corpo/tema";
+import { olharTodas } from "./corpo/carinha";
 import {
   atalhoAtual,
   avisoPendente,
@@ -45,6 +46,12 @@ async function iniciar(): Promise<void> {
   ilha.definirModoDiscreto(ler().config.modoDiscreto);
   ouvir<JanelaAtiva>("ilha:janela-ativa", (j) => ilha.definirJanelaComAbas(j.noTopo && j.programa in PROGRAMAS_COM_ABAS));
   ouvir<boolean>("ilha:mouse", (dentro) => ilha.mouse(dentro));
+
+  // Personagem: olhos seguem o mouse; cochila com o mouse parado.
+  ouvir<{ x: number; y: number }>("ilha:olhar", (o) => {
+    if (ler().config.olhosSeguemMouse) olharTodas(o.x, o.y);
+  });
+  ouvir<boolean>("ilha:ocioso", (parado) => ilha.ocioso(parado));
 
   // Atividades ao vivo na ilha fechada: música tocando e volume mudando.
   const conferirMusica = () => midiaAtual(false).then((m) => ilha.definirMusica(m)).catch(() => {});
@@ -108,7 +115,11 @@ async function iniciar(): Promise<void> {
 
   // Avisos de outros programas (ex.: Claude Code).
   const mostrarAviso = (aviso: AvisoExterno) =>
-    ilha.notificar({ titulo: aviso.titulo, detalhe: aviso.detalhe, expressao: "feliz" });
+    ilha.notificar({
+      titulo: aviso.titulo,
+      detalhe: aviso.detalhe,
+      expressao: /não consegui|erro/i.test(aviso.titulo) ? "triste" : /esperando/i.test(aviso.titulo) ? "pensando" : "feliz",
+    });
   ouvir<AvisoExterno>("ilha:notificar", mostrarAviso);
   avisoPendente()
     .then((aviso) => aviso && mostrarAviso(aviso))
@@ -126,7 +137,7 @@ async function iniciar(): Promise<void> {
         return proxima ? [{ ...r, proxima }] : [];
       });
     });
-    for (const r of renovadas) ilha.notificar({ titulo: `${r.nome} renovou`, detalhe: "O limite voltou", expressao: "feliz" });
+    for (const r of renovadas) ilha.notificar({ titulo: `${r.nome} renovou`, detalhe: "O limite voltou", expressao: "apaixonado" });
   };
   conferirRedefinicoes();
   window.setInterval(conferirRedefinicoes, 15_000);
@@ -195,10 +206,12 @@ function montarTeste(ilha: Ilha): void {
     ["música", () => ilha.definirMusica({ titulo: "Highway to Hell", artista: "AC/DC", tocando: true, capa: null })],
     ["volume", () => ilha.mostrarVolume({ nivel: 64, mudo: false })],
     ["timer", () => ilha.comecarTimer("Macarrão", 10)],
+    ["cochilar", () => ilha.ocioso(true)],
+    ["acordar", () => ilha.ocioso(false)],
     ["mouse ↓", () => ilha.mouse(true)],
     ["mouse ↑", () => ilha.mouse(false)],
     ["confirmação", () => ilha.mostrar("confirmacao")],
-    ...(["inicio", "tarefas", "habitos", "timers", "textos", "pc", "redefinicoes", "ajustes"] as NomeTela[]).map(
+    ...(["inicio", "personagem", "traducoes", "tarefas", "habitos", "timers", "textos", "pc", "ajustes"] as NomeTela[]).map(
       (t): [string, () => void] => [`tela ${t}`, () => ilha.abrir(t)],
     ),
   ];

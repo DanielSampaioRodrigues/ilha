@@ -140,7 +140,7 @@ export function montarInicio(ctx: Contexto): HTMLElement {
   const raiz = html(`
     <div class="estado aberta">
       <header class="linha">
-        <img src="/robozinho.png" alt="" class="cabeca" width="52" height="52">
+        ${dados.config.cabecaAberta === "carinha" ? '<span class="cabeca-carinha"><i data-carinha="feliz" data-tamanho="3" data-acessorio></i></span>' : '<img src="/robozinho.png" alt="" class="cabeca" width="52" height="52">'}
         <div class="coluna">
           <span class="saudacao">${saudacao()}, ${escapar(dados.config.nome || "Dan")}</span>
           <span class="secundario subtitulo">${ctx.atalho ? `${atalhoLegivel(ctx.atalho)} abre e fecha a ilha` : "Clique na carinha para abrir a ilha"}</span>
@@ -186,6 +186,8 @@ export function montarInicio(ctx: Contexto): HTMLElement {
             ["timers", ICONES.timer, "Timers"],
             ["habitos", ICONES.habitos, "Hábitos"],
             ["textos", ICONES.textos, "Textos"],
+            ["traducoes", ICONES.traduzir, "Traduções"],
+            ["personagem", ICONES.personagem, "Personagem"],
             ["pc", ICONES.pc, "Meu PC"],
             ["ajustes", ICONES.ajustes, "Ajustes"],
           ] as const

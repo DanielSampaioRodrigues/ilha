@@ -178,3 +178,42 @@ export const traduzirTela = () => pedir<void>("traduzir_tela");
 export const capturaAtual = () => pedir<Captura | null>("captura_atual", undefined, null);
 export const traduzirLinhas = (linhas: string[]) => pedir<string[]>("traduzir_linhas", { linhas }, linhas.map((l) => `[pt] ${l}`));
 export const fecharTraducao = () => pedir<void>("fechar_traducao");
+
+// ---------- Histórico das traduções ----------
+
+export interface ItemTraducao {
+  id: string;
+  /** Segundos desde 1970. */
+  data: string;
+  programa: string;
+  original: string;
+  traducao: string;
+}
+
+export const salvarTraducao = (original: string, traducao: string, recorte: [number, number, number, number]) =>
+  pedir<void>("salvar_traducao", { original, traducao, recorte });
+export const listarTraducoes = () =>
+  pedir<ItemTraducao[]>("listar_traducoes", undefined, [
+    {
+      id: "1",
+      data: String(Math.floor(Date.now() / 1000) - 3600),
+      programa: "chrome.exe",
+      original: "Usage limits reset every Tuesday at 6:32 PM.",
+      traducao: "Os limites de uso são redefinidos toda terça às 18:32.",
+    },
+    {
+      id: "2",
+      data: String(Math.floor(Date.now() / 1000) - 86400 * 2),
+      programa: "InDesign.exe",
+      original: "Package\nCollects all fonts and linked graphics.",
+      traducao: "Empacotar\nReúne todas as fontes e imagens vinculadas.",
+    },
+  ]);
+export const imagemTraducao = (id: string) => pedir<string | null>("imagem_traducao", { id }, null);
+export const apagarTraducao = (id: string) => pedir<void>("apagar_traducao", { id });
+
+/** "chrome.exe" → "Chrome"; desconhecido: o nome sem ".exe". */
+export function nomeDoPrograma(exe: string): string {
+  if (!exe) return "";
+  return PROGRAMAS_COM_ABAS[exe.toLowerCase()] ?? exe.replace(/\.exe$/i, "");
+}

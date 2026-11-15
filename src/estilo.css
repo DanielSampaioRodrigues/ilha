@@ -1073,7 +1073,7 @@ select option {
 
 .atalhos {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
 }
 
@@ -1480,4 +1480,167 @@ body.modo-traducao #palco {
 
 body.escolhendo #palco {
   cursor: crosshair;
+}
+
+/* ---------- Personagem ---------- */
+
+/* Respiração: a carinha sobe e desce bem de leve. */
+.carinha {
+  animation: respirar 4.5s ease-in-out infinite;
+}
+
+@keyframes respirar {
+  50% {
+    transform: translateY(-0.6px);
+  }
+}
+
+.zzz {
+  position: absolute;
+  right: 26px;
+  top: 2px;
+  display: flex;
+  gap: 1px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--apagado);
+}
+
+.zzz i {
+  font-style: normal;
+  animation: flutuar 2.4s ease-in-out infinite;
+}
+
+.zzz i:nth-child(2) {
+  font-size: 11px;
+  animation-delay: 0.4s;
+}
+
+.zzz i:nth-child(3) {
+  font-size: 13px;
+  animation-delay: 0.8s;
+}
+
+@keyframes flutuar {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: translateY(2px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.mosca {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 3px;
+  border-radius: 1px;
+  background: #c9d0d7;
+  box-shadow: 0 0 3px rgba(255, 255, 255, 0.6);
+}
+
+.cabeca-carinha {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 72px;
+  height: 52px;
+}
+
+.previa-personagem {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--vidro);
+}
+
+.palco-previa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 190px;
+  height: 110px;
+  border-radius: 14px;
+  background: var(--preto);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.palco-previa .carinha {
+  max-width: 176px;
+  max-height: 100px;
+}
+
+.chips-expressoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip.pequeno-chip {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.acessorios {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.amostra.nenhuma {
+  background: repeating-linear-gradient(45deg, #2a2d33 0 4px, #15171b 4px 8px);
+}
+
+.segmento {
+  white-space: nowrap;
+  padding: 0 12px;
+}
+
+.item-traducao {
+  align-items: flex-start;
+}
+
+.miniatura {
+  flex: none;
+  width: 110px;
+  height: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.miniatura img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: left top;
+}
+
+.miniatura.sem-imagem {
+  display: none;
+}
+
+.texto-traduzido {
+  font-size: 14px;
+  line-height: 1.4;
+  user-select: text;
+}
+
+.texto-original {
+  user-select: text;
+}
+
+.coluna-botoes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }

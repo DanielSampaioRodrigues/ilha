@@ -111,10 +111,13 @@ fn posicionar(j: &WebviewWindow) -> tauri::Result<()> {
     Ok(())
 }
 
-fn mouse_sobre_a_ilha(app: &AppHandle, j: &WebviewWindow) -> tauri::Result<bool> {
+/// Onde está o mouse em relação à janela da ilha (pixels lógicos) e se está
+/// em cima da parte preta.
+fn mouse_na_ilha(app: &AppHandle, j: &WebviewWindow) -> tauri::Result<(f64, f64, f64, bool)> {
     let cursor = j.cursor_position()?;
     let posicao = j.outer_position()?;
     let escala = j.scale_factor()?;
+    let largura = j.outer_size()?.width as f64 / escala;
     let x = (cursor.x - posicao.x as f64) / escala;
     let y = (cursor.y - posicao.y as f64) / escala;
     let area = app
@@ -123,16 +126,58 @@ fn mouse_sobre_a_ilha(app: &AppHandle, j: &WebviewWindow) -> tauri::Result<bool>
         .lock()
         .map(|a| *a)
         .unwrap_or_default();
-    Ok(area.contem(x, y))
+    Ok((x, y, largura, area.contem(x, y)))
 }
+
+/// Para onde os olhos do robô devem olhar: -1, 0 ou 1 na horizontal e na vertical.
+#[derive(Clone, Copy, PartialEq, serde::Serialize)]
+struct Olhar {
+    x: i8,
+    y: i8,
+}
+
+fn olhar_para(x: f64, y: f64, largura: f64) -> Olhar {
+    let dx = x - largura / 2.0;
+    Olhar {
+        x: if dx < -160.0 { -1 } else if dx > 160.0 { 1 } else { 0 },
+        y: if y > 260.0 { 1 } else { 0 },
+    }
+}
+
+/// Sem mexer o mouse por 5 minutos: o robô pode cochilar.
+const OCIOSO_APOS: Duration = Duration::from_secs(5 * 60);
 
 fn vigiar_mouse(app: AppHandle) {
     thread::spawn(move || {
         let mut atravessando = true;
+        let mut olhar = Olhar { x: 0, y: 0 };
+        let mut ultimo_ponto = (0.0, 0.0);
+        let mut parado_desde = std::time::Instant::now();
+        let mut ocioso = false;
         loop {
             thread::sleep(Duration::from_millis(30));
             let Some(j) = janela(&app) else { break };
-            let dentro = mouse_sobre_a_ilha(&app, &j).unwrap_or(false);
+            let Ok((x, y, largura, dentro)) = mouse_na_ilha(&app, &j) else { continue };
+
+            // Olhos seguem o mouse (a interface decide se usa).
+            let novo = olhar_para(x, y, largura);
+            if novo != olhar {
+                olhar = novo;
+                let _ = app.emit("ilha:olhar", olhar);
+            }
+            // Mouse parado há muito tempo: avisa uma vez; mexeu: acorda.
+            if (x - ultimo_ponto.0).abs() > 1.0 || (y - ultimo_ponto.1).abs() > 1.0 {
+                ultimo_ponto = (x, y);
+                parado_desde = std::time::Instant::now();
+                if ocioso {
+                    ocioso = false;
+                    let _ = app.emit("ilha:ocioso", false);
+                }
+            } else if !ocioso && parado_desde.elapsed() > OCIOSO_APOS {
+                ocioso = true;
+                let _ = app.emit("ilha:ocioso", true);
+            }
+
             // Só mexe na janela quando o mouse entra ou sai da ilha.
             if dentro == atravessando {
                 atravessando = !dentro;

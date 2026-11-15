@@ -15,8 +15,16 @@ use crate::JANELA;
 pub const JANELA_TRADUCAO: &str = "traducao";
 const ATALHO: &str = "Super+Alt+T";
 
+/// O print atual e o programa que estava na frente quando ele foi tirado.
 #[derive(Default)]
-pub struct CapturaAtual(Mutex<Option<Captura>>);
+pub struct CapturaAtual(Mutex<Option<(Captura, String)>>);
+
+impl CapturaAtual {
+    pub fn imagem_e_programa(&self) -> Option<(String, String)> {
+        let c = self.0.lock().ok()?;
+        c.as_ref().map(|(captura, programa)| (captura.imagem.clone(), programa.clone()))
+    }
+}
 
 pub fn registrar_atalho(app: &AppHandle) {
     let registro = app.global_shortcut().on_shortcut(ATALHO, |app, _a, evento| {
@@ -33,6 +41,7 @@ pub fn registrar_atalho(app: &AppHandle) {
 pub fn iniciar(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let ilha = app.get_webview_window(JANELA);
+        let programa = super::janela_ativa::programa_agora().unwrap_or_default();
         let cursor = ilha.as_ref().and_then(|j| j.cursor_position().ok());
         let (x, y) = cursor.map(|c| (c.x as i32, c.y as i32)).unwrap_or((0, 0));
         if let Some(j) = app.get_webview_window(JANELA_TRADUCAO) {
@@ -54,7 +63,7 @@ pub fn iniciar(app: AppHandle) {
                     log::error!("Janela da tradução: {erro}");
                 }
                 if let Ok(mut atual) = app.state::<CapturaAtual>().0.lock() {
-                    *atual = Some(captura);
+                    *atual = Some((captura, programa));
                 }
             }
             Err(erro) => {
@@ -89,7 +98,7 @@ fn abrir_janela(app: &AppHandle, c: &Captura) -> tauri::Result<()> {
 /// A janela da tradução pede o print e as linhas lidas.
 #[tauri::command]
 pub fn captura_atual(estado: State<'_, CapturaAtual>) -> Option<Captura> {
-    estado.0.lock().ok().and_then(|c| c.clone())
+    estado.0.lock().ok().and_then(|c| c.as_ref().map(|(captura, _)| captura.clone()))
 }
 
 #[tauri::command]

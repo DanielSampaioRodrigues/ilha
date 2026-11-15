@@ -45,6 +45,9 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
   retângulo em volta do texto; a tradução aparece por cima, no mesmo lugar. O botão
   **Tela inteira** traduz tudo; **Esc** fecha. Precisa da chave da
   DeepSeek em Ajustes › Chaves de IA.
+- **Traduções**: histórico com busca de tudo que foi traduzido.
+- **Personagem**: 13 expressões, cor dos olhos e das bochechas, acessórios, olhos que
+  seguem o mouse, mosquinha e cochilo quando parado.
 - Se algo der errado: menu do ícone › **Abrir registro de erros**.
 - "Ouvindo", "trabalhando" e "confirmação" ainda são de teste (menu do ícone ›
   **Ver os estados**); chegam de verdade nas fases 2 e 3.

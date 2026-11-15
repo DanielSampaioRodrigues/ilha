@@ -51,6 +51,7 @@ pub fn run() {
         .manage(corpo::janela_ativa::VigiarJanelas::default())
         .manage(corpo::tela_cheia::EsconderEmTelaCheia::default())
         .manage(corpo::traducao::CapturaAtual::default())
+        .manage(corpo::historico::Trava::default())
         .invoke_handler(tauri::generate_handler![
             janela::definir_area,
             atalho::definir_atalho,
@@ -61,6 +62,10 @@ pub fn run() {
             corpo::traducao::traduzir_linhas,
             corpo::traducao::traduzir_tela,
             corpo::traducao::fechar_traducao,
+            corpo::historico::salvar_traducao,
+            corpo::historico::listar_traducoes,
+            corpo::historico::imagem_traducao,
+            corpo::historico::apagar_traducao,
             maos::cofre::salvar_chave,
             maos::cofre::tem_chave,
             maos::cofre::apagar_chave,

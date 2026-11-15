@@ -30,7 +30,9 @@ export type NomeTela =
   | "habitos"
   | "timers"
   | "textos"
-  | "pc";
+  | "pc"
+  | "traducoes"
+  | "personagem";
 
 export interface Notificacao {
   id: string;
@@ -75,6 +77,8 @@ export interface Contexto {
   /** A notificação mostrada no estado "pronta". */
   notificacao: Notificacao | null;
   foco: SessaoFoco | null;
+  /** O robô está cochilando (mouse parado há muito tempo). */
+  dormindo: boolean;
   /** Música tocando no Windows (para a ilha fechada). */
   musica: Midia | null;
   /** Último volume visto (para o aviso de volume). */

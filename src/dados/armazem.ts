@@ -96,6 +96,17 @@ export interface Nota {
 
 export interface Config {
   nome: string;
+  /** Aparência do personagem. */
+  corOlhos: string;
+  corBochechas: string;
+  acessorio: "nenhum" | "chapeu" | "coroa" | "laco" | "oculos" | "fones" | "antena";
+  /** Na ilha aberta: a cabeça do robô vermelho ou a carinha de pixel grande. */
+  cabecaAberta: "robo" | "carinha";
+  olhosSeguemMouse: boolean;
+  /** Brincadeiras quando parado (pegar uma mosquinha…). */
+  brincadeiras: boolean;
+  /** Cochilar quando o mouse fica parado por 5 minutos. */
+  cochilar: boolean;
   /** Nome do robô: é a palavra que vai chamá-lo quando a voz chegar (fase 3). */
   nomeRobo: string;
   /** Cor dos botões e destaques. */
@@ -157,6 +168,13 @@ function padrao(): Dados {
     timers: [],
     config: {
       nome: "Dan",
+      corOlhos: "#3FE6EE",
+      corBochechas: "#FF8FB4",
+      acessorio: "nenhum",
+      cabecaAberta: "robo",
+      olhosSeguemMouse: true,
+      brincadeiras: true,
+      cochilar: true,
       nomeRobo: "Robozinho",
       corDestaque: "#3FE6EE",
       modoDiscreto: "desligado",
@@ -222,6 +240,12 @@ export function mudar(fazer: (d: Dados) => void): void {
   window.clearTimeout(relogio);
   relogio = window.setTimeout(salvar, 400);
 }
+
+// Se a ilha for fechada logo depois de uma mudança, salva na hora.
+window.addEventListener("pagehide", () => {
+  window.clearTimeout(relogio);
+  void salvar();
+});
 
 async function salvar(): Promise<void> {
   try {

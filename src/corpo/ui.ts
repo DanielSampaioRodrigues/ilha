@@ -13,7 +13,8 @@ export function html(codigo: string): HTMLElement {
   const elemento = modelo.content.firstElementChild as HTMLElement;
   elemento.querySelectorAll<HTMLElement>("[data-carinha]").forEach((lugar) => {
     const expressao = lugar.dataset.carinha as Expressao;
-    lugar.replaceWith(criarCarinha(expressao, Number(lugar.dataset.tamanho ?? 2)).elemento);
+    const comAcessorio = lugar.hasAttribute("data-acessorio");
+    lugar.replaceWith(criarCarinha(expressao, Number(lugar.dataset.tamanho ?? 2), comAcessorio).elemento);
   });
   return elemento;
 }

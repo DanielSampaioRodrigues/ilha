@@ -6,6 +6,7 @@ import { ler } from "../dados/armazem";
 import { faltaEscrito, pendentes, pertoDeRenovar, prazo, quandoEscrito } from "../dados/datas";
 import { seloDa } from "./selos";
 import { ICONES } from "./icones";
+import { Carinha } from "./carinha";
 import { TELAS } from "./telas";
 import { aoClicar, escapar, html } from "./ui";
 import type { Contexto, NomeEstado } from "./contexto";
@@ -51,12 +52,47 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
     compacto: true,
     // Símbolo da IA ao lado da carinha: o limite dela renova em breve.
     // Passar o mouse mostra qual modelo e quanto falta (estado "renovacao").
-    montar: () => {
+    // Parado, o robô brinca (pega uma mosquinha) ou cochila.
+    montar: (ctx) => {
       const selos = renovandoEmBreve()
         .slice(0, 2)
         .map((r) => seloDa(r, 14))
         .join("");
-      return html(`<div class="estado repouso"><i data-carinha="normal"></i>${selos ? `<span class="sinal-ia">${selos}</span>` : ""}</div>`);
+      const raiz = html(`<div class="estado repouso">${selos ? `<span class="sinal-ia">${selos}</span>` : ""}</div>`);
+      const carinha = new Carinha(ctx.dormindo ? "dormindo" : "normal", { comAcessorio: true });
+      raiz.prepend(carinha.elemento);
+      if (ctx.dormindo) {
+        raiz.insertAdjacentHTML("beforeend", '<span class="zzz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>');
+        return raiz;
+      }
+      if (ler().config.brincadeiras) {
+        // De vez em quando passa uma mosquinha; os olhos acompanham.
+        const mosquinha = () => {
+          if (!raiz.isConnected || Math.random() < 0.5) return;
+          const mosca = document.createElement("span");
+          mosca.className = "mosca";
+          raiz.append(mosca);
+          const largura = raiz.offsetWidth;
+          const inicio = performance.now();
+          const voar = (agora: number) => {
+            const t = (agora - inicio) / 5000;
+            if (t >= 1 || !mosca.isConnected) {
+              mosca.remove();
+              carinha.olharPara(0, 0);
+              return;
+            }
+            const x = largura * (0.1 + 0.8 * (0.5 + 0.5 * Math.sin(t * Math.PI * 3)));
+            const y = 6 + 8 * Math.abs(Math.sin(t * Math.PI * 7));
+            mosca.style.transform = `translate(${x}px, ${y}px)`;
+            const centro = largura / 2;
+            carinha.olharPara(x < centro - 30 ? -1 : x > centro + 30 ? 1 : 0, 0);
+            requestAnimationFrame(voar);
+          };
+          requestAnimationFrame(voar);
+        };
+        ctx.aCada(mosquinha, 60_000);
+      }
+      return raiz;
     },
   },
 

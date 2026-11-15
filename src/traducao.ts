@@ -1,7 +1,7 @@
 // Janela da tradução da tela: o print congelado e, por cima de cada linha,
 // o texto traduzido no mesmo lugar. Esc fecha. Dá para traduzir só um trecho
 // (arrastando um retângulo), ver o original e copiar a tradução.
-import { capturaAtual, copiar, fecharTraducao, traduzirLinhas, type Captura } from "./maos/sistema";
+import { capturaAtual, copiar, fecharTraducao, salvarTraducao, traduzirLinhas, type Captura } from "./maos/sistema";
 import { escapar } from "./corpo/ui";
 
 const EXEMPLO: Captura = {
@@ -101,6 +101,17 @@ export async function iniciarTraducao(): Promise<void> {
     estado.classList.remove("erro");
     estado.textContent = "Pronto. Arraste de novo para outro trecho; passe o mouse para ver o original.";
     desenhar();
+    // Guarda no histórico: texto original, tradução e o recorte da tela.
+    const linhas = indices.map((i) => c.linhas[i]);
+    const x0 = Math.min(...linhas.map((l) => l.x));
+    const y0 = Math.min(...linhas.map((l) => l.y));
+    const x1 = Math.max(...linhas.map((l) => l.x + l.largura));
+    const y1 = Math.max(...linhas.map((l) => l.y + l.altura));
+    salvarTraducao(
+      linhas.map((l) => l.texto).join("\n"),
+      indices.map((i) => traducoes[i] ?? "").join("\n"),
+      [x0, y0, x1 - x0, y1 - y0],
+    ).catch(() => {});
   };
 
   botao("inteira").addEventListener("click", () => traduzir(c.linhas.map((_, i) => i)));

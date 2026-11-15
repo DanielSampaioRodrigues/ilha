@@ -89,8 +89,10 @@ Rascunho visual (Design): https://claude.ai/artifact/L1YSV2mpHdq1jUw1gTC9Xp
 - **Fase 1, etapa 6 (feita):** tradução da tela (Win+Alt+T, botão na ilha ou menu do ícone): print do monitor onde está o mouse, OCR do Windows (prefere inglês), tradução pela DeepSeek, texto traduzido por cima no mesmo lugar, "só um trecho", ver original, copiar, Esc fecha. Cofre de chaves de IA (Gerenciador de Credenciais do Windows; a interface nunca lê a chave). Codex: a ilha entra na frente do "notify" que o app do Codex já usa (computer-use) e repassa o aviso para ele.
 - Tradução começa **escolhendo um trecho** (arrastar um retângulo; é o uso de 95% das vezes); "Tela inteira" fica num botão. Só o trecho vai para a IA (mais rápido e barato).
 - **Provedores de tradução (versão comercial):** a pessoa escolhe a chave: DeepSeek, Gemini (tem cota grátis), ChatGPT/OpenAI, Groq (tem cota grátis) ou DeepL (plano grátis de 500 mil caracteres/mês). Os quatro primeiros falam o mesmo "formato" de API; o DeepL precisa de um adaptador próprio.
-- **Falta na tradução:** histórico dos prints (imagem, original, tradução, data, programa) com busca; tradução por IA com visão para imagens com pouco texto.
-- **Próximas etapas da fase 1:** tradução da tela; personagens do Robozinho (junto com escolher a cor dos olhos); ícones reais dos programas no lançador.
+- **Fase 1, etapa 7 (feita):** histórico das traduções (recorte do print, original, tradução, data e programa; busca; copiar; apagar; até 300) na tela Traduções. Personagem: 13 expressões, olhos seguem o mouse, mosquinha quando parado, cochilo com "zzz" depois de 5 min de mouse parado, respiração e troca de expressão com piscada; cor dos olhos e das bochechas, 6 acessórios de pixel, escolher robô vermelho ou carinha na ilha aberta. Grade de atalhos 4×3.
+- **Falta na tradução:** tradução por IA com visão para imagens com pouco texto.
+- **Fase 1 praticamente fechada.** Pendências pequenas: ícones reais dos programas no lançador; personagens extras (outros modelos de robô).
+- **Próximo: fase 2** — a "Central" (janela grande com menu lateral) e a conversa com os motores (DeepSeek rápido; Claude Code, Codex e Gemini para o pesado).
 - **Defender:** a versão 0.1.4 foi bloqueada como "Cavalo de Troia" (alarme falso de programa novo sem assinatura digital). Restaurada pelo Dan. Falta enviar o alarme falso para a Microsoft e estudar assinatura digital.
 
 ## Ideias vistas no Kobi (concorrente, 16/11/2026)
