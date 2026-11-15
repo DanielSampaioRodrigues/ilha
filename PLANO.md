@@ -23,7 +23,7 @@ Rascunho visual (Design): https://claude.ai/artifact/L1YSV2mpHdq1jUw1gTC9Xp
 ### Ativação
 - **Segurar para falar**: segura a tecla/botão, fala, solta e ele age. **Toque** abre caixa para digitar.
 - Botão físico dedicado no Ulanzi D200 ou Keydial.
-- Sem palavra de ativação (microfone sempre ligado é ruim no consultório).
+- **Palavra de ativação opcional** (decisão revista em 16/11/2026): o Dan quer poder chamar o robô pelo nome, estilo Alexa (produtividade e acessibilidade). Fica em Ajustes para ligar/desligar; reconhecimento da palavra feito no próprio PC (o áudio não sai do computador). Desligar no atendimento (provavelmente outro PC só para atender, a partir de 2027).
 - Toda função tem botão **e** comando de voz.
 - Transcrição de voz local (Whisper na GTX 1660): grátis e o áudio não sai do PC.
 
@@ -87,8 +87,12 @@ Produto vendido por R$ 89,90 (pagamento único), Windows e Mac. Inspirar nas ide
 - **Personagem:** mais expressões (13) e animações quando parado (cochilar, brincar); cor, olhos e acessórios.
 - **Fase 2:** "Central" em janela grande com menu lateral (conversa, memória, tarefas, ajustes) — a ilha fica para o rápido; comandos simples resolvidos sem IA (volume, abrir app, timer), mais rápidos e grátis; plano grátis de reserva (Gemini/Groq) quando a assinatura bater no limite; botão "testar esta IA"; memória ("guardar algo importante").
 - **Fase 3:** ações com confirmação **e desfazer** (ex.: organizar a área de trabalho); "modo só executar" (sem falar); interromper a qualquer momento.
-- **Celular:** assinaturas, redefinições e tarefas aparecendo no Calendário do iPhone (link de agenda pela rede de casa).
-- **Não copiar:** microfone sempre ligado (decidido contra, por causa do consultório).
+- **Calendário:** primeiro o **Calendário da Apple (iCloud)**: a ilha grava os eventos direto na conta (com senha de app do Apple ID guardada no cofre do Windows), com alerta, para tocar no iPhone. Assinaturas, redefinições, tarefas com data e lembretes do robô vão para lá. Depois: Google Agenda (versão comercial) e uma agenda própria dentro da Central.
+- **Personagens:** vários modelos de robô, animações mais fluidas (respiração, piscar suave, transições entre expressões).
+- **Meu PC (scanner):** diagnóstico (processador, memória, disco, programas pesados, programas que abrem com o Windows, temporários) e correções simples sempre com confirmação; nada de "limpador de registro" (mais estraga que ajuda).
+- **Outras ideias do Claude:** resumo do dia ao ligar o PC (pagamentos, redefinições, tarefas, agenda); "modo atendimento" com um clique (silencia avisos, desliga microfone, pausa música); ditado em qualquer campo de texto (fala → texto onde está o cursor, com o Whisper local); ações sobre o texto copiado (traduzir, corrigir, resumir); arrastar arquivo para a ilha para converter PDF, comprimir imagem ou renomear em lote; rotinas ("modo trabalho": abre InDesign, a pasta do livro e uma playlist); uso das assinaturas de IA (quanto falta do limite), junto das redefinições.
+- Microfone sempre ligado: vira opção (ver Ativação).
+- IA grátis de reserva: o Dan não precisa (usa as assinaturas e APIs); só pensar nisso para a versão comercial.
 
 ## Pendências a conferir
 - Termos de uso das assinaturas via CLI para uso pessoal.
