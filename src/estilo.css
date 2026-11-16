@@ -55,6 +55,45 @@ body {
   cursor: pointer;
 }
 
+/* Brilho colorido estilo Siri: ouvindo, falando ou com uma IA trabalhando. */
+.forma path.brilho-siri,
+.forma path.contorno-siri {
+  fill: none;
+  stroke: url(#grad-siri);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.forma path.brilho-siri {
+  stroke-width: 12;
+  filter: url(#desfoque-siri);
+}
+
+.forma path.contorno-siri {
+  stroke-width: 1.8;
+}
+
+.forma.com-brilho path.brilho-siri,
+body.falando .forma path.brilho-siri,
+body.ouvindo-voz .forma path.brilho-siri {
+  opacity: 0.95;
+  animation: respirar-siri 1.6s ease-in-out infinite;
+}
+
+.forma.com-brilho path.contorno-siri,
+body.falando .forma path.contorno-siri,
+body.ouvindo-voz .forma path.contorno-siri {
+  opacity: 1;
+}
+
+@keyframes respirar-siri {
+  50% {
+    stroke-width: 18;
+    opacity: 0.7;
+  }
+}
+
 .camada {
   position: absolute;
   inset: 0;
@@ -73,11 +112,12 @@ body {
   pointer-events: none;
 }
 
-/* O conteúdo entra deslizando de leve e sai rápido. */
+/* O conteúdo entra deslizando de leve, saindo de um desfoque, e sai rápido. */
 .estado {
   transition:
-    opacity 180ms ease-out,
-    transform 220ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+    opacity 240ms ease-out,
+    filter 280ms ease-out,
+    transform 320ms cubic-bezier(0.2, 0.9, 0.3, 1.1);
 }
 
 .camada .estado {
@@ -87,7 +127,8 @@ body {
 
 .estado.entrando {
   opacity: 0;
-  transform: translateY(-6px) scale(0.98);
+  filter: blur(6px);
+  transform: translateY(-8px) scale(0.97);
 }
 
 .estado.saindo {

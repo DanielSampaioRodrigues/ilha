@@ -195,6 +195,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     raiz.querySelector<HTMLButtonElement>('[data-acao="central"]')!.disabled = rodando || !atual?.mensagens.length;
     seletor.disabled = rodando;
     raiz.querySelector<HTMLElement>(".rapida-ouvindo")!.hidden = !ouvindo;
+    document.body.classList.toggle("ouvindo-voz", ouvindo);
     const erro = raiz.querySelector<HTMLElement>(".rapida-erro-voz")!;
     erro.hidden = !erroVoz;
     erro.textContent = erroVoz;

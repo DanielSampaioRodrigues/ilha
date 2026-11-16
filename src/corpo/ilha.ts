@@ -12,13 +12,20 @@ import { pendentes } from "../dados/datas";
 import { passear, responderPermissao, vigiarJanelas, type Midia, type Volume } from "../maos/sistema";
 import { tocarAlarme } from "./som";
 
-// Abrindo: a altura desce rápido e balança; a largura vem um pouco depois.
+// Molas no estilo das animações da Apple: definidas pelo "tempo de resposta"
+// (quanto demora para chegar) e pelo "amortecimento" (1 = sem balanço;
+// menos que 1 = passa um pouquinho e volta, como líquido).
+function mola(resposta: number, amortecimento: number): Firmeza {
+  const w = (2 * Math.PI) / resposta;
+  return { rigidez: w * w, amortecimento: 2 * amortecimento * w };
+}
+// Abrindo: a altura desce macia com um leve balanço; a largura vem logo depois.
 // Isso faz a ilha parecer uma gota escorrendo antes de se espalhar.
-const ABRINDO_ALTURA: Firmeza = { rigidez: 190, amortecimento: 17 };
-const ABRINDO_LARGURA: Firmeza = { rigidez: 120, amortecimento: 19 };
-// Fechando: primeiro encolhe para os lados, depois sobe, quase sem balanço.
-const FECHANDO_ALTURA: Firmeza = { rigidez: 170, amortecimento: 25 };
-const FECHANDO_LARGURA: Firmeza = { rigidez: 300, amortecimento: 33 };
+const ABRINDO_ALTURA = mola(0.5, 0.72);
+const ABRINDO_LARGURA = mola(0.56, 0.84);
+// Fechando: encolhe para os lados e sobe, macio e quase sem balanço.
+const FECHANDO_ALTURA = mola(0.46, 0.92);
+const FECHANDO_LARGURA = mola(0.4, 0.96);
 
 const SVG = "http://www.w3.org/2000/svg";
 
@@ -30,6 +37,8 @@ export class Ilha {
   private gota = 0;
 
   private readonly forma: SVGPathElement;
+  private readonly brilho: SVGPathElement;
+  private readonly contorno: SVGPathElement;
   private readonly svg: SVGSVGElement;
   private readonly camada: HTMLElement;
   private readonly medidor: HTMLElement;
@@ -76,7 +85,21 @@ export class Ilha {
     this.svg = document.createElementNS(SVG, "svg");
     this.svg.classList.add("forma");
     this.forma = document.createElementNS(SVG, "path");
-    this.svg.append(this.forma);
+    // Brilho colorido em volta (estilo Siri): aparece ouvindo, falando ou trabalhando.
+    this.svg.innerHTML = `
+      <defs>
+        <linearGradient id="grad-siri" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ff6ec7"/><stop offset=".3" stop-color="#7b61ff"/>
+          <stop offset=".55" stop-color="#2fd6ff"/><stop offset=".8" stop-color="#ffcf6e"/><stop offset="1" stop-color="#ff6ec7"/>
+          <animateTransform attributeName="gradientTransform" type="rotate" values="0 .5 .5;360 .5 .5" dur="3.2s" repeatCount="indefinite"/>
+        </linearGradient>
+        <filter id="desfoque-siri" x="-30%" y="-60%" width="160%" height="220%"><feGaussianBlur stdDeviation="7"/></filter>
+      </defs>`;
+    this.brilho = document.createElementNS(SVG, "path");
+    this.brilho.classList.add("brilho-siri");
+    this.contorno = document.createElementNS(SVG, "path");
+    this.contorno.classList.add("contorno-siri");
+    this.svg.append(this.brilho, this.forma, this.contorno);
 
     this.camada = document.createElement("div");
     this.camada.className = "camada";
@@ -498,6 +521,7 @@ export class Ilha {
   mostrar(estado: NomeEstado, imediato = false): void {
     this.relogiosLimpar();
     this.estado = estado;
+    this.svg.classList.toggle("com-brilho", estado === "ouvindo" || estado === "trabalhando");
     this.sinalVerde = temSinalVerde();
 
     const definicao = ESTADOS[estado];
@@ -587,9 +611,9 @@ export class Ilha {
       this.raio.passo(segundos, FECHANDO_LARGURA);
       this.ombro.passo(segundos, FECHANDO_LARGURA);
 
-      // A gota acompanha a velocidade com que a ilha desce (ou sobe).
-      const alvoGota = Math.max(-8, Math.min(30, this.altura.velocidade * 0.03));
-      this.gota += (alvoGota - this.gota) * Math.min(1, segundos * 18);
+      // A gota acompanha a velocidade com que a ilha desce (ou sobe), com suavidade.
+      const alvoGota = Math.max(-8, Math.min(26, this.altura.velocidade * 0.026));
+      this.gota += (alvoGota - this.gota) * Math.min(1, segundos * 12);
 
       this.redesenhar();
       this.revelarSeChegou();
@@ -648,6 +672,8 @@ export class Ilha {
       this.centro,
     );
     this.forma.setAttribute("d", d);
+    this.brilho.setAttribute("d", d);
+    this.contorno.setAttribute("d", d);
     // O conteúdo é recortado no formato da ilha: nada aparece para fora do preto.
     this.camada.style.clipPath = `path("${d}")`;
     this.posicionarConteudo();

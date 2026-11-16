@@ -50,6 +50,7 @@ export function paraFala(texto: string): string {
 let atual: SpeechSynthesisUtterance | null = null;
 
 function cortar(): void {
+  document.body.classList.remove("falando");
   if (atual) {
     // Cortar uma fala também dispara "terminou"; isso não pode reabrir o microfone.
     atual.onend = null;
@@ -73,8 +74,10 @@ export function falar(texto: string, aoTerminar?: () => void): void {
   fala.rate = 1.05;
   const terminou = () => {
     if (atual === fala) atual = null;
+    document.body.classList.remove("falando");
     aoTerminar?.();
   };
+  fala.onstart = () => document.body.classList.add("falando");
   fala.onend = terminou;
   fala.onerror = terminou;
   speechSynthesis.speak(fala);
