@@ -172,7 +172,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
       const barras = Array.from({ length: 14 }, (_, i) => `<span style="--i:${i}"></span>`).join("");
       const raiz = html(`
         <div class="estado compacto">
-          <i data-carinha="ouvindo"></i>
+          <i data-carinha="ouvindo" data-acessorio></i>
           <div class="coluna">
             <span class="rotulo"><span class="ponto gravando"></span>Ouvindo</span>
             <span class="secundario fala">${EXEMPLO.fala}</span>
@@ -195,7 +195,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
         const { nome, total } = EXEMPLO.tarefa;
         const raiz = html(`
           <div class="estado compacto">
-            <i data-carinha="foco"></i>
+            <i data-carinha="foco" data-acessorio></i>
             <div class="coluna">
               <div class="entre"><span class="principal">${nome}</span><span class="secundario contagem">0 de ${total}</span></div>
               <div class="barra"><div class="barra-cheia"></div></div>
@@ -217,7 +217,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
       const nomes: Record<string, string> = { deepseek: "DeepSeek", claude: "Claude Code", codex: "Codex", gemini: "Gemini", antigravity: "Antigravity" };
       const raiz = html(`
         <div class="estado compacto">
-          <i data-carinha="pensando"></i>
+          <i data-carinha="pensando" data-acessorio></i>
           <div class="coluna">
             <span class="principal">${escapar(t.titulo || "Pensando…")}</span>
             <span class="secundario">${nomes[t.motor] ?? t.motor} · <span class="tempo-trabalho">0:00</span></span>
@@ -251,7 +251,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
         : "";
       const raiz = html(`
         <div class="estado compacto">
-          <i data-carinha="${n.expressao ?? "feliz"}"></i>
+          <i data-carinha="${n.expressao ?? "feliz"}" data-acessorio></i>
           <div class="coluna">
             <span class="principal">${escapar(n.titulo)}</span>
             <span class="secundario">${escapar(n.detalhe || "agora")}</span>
@@ -274,7 +274,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
       const quando = urgente ? prazo(urgente.dias) : "em 3 dias";
       return html(`
         <div class="estado aviso">
-          <i data-carinha="alerta"></i>
+          <i data-carinha="alerta" data-acessorio></i>
           <span class="principal">${escapar(nome)}</span>
           <span class="espaco"></span>
           <span class="selo">${quando}</span>
@@ -296,7 +296,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
       const mais = opcoes.length > 1 ? `<span class="secundario">+${opcoes.length - 1}</span>` : "";
       const raiz = html(`
         <div class="estado aviso">
-          <i data-carinha="${atual.cara}"></i>
+          <i data-carinha="${atual.cara}" data-acessorio></i>
           <span class="principal">${escapar(atual.nome)}</span>
           ${mais}
           <span class="espaco"></span>
@@ -319,7 +319,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
       const m = ctx.musica;
       return html(`
         <div class="estado aviso musica-viva">
-          <i data-carinha="${ler().config.perceberAtividade ? "musica" : "feliz"}"></i>
+          <i data-carinha="${ler().config.perceberAtividade ? "musica" : "feliz"}" data-acessorio></i>
           <span class="barrinhas" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
           <span class="principal">${escapar(m?.titulo ?? "")}</span>
         </div>`);
@@ -354,7 +354,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
         const raiz = html(`
           <div class="estado confirmacao">
             <div class="linha">
-              <i data-carinha="alerta"></i>
+              <i data-carinha="alerta" data-acessorio></i>
               <div class="coluna">
                 <span class="principal">${escapar(nomeDoMotorDa(ctx, p.conversa))} quer ${escapar(oQueQuer(p.ferramenta))}</span>
                 ${ctx.trabalho?.id === p.conversa ? `<span class="secundario">${escapar(ctx.trabalho.titulo)}</span>` : ""}
@@ -376,7 +376,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
       const raiz = html(`
         <div class="estado confirmacao">
           <div class="linha">
-            <i data-carinha="alerta"></i>
+            <i data-carinha="alerta" data-acessorio></i>
             <span class="principal">Vou apagar ${EXEMPLO.apagar.length} arquivos de Downloads</span>
           </div>
           <ul class="arquivos">${arquivos}</ul>

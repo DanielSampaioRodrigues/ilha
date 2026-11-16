@@ -424,7 +424,11 @@ export type PersonagemId =
   | "gota"
   | "cubo"
   | "astronauta"
-  | "broto";
+  | "broto"
+  | "faisca"
+  | "mimi"
+  | "bolota"
+  | "lata";
 
 interface Personagem {
   nome: string;
@@ -491,6 +495,50 @@ const LILAS = "#B78CFF";
 const FANTASMA = "#C9D0D7";
 const BRANCO = "#E9ECEF";
 const ROSA = "#FF8FB4";
+
+/**
+ * Receita dos personagens feitos com IA: todos têm as mesmas 27 poses
+ * (mesmos nomes de arquivo), então só muda a pasta.
+ */
+function feitoComIA(id: string, nome: string, jeito: string): Personagem {
+  return {
+    nome,
+    jeito,
+    pixels: [],
+    imagens: {
+      pasta: `/personagens/${id}`,
+      ext: "webp",
+      padrao: "neutro",
+      mapa: {
+        feliz: "feliz",
+        rindo: "rindo",
+        musica: "dancando",
+        piscadinha: "feliz",
+        chamada: "chamada",
+        surpreso: "surpreso",
+        alerta: "susto",
+        assistindo: "pipoca",
+        ouvindo: "surpreso",
+        triste: "triste",
+        dormindo: "soneca",
+        pensando: "ideia",
+        programando: "programando",
+        desenhando: "desenhando",
+        lendo: "lendo",
+        apaixonado: "coracao",
+        confuso: "confuso",
+        foco: "programando",
+        acenando: "acenando",
+        pulando: "pulando",
+      },
+      anim: {
+        digitando: { quadros: ["digitando1", "digitando2"], ms: 220 },
+        andando: { quadros: ["andando1", "andando2"], ms: 260 },
+        sonolento: { quadros: ["bocejando", "dormindo", "dormindo", "bocejando", "soneca", "soneca"], ms: 1100 },
+      },
+    },
+  };
+}
 
 export const PERSONAGENS: Record<PersonagemId, Personagem> = {
   robo: { nome: "Robozinho", jeito: "O clássico: curioso e prestativo.", pixels: [] },
@@ -736,43 +784,11 @@ export const PERSONAGENS: Record<PersonagemId, Personagem> = {
   },
 
   // ---------- Feitos com IA (imagens 3D) ----------
-  broto: {
-    nome: "Broto",
-    jeito: "Fofinho em 3D, com uma anteninha que acende. Feito com IA.",
-    pixels: [],
-    imagens: {
-      pasta: "/personagens/broto",
-      ext: "webp",
-      padrao: "neutro",
-      mapa: {
-        feliz: "feliz",
-        rindo: "rindo",
-        musica: "dancando",
-        piscadinha: "feliz",
-        chamada: "chamada",
-        surpreso: "surpreso",
-        alerta: "susto",
-        assistindo: "pipoca",
-        ouvindo: "surpreso",
-        triste: "triste",
-        dormindo: "soneca",
-        pensando: "ideia",
-        programando: "programando",
-        desenhando: "desenhando",
-        lendo: "lendo",
-        apaixonado: "coracao",
-        confuso: "confuso",
-        foco: "programando",
-        acenando: "acenando",
-        pulando: "pulando",
-      },
-      anim: {
-        digitando: { quadros: ["digitando1", "digitando2"], ms: 220 },
-        andando: { quadros: ["andando1", "andando2"], ms: 260 },
-        sonolento: { quadros: ["bocejando", "dormindo", "dormindo", "bocejando", "soneca", "soneca"], ms: 1100 },
-      },
-    },
-  },
+  broto: feitoComIA("broto", "Broto", "Fofinho em 3D, com uma anteninha que acende. Feito com IA."),
+  faisca: feitoComIA("faisca", "Faísca", "Punk de moicano rosa e jaqueta de tachinhas. Atitude total. Feito com IA."),
+  mimi: feitoComIA("mimi", "Mimi", "Estilo anime, cabelo lilás e moletom verde-água. Feita com IA."),
+  bolota: feitoComIA("bolota", "Bolota", "Um gatinho laranja muito preguiçoso. Feito com IA."),
+  lata: feitoComIA("lata", "Lata", "Robozinho de lata antigo, de corda nas costas. Feito com IA."),
 
   // ---------- Estilo moderno (vetor) ----------
   ...(Object.fromEntries(
