@@ -1,7 +1,7 @@
 // MCPs e Skills: instalar uma vez, usar em qualquer motor. Em cada conversa
 // (ou perfil) você liga só os que quer.
 import { ler, mudar, novoId, type ServidorMcp, type Skill } from "../dados/armazem";
-import { salvarSegredoMcp, temSegredoMcp } from "../maos/sistema";
+import { salvarSegredoMcp, temSegredoMcp, skillsDoClaude } from "../maos/sistema";
 import { aoClicar, confirmarAntes, escapar, html } from "../corpo/ui";
 
 /** Servidores MCP conhecidos, prontos para instalar com um clique. */
@@ -141,6 +141,7 @@ export function montarFerramentas(redesenhar: () => void): HTMLElement {
       <section class="secao espaco-acima">
         <p class="titulo-secao">Skills</p>
         <p class="secundario">Uma skill é um conjunto de instruções para um tipo de tarefa (ex.: “revisar texto como editor”, “montar orçamento”). Quando ligada, a IA segue essas instruções.</p>
+        <div class="linha"><button type="button" class="botao" data-acao="importar-skills">Importar as skills do Claude Code</button><span class="secundario resposta-importar"></span></div>
         ${
           d.skills
             .map(
@@ -244,6 +245,27 @@ export function montarFerramentas(redesenhar: () => void): HTMLElement {
     });
     editandoMcp = null;
     redesenhar();
+  });
+
+  // Skills já instaladas no Claude Code viram skills da ilha (servem para todas as IAs).
+  aoClicar(raiz, "importar-skills", () => {
+    const resposta = raiz.querySelector<HTMLElement>(".resposta-importar")!;
+    skillsDoClaude()
+      .then((lista) => {
+        const existentes = new Set(ler().skills.map((s) => s.nome.toLowerCase()));
+        const novas = lista.filter((s) => !existentes.has(s.nome.toLowerCase()));
+        if (!lista.length) {
+          resposta.textContent = "Não achei skills na pasta do Claude Code (.claude\\skills).";
+          return;
+        }
+        if (!novas.length) {
+          resposta.textContent = "Todas já estão aqui.";
+          return;
+        }
+        mudar((dd) => novas.forEach((s) => dd.skills.push({ id: novoId(), nome: s.nome, descricao: s.descricao, instrucoes: s.instrucoes })));
+        redesenhar();
+      })
+      .catch((e) => (resposta.textContent = String(e)));
   });
 
   const formSkill = raiz.querySelector<HTMLFormElement>(".form-skill")!;

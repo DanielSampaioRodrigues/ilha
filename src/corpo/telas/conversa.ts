@@ -25,6 +25,9 @@ let ouvindo = false;
 /** O microfone vermelho da ilha pediu para já abrir ouvindo. */
 let ouvirAoAbrir = false;
 let erroVoz = "";
+/** Conversa contínua: o que fazer quando terminar de ler a resposta. */
+let depoisDeFalar: (() => void) | null = null;
+const DESPEDIDAS = /^(tchau|obrigad[oa]|valeu|pode parar|para de ouvir|chega|era isso|só isso)\b/i;
 
 /** Abre a conversa já ouvindo (microfone vermelho da ilha). */
 export function abrirOuvindo(): void {
@@ -72,8 +75,15 @@ async function enviar(texto: string, ctx: Contexto, porVoz = false): Promise<voi
   calar();
   const c = (atual ??= nova());
   const responderEmVoz = (t: string) => {
-    if (porVoz && ler().config.falarRespostas) falar(t);
+    if (porVoz && ler().config.falarRespostas) falar(t, () => depoisDeFalar?.());
   };
+  // "Tchau"/"obrigado" encerra a conversa contínua.
+  if (porVoz && DESPEDIDAS.test(texto.trim())) {
+    c.mensagens.push({ papel: "voce", texto, quando: Date.now() }, { papel: "robo", texto: "Até já! 👋", quando: Date.now(), local: true });
+    aoMudar();
+    if (ler().config.falarRespostas) falar("Até já!");
+    return;
+  }
   // Primeiro: dá para resolver sem IA?
   const local = await tentarComando(texto, ctx).catch((e) => `Não deu: ${e}`);
   if (local !== null) {
@@ -229,7 +239,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     abrirCentral("conversa", [], c).catch(() => {});
   });
   // Falar: ouve uma frase, manda, e lê a resposta em voz alta.
-  const escutar = async () => {
+  const escutar = async (continuando = false) => {
     if (ouvindo || rodando) return;
     calar();
     ouvindo = true;
@@ -239,7 +249,8 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
       const texto = (await ouvir()).trim();
       ouvindo = false;
       if (texto) await enviar(texto, ctx, true);
-      else erroVoz = "Não ouvi nada. Aperte o microfone e fale de novo.";
+      // Silêncio na conversa contínua: só para de ouvir, sem erro.
+      else if (!continuando) erroVoz = "Não ouvi nada. Aperte o microfone e fale de novo.";
     } catch (e) {
       ouvindo = false;
       erroVoz = String(e);
@@ -247,6 +258,10 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     desenhar();
   };
   aoClicar(raiz, "falar", () => void escutar());
+  // Conversa contínua: terminou de ler a resposta, volta a ouvir (se ainda aberta).
+  depoisDeFalar = () => {
+    if (ler().config.conversaContinua && raiz.isConnected && !ouvindo && !rodando) void escutar(true);
+  };
   aoClicar(raiz, "parar-ouvir", () => {
     pararDeOuvir().catch(() => {});
   });

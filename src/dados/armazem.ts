@@ -134,6 +134,8 @@ export interface Config {
   voz: string;
   /** Ficar ouvindo o nome do robô para atender (microfone sempre ligado). */
   atenderPeloNome: boolean;
+  /** Depois de responder em voz alta, volta a ouvir (conversa contínua). */
+  conversaContinua: boolean;
   /** Calendário da Apple (iCloud): e-mail do Apple ID e calendário escolhido. */
   icloudEmail: string;
   icloudCalendario: string;
@@ -276,6 +278,7 @@ function padrao(): Dados {
       falarRespostas: true,
       voz: "",
       atenderPeloNome: false,
+      conversaContinua: false,
       icloudEmail: "",
       icloudCalendario: "",
       icloudNomeCalendario: "",

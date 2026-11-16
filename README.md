@@ -58,6 +58,10 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
 - **Calendário da Apple** (Ajustes › Calendário da Apple): conecte o iCloud com uma
   senha de app (a tela ensina) e a ilha coloca no seu calendário os vencimentos das
   assinaturas, as renovações das IAs e as tarefas com data, com alerta no iPhone.
+- **Conversa contínua** (opcional, Ajustes › Voz): depois de responder, ele volta a
+  ouvir; diga "tchau" ou fique em silêncio para parar.
+- **Skills do Claude Code**: em MCPs e Skills, "Importar as skills do Claude Code" traz
+  as que você já instalou lá, para usar com qualquer IA.
 - **Chamar pelo nome** (opcional, Ajustes › Voz): diga o nome do robô e ele abre
   ouvindo o pedido.
 - **"Posso?"**: com o Claude Code em "pode editar arquivos", quando ele quer rodar um

@@ -311,6 +311,12 @@ export const icloudConectado = () => pedir<boolean>("icloud_conectado", undefine
 export const icloudEnviar = (email: string, calendario: string, eventos: EventoCalendario[], apagar: string[]) =>
   pedir<string[]>("icloud_enviar", { email, calendario, eventos, apagar }, [...eventos.map((e) => e.uid), ...apagar]);
 
+/** Skills instaladas no Claude Code (~/.claude/skills), para importar. */
+export const skillsDoClaude = () =>
+  pedir<{ nome: string; descricao: string; instrucoes: string }[]>("skills_do_claude", undefined, [
+    { nome: "revisor", descricao: "Revisa textos", instrucoes: "Revise com cuidado." },
+  ]);
+
 /** Responde o "posso?" de uma IA (Sim ou Não). */
 export const responderPermissao = (id: string, permitir: boolean) => pedir<void>("responder_permissao", { id, permitir });
 /** Liga/desliga a carinha perceber o que o Dan faz (digitação, programa na frente). */

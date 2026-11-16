@@ -84,6 +84,7 @@ pub fn run() {
             cerebro::motores::motores_disponiveis,
             cerebro::motores::abrir_no_terminal,
             cerebro::motores::listar_modelos,
+            cerebro::skills::skills_do_claude,
             maos::ditado::ditado,
             corpo::central::abrir_central,
             corpo::central::esconder_central,

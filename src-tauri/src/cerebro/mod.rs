@@ -4,4 +4,5 @@
 pub mod anexos;
 pub mod deepseek;
 pub mod mcp;
+pub mod skills;
 pub mod motores;

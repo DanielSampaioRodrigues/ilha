@@ -96,6 +96,10 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
           <button type="button" class="chave" role="switch" aria-checked="${dados.config.falarRespostas}" aria-label="Ler a resposta em voz alta" data-acao="falar-respostas"><span></span></button>
         </div>
         <div class="item">
+          <div class="coluna"><span class="principal">Continuar ouvindo depois de responder</span><span class="secundario">Conversa seguida, como numa assistente de voz. Para com silêncio ou com “tchau”/“obrigado”.</span></div>
+          <button type="button" class="chave" role="switch" aria-checked="${dados.config.conversaContinua}" aria-label="Continuar ouvindo depois de responder" data-acao="conversa-continua"><span></span></button>
+        </div>
+        <div class="item">
           <div class="coluna"><span class="principal">Atender quando eu chamar pelo nome</span><span class="secundario">Diga “${escapar(dados.config.nomeRobo)}” (ou “ei ${escapar(dados.config.nomeRobo)}”) e ele abre ouvindo. Deixa o microfone sempre ligado; o nome é reconhecido no próprio PC.</span></div>
           <button type="button" class="chave" role="switch" aria-checked="${dados.config.atenderPeloNome}" aria-label="Atender quando eu chamar pelo nome" data-acao="atender-nome"><span></span></button>
         </div>
@@ -218,6 +222,11 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   aoClicar(raiz, "falar-respostas", (b) => {
     const ligado = !ler().config.falarRespostas;
     mudar((d) => (d.config.falarRespostas = ligado));
+    b.setAttribute("aria-checked", String(ligado));
+  });
+  aoClicar(raiz, "conversa-continua", (b) => {
+    const ligado = !ler().config.conversaContinua;
+    mudar((d) => (d.config.conversaContinua = ligado));
     b.setAttribute("aria-checked", String(ligado));
   });
   aoClicar(raiz, "atender-nome", (b) => {
