@@ -1911,3 +1911,135 @@ body.escolhendo #palco {
   border-color: var(--ciano);
   background: color-mix(in srgb, var(--ciano) 10%, transparent);
 }
+
+/* ---------- Verificação do PC (animada) ---------- */
+
+.varredura {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 8px 4px 34px;
+}
+
+.radar {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 150px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(63, 230, 238, 0.08) 0 58%, transparent 59%);
+  box-shadow: inset 0 0 0 1px rgba(63, 230, 238, 0.25);
+}
+
+.radar-anel {
+  position: absolute;
+  inset: 26px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(63, 230, 238, 0.18);
+}
+
+.radar-feixe {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: conic-gradient(from 0deg, transparent 0 290deg, color-mix(in srgb, var(--ciano) 55%, transparent) 360deg);
+  animation: radar-girar 1.6s linear infinite;
+}
+
+@keyframes radar-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.radar-rosto {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  animation: radar-flutuar 1.8s ease-in-out infinite;
+}
+
+@keyframes radar-flutuar {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.radar-pct {
+  position: absolute;
+  bottom: -26px;
+  color: var(--ciano);
+  font-weight: 800;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.etapas-varredura {
+  flex: 1;
+  gap: 7px;
+}
+
+.titulo-varredura {
+  font-size: 16px;
+}
+
+.etapa {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--apagado);
+  font-size: 13px;
+  transition: color 0.2s;
+}
+
+.etapa i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.18);
+}
+
+.etapa.agora {
+  color: var(--texto);
+}
+
+.etapa.agora i {
+  box-shadow: inset 0 0 0 2px var(--ciano);
+  border-top-color: transparent;
+  animation: radar-girar 0.8s linear infinite;
+  background: conic-gradient(var(--ciano) 0 25%, transparent 25%);
+  -webkit-mask: radial-gradient(circle, transparent 4px, #000 4.5px);
+  mask: radial-gradient(circle, transparent 4px, #000 4.5px);
+}
+
+.etapa.feita {
+  color: var(--texto);
+}
+
+.etapa.feita i {
+  background: var(--verde);
+  box-shadow: none;
+  -webkit-mask: none;
+  mask: none;
+  position: relative;
+}
+
+.etapa.feita i::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 2px;
+  width: 4px;
+  height: 7px;
+  border: solid #07080a;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.barra-varredura {
+  transition: width 0.15s linear;
+}

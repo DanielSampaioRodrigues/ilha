@@ -1,7 +1,17 @@
 // Meu PC: como está o computador e correções simples (sempre com confirmação).
 import { diagnosticoPc, limparTemporarios, type Diagnostico } from "../../maos/sistema";
 import type { Contexto } from "../contexto";
+import { Carinha } from "../carinha";
 import { aoClicar, cabecalho, confirmarAntes, html } from "../ui";
+
+const ETAPAS = [
+  "Olhando a memória",
+  "Vendo quem usa o processador",
+  "Medindo o disco",
+  "Procurando arquivos temporários",
+  "Vendo há quanto tempo está ligado",
+  "Achando os programas mais pesados",
+];
 
 const n1 = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
 
@@ -89,9 +99,49 @@ export function montarPc(ctx: Contexto): HTMLElement {
       }),
     );
   };
+  // Verificação animada: radar girando, porcentagem subindo e cada etapa
+  // ganhando um ✓ — enquanto o exame de verdade acontece por trás.
   const examinar = () => {
-    lugar.innerHTML = '<p class="secundario">Examinando o computador…</p>';
-    diagnosticoPc().then(mostrar).catch(() => mostrar(null));
+    lugar.innerHTML = `
+      <div class="varredura">
+        <div class="radar">
+          <span class="radar-feixe"></span>
+          <span class="radar-anel"></span>
+          <span class="radar-rosto"></span>
+          <span class="radar-pct">0%</span>
+        </div>
+        <div class="coluna etapas-varredura">
+          <span class="principal titulo-varredura">Verificando seu PC…</span>
+          ${ETAPAS.map((t, i) => `<span class="etapa" data-i="${i}"><i></i>${t}</span>`).join("")}
+          <div class="barra"><div class="barra-cheia barra-varredura" style="width:0%"></div></div>
+        </div>
+      </div>`;
+    lugar.querySelector(".radar-rosto")!.replaceChildren(new Carinha("lendo", { tamanho: 3, comAcessorio: true }).elemento);
+    const pct = lugar.querySelector<HTMLElement>(".radar-pct")!;
+    const barra = lugar.querySelector<HTMLElement>(".barra-varredura")!;
+    const etapas = [...lugar.querySelectorAll<HTMLElement>(".etapa")];
+    const inicio = performance.now();
+    const DURACAO = 4200;
+    let resultado: Diagnostico | null | undefined;
+    diagnosticoPc()
+      .then((d) => (resultado = d))
+      .catch(() => (resultado = null));
+    const passo = (agora: number) => {
+      if (!lugar.isConnected) return;
+      // Segura em 95% até o exame de verdade terminar.
+      const t = Math.min((agora - inicio) / DURACAO, resultado === undefined ? 0.95 : 1);
+      const valor = Math.round(t * 100);
+      pct.textContent = `${valor}%`;
+      barra.style.width = `${valor}%`;
+      const feitas = Math.floor(t * etapas.length);
+      etapas.forEach((e, i) => {
+        e.classList.toggle("feita", i < feitas);
+        e.classList.toggle("agora", i === feitas);
+      });
+      if (t < 1) requestAnimationFrame(passo);
+      else window.setTimeout(() => lugar.isConnected && mostrar(resultado ?? null), 350);
+    };
+    requestAnimationFrame(passo);
   };
   examinar();
   return raiz;
