@@ -99,20 +99,10 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
         ${
           PERSONAGENS[c.personagem]?.imagens
             ? `<div class="item espaco-acima">
-          <div class="coluna"><span class="principal">Na ilha fechada</span><span class="secundario">Só o rosto ocupa melhor a ilha; quando ele sai para passear, aparece inteiro.</span></div>
+          <div class="coluna"><span class="principal">Na ilha fechada</span><span class="secundario">Só o rosto ocupa melhor a ilha; digitando, lendo ou vendo vídeo, a câmera se afasta e mostra a cena. No passeio ele aparece inteiro.</span></div>
           <div class="segmentos" role="radiogroup" aria-label="Na ilha fechada">
-            ${(
-              [
-                ["auto", "Padrão"],
-                ["rosto", "Só o rosto"],
-                ["corpo", "Corpo inteiro"],
-              ] as const
-            )
-              .map(
-                ([v, nome]) =>
-                  `<button type="button" class="segmento" role="radio" aria-checked="${(c.rostoNaIlha ?? "auto") === v}" data-acao="rosto-ilha" data-valor="${v}">${nome}</button>`,
-              )
-              .join("")}
+            <button type="button" class="segmento" role="radio" aria-checked="${c.rostoNaIlha !== "corpo"}" data-acao="rosto-ilha" data-valor="rosto">Só o rosto</button>
+            <button type="button" class="segmento" role="radio" aria-checked="${c.rostoNaIlha === "corpo"}" data-acao="rosto-ilha" data-valor="corpo">Corpo inteiro</button>
           </div>
         </div>`
             : ""

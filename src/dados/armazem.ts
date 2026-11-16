@@ -101,8 +101,8 @@ export interface Config {
   corOlhos: string;
   /** Formato dos olhos abertos (redondos, grandes, pontinho…). */
   estiloOlhos: import("../corpo/carinha").EstiloOlhos;
-  /** Personagens ilustrados na ilha fechada: só o rosto (viseira), corpo inteiro ou o padrão de cada um. */
-  rostoNaIlha?: "auto" | "rosto" | "corpo";
+  /** Personagens ilustrados na ilha fechada: só o rosto (viseira, o padrão) ou o corpo inteiro. */
+  rostoNaIlha?: "rosto" | "corpo";
   corBochechas: string;
   acessorio: "nenhum" | "chapeu" | "coroa" | "laco" | "oculos" | "fones" | "antena";
   /** Qual personagem (robô, gato, urso…). */
