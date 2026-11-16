@@ -99,6 +99,8 @@ export interface Config {
   nome: string;
   /** Aparência do personagem. */
   corOlhos: string;
+  /** Formato dos olhos abertos (redondos, grandes, pontinho…). */
+  estiloOlhos: import("../corpo/carinha").EstiloOlhos;
   corBochechas: string;
   acessorio: "nenhum" | "chapeu" | "coroa" | "laco" | "oculos" | "fones" | "antena";
   /** Qual personagem (robô, gato, urso…). */
@@ -262,6 +264,7 @@ function padrao(): Dados {
       corBochechas: "#FF8FB4",
       acessorio: "nenhum",
       personagem: "robo",
+      estiloOlhos: "redondos",
       cabecaAberta: "robo",
       olhosSeguemMouse: true,
       brincadeiras: true,

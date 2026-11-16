@@ -1,6 +1,7 @@
 // Ajustes: nome, cor, atalho, iniciar com o Windows, avisos dos programas de IA.
 // Tudo que liga/desliga usa o mesmo interruptor: à direita, verde/cor = ligado.
 import { ler, mudar, type ModoDiscreto } from "../../dados/armazem";
+import { arcoIris } from "./personagem";
 import { aoCarregarVozes, falar, vozesEmPortugues } from "../../maos/fala";
 import {
   abrirPrograma,
@@ -59,7 +60,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   const cores = CORES_DESTAQUE.map(
     (c) =>
       `<button type="button" class="amostra ${c.cor === dados.config.corDestaque ? "ativa" : ""}" style="background:${c.cor}" aria-label="${c.nome}" title="${c.nome}" data-acao="cor" data-cor="${c.cor}"></button>`,
-  ).join("");
+  ).join("") + arcoIris(dados.config.corDestaque, "destaque", CORES_DESTAQUE.some((c) => c.cor.toLowerCase() === dados.config.corDestaque.toLowerCase()));
 
   const raiz = html(`
     <div class="estado aberta tela">
@@ -209,6 +210,12 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   });
 
   // Cor
+  raiz.querySelector<HTMLInputElement>('input[data-cor-livre="destaque"]')?.addEventListener("change", (e) => {
+    const cor = (e.target as HTMLInputElement).value;
+    mudar((d) => (d.config.corDestaque = cor));
+    aplicarCor(cor);
+    ctx.renovar();
+  });
   aoClicar(raiz, "cor", (b) => {
     const cor = b.dataset.cor!;
     mudar((d) => (d.config.corDestaque = cor));

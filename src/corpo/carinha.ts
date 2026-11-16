@@ -85,8 +85,65 @@ const CONTORNO: Ponto[] = [
   [0, 4], [6, 4], [1, 5], [5, 5], [2, 6], [3, 6], [4, 6],
 ];
 
-/** Olho redondo com a pupila 3×3 (com um brilho) deslocada para onde olha. */
+export type EstiloOlhos = "redondos" | "grandes" | "pontinho" | "quadrados" | "ovais" | "tracinho";
+
+export const NOMES_ESTILOS_OLHOS: Record<EstiloOlhos, string> = {
+  redondos: "Redondos",
+  grandes: "Grandões",
+  pontinho: "Pontinho",
+  quadrados: "Quadrados",
+  ovais: "Ovais",
+  tracinho: "Tracinho",
+};
+
+/** Estilo usado no desenho em andamento (cada carinha avisa antes de desenhar). */
+let estiloOlhos: EstiloOlhos = "redondos";
+
+const limitar = (v: number, de: number, ate: number) => Math.min(ate, Math.max(de, v));
+
+/** Olho aberto no estilo escolhido, olhando para (dx, dy). */
 function olhoAberto(dx = 0, dy = 0): Olho {
+  switch (estiloOlhos) {
+    case "grandes": {
+      // Bolona cheia com um brilho que acompanha o olhar.
+      const cheio = deTexto(["..xxx..", ".xxxxx.", "xxxxxxx", "xxxxxxx", "xxxxxxx", ".xxxxx.", "..xxx.."]);
+      const bx = 2 + dx;
+      const by = 2 + dy;
+      return cheio.filter(([x, y]) => !((x === bx || x === bx + 1) && y === by) && !(x === bx && y === by + 1));
+    }
+    case "pontinho": {
+      const cx = 3 + dx;
+      const cy = 3 + dy;
+      const p: Ponto[] = [];
+      for (let y = cy - 1; y <= cy + 1; y++) for (let x = cx - 1; x <= cx + 1; x++) p.push([x, y]);
+      return p;
+    }
+    case "quadrados": {
+      const borda: Ponto[] = [];
+      for (let i = 1; i <= 5; i++) borda.push([i, 1], [i, 5], [1, i], [5, i]);
+      const px = limitar(3 + dx, 2, 3);
+      const py = limitar(3 + dy, 2, 3);
+      return [...borda, [px, py], [px + 1, py], [px, py + 1], [px + 1, py + 1]];
+    }
+    case "ovais": {
+      const contorno = deTexto(["..xxx..", ".x...x.", ".x...x.", ".x...x.", ".x...x.", ".x...x.", "..xxx.."]);
+      const px = limitar(3 + dx, 2, 3);
+      const py = limitar(2 + dy, 1, 3);
+      return [...contorno, [px, py], [px + 1, py], [px, py + 1], [px + 1, py + 1], [px, py + 2], [px + 1, py + 2]];
+    }
+    case "tracinho": {
+      const y = limitar(3 + dy, 2, 4);
+      const p: Ponto[] = [];
+      for (let x = 1 + dx; x <= 5 + dx; x++) p.push([x, y], [x, y + 1]);
+      return p;
+    }
+    default:
+      return olhoRedondo(dx, dy);
+  }
+}
+
+/** Olho redondo com a pupila 3×3 (com um brilho) deslocada para onde olha. */
+function olhoRedondo(dx = 0, dy = 0): Olho {
   const pupila: Ponto[] = [];
   for (let y = 2; y <= 4; y++) {
     for (let x = 2; x <= 4; x++) {
@@ -659,11 +716,12 @@ export interface Aparencia {
   corBochechas: string;
   acessorio: Acessorio;
   personagem: PersonagemId;
+  estiloOlhos: EstiloOlhos;
 }
 
 function aparenciaSalva(): Aparencia {
   const c = ler().config;
-  return { corOlhos: c.corOlhos, corBochechas: c.corBochechas, acessorio: c.acessorio, personagem: c.personagem ?? "robo" };
+  return { corOlhos: c.corOlhos, corBochechas: c.corBochechas, acessorio: c.acessorio, personagem: c.personagem ?? "robo", estiloOlhos: c.estiloOlhos ?? "redondos" };
 }
 
 export class Carinha {
@@ -697,6 +755,7 @@ export class Carinha {
   /** Expressões animadas trocam de quadro sozinhas. */
   private animar(): void {
     window.clearInterval(this.animacao);
+    estiloOlhos = this.aparencia().estiloOlhos ?? "redondos";
     const anim = quadros(this.expressao);
     if (!anim) return;
     this.quadro = 0;
@@ -739,6 +798,7 @@ export class Carinha {
   }
 
   private desenharOlhos(olho: Olho): void {
+    estiloOlhos = this.aparencia().estiloOlhos ?? "redondos";
     const anim = quadros(this.expressao);
     const atual = anim ? anim.quadros[this.quadro % anim.quadros.length] : desenho(this.expressao, this.olhar);
     const d = { ...atual, esquerdo: olho, direito: olho };
@@ -746,6 +806,7 @@ export class Carinha {
   }
 
   private desenhar(): void {
+    estiloOlhos = this.aparencia().estiloOlhos ?? "redondos";
     const anim = quadros(this.expressao);
     this.pintar(anim ? anim.quadros[this.quadro % anim.quadros.length] : desenho(this.expressao, this.olhar));
   }

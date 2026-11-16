@@ -1860,3 +1860,54 @@ body.escolhendo #palco {
   background: #000;
   font-size: 12px;
 }
+
+/* Botão arco-íris: qualquer cor (abre a paleta do Windows). */
+.amostra.arco-iris {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  background: conic-gradient(#ff4d4d, #ffd84d, #5be38f, #3fe6ee, #5c8bff, #b78cff, #ff5a8a, #ff4d4d);
+}
+
+.amostra.arco-iris.ativa::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 999px;
+  background: var(--cor-livre);
+  box-shadow: 0 0 0 2px var(--preto);
+}
+
+.amostra.arco-iris input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.grade-olhos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 6px;
+}
+
+.cartao-olho {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: var(--vidro);
+  color: var(--texto);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cartao-olho.ativo {
+  border-color: var(--ciano);
+  background: color-mix(in srgb, var(--ciano) 10%, transparent);
+}

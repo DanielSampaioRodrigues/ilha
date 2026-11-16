@@ -6,6 +6,8 @@ import {
   Carinha,
   NOMES_ACESSORIOS,
   NOMES_EXPRESSOES,
+  NOMES_ESTILOS_OLHOS,
+  type EstiloOlhos,
   PERSONAGENS,
   type Acessorio,
   type Expressao,
@@ -30,6 +32,12 @@ const CORES_BOCHECHAS = [
   ["Lilás", "#C9A2FF"],
   ["Sem bochechas", "nenhuma"],
 ];
+
+/** Botão arco-íris: abre a paleta do Windows para qualquer cor. */
+export function arcoIris(atual: string, grupo: string, naLista: boolean): string {
+  const valor = /^#[0-9a-f]{6}$/i.test(atual) ? atual : "#3fe6ee";
+  return `<label class="amostra arco-iris ${naLista ? "" : "ativa"}" title="Qualquer cor" aria-label="Escolher qualquer cor"${naLista ? "" : ` style="--cor-livre:${valor}"`}><input type="color" value="${valor}" data-cor-livre="${grupo}"></label>`;
+}
 
 // Expressão mostrada na prévia (fica entre redesenhos da tela).
 let expressaoPrevia: Expressao = "feliz";
@@ -56,7 +64,7 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
         ([nome, cor]) =>
           `<button type="button" class="amostra ${cor === atual ? "ativa" : ""} ${cor === "nenhuma" ? "nenhuma" : ""}" style="${cor === "nenhuma" ? "" : `background:${cor}`}" aria-label="${nome}" title="${nome}" data-acao="cor" data-grupo="${grupo}" data-cor="${cor}"></button>`,
       )
-      .join("");
+      .join("") + arcoIris(atual, grupo, lista.some(([, cor]) => cor.toLowerCase() === atual.toLowerCase()));
 
   const raiz = html(`
     <div class="estado aberta tela">
@@ -94,6 +102,19 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
         <p class="titulo-secao">Aparência</p>
         <div class="item"><div class="coluna"><span class="principal">Olhos</span></div><div class="linha amostras">${amostras(CORES_OLHOS, c.corOlhos, "olhos")}</div></div>
         <div class="item"><div class="coluna"><span class="principal">Bochechas</span></div><div class="linha amostras">${amostras(CORES_BOCHECHAS, c.corBochechas, "bochechas")}</div></div>
+        <div class="item coluna-item">
+          <span class="principal">Formato dos olhos</span>
+          <div class="grade-olhos">
+            ${(Object.keys(NOMES_ESTILOS_OLHOS) as EstiloOlhos[])
+              .map(
+                (e) => `
+              <button type="button" class="cartao-olho ${e === (c.estiloOlhos ?? "redondos") ? "ativo" : ""}" data-acao="olhos" data-estilo="${e}">
+                <span data-olho="${e}"></span><span>${NOMES_ESTILOS_OLHOS[e]}</span>
+              </button>`,
+              )
+              .join("")}
+          </div>
+        </div>
         <div class="item coluna-item">
           <span class="principal">Acessório</span>
           <div class="linha chips acessorios">
@@ -147,6 +168,20 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
     raiz.querySelectorAll('[data-acao="expressao"]').forEach((x) => x.classList.toggle("ativo", x === b));
     desenharPrevia();
   });
+  raiz.querySelectorAll<HTMLElement>("[data-olho]").forEach((lugar) => {
+    const estiloOlhos = lugar.dataset.olho as EstiloOlhos;
+    lugar.replaceChildren(new Carinha("normal", { tamanho: 2, aparencia: { estiloOlhos } }).elemento);
+  });
+  aoClicar(raiz, "olhos", (b) => salvar((c) => (c.estiloOlhos = b.dataset.estilo as EstiloOlhos)));
+  // Cor livre (botão arco-íris).
+  raiz.querySelectorAll<HTMLInputElement>("input[data-cor-livre]").forEach((campo) =>
+    campo.addEventListener("change", () =>
+      salvar((c) => {
+        if (campo.dataset.corLivre === "olhos") c.corOlhos = campo.value;
+        else c.corBochechas = campo.value;
+      }),
+    ),
+  );
   aoClicar(raiz, "cor", (b) =>
     salvar((c) => {
       if (b.dataset.grupo === "olhos") c.corOlhos = b.dataset.cor!;
