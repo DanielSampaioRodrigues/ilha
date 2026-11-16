@@ -73,18 +73,26 @@ mod sistema {
         }
     }
 
-    fn reconhecedor() -> windows::core::Result<SpeechRecognizer> {
-        // Português do Brasil, se o Windows tiver; senão, o idioma do sistema.
-        Language::CreateLanguage(&HSTRING::from("pt-BR"))
+    /// Sempre português do Brasil. Antes, se não desse, a ilha caía calada no
+    /// idioma do Windows (inglês, no PC do Dan) e entendia tudo errado.
+    fn reconhecedor() -> Result<SpeechRecognizer, String> {
+        let rec = Language::CreateLanguage(&HSTRING::from("pt-BR"))
             .and_then(|l| SpeechRecognizer::Create(&l))
-            .or_else(|_| SpeechRecognizer::new())
+            .map_err(|e| {
+                log::warn!("Ouvir: sem reconhecedor pt-BR: {}", e.message());
+                "O Windows não tem o reconhecimento de fala em português (Brasil). Em Ajustes › Voz, “Conferir a voz” mostra como resolver.".to_string()
+            })?;
+        if let Ok(l) = rec.CurrentLanguage().and_then(|l| l.LanguageTag()) {
+            log::info!("Ouvir: idioma {l}");
+        }
+        Ok(rec)
     }
 
     pub fn ouvir(aberto: impl FnOnce()) -> Result<String, String> {
         unsafe {
             let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
         }
-        let rec = reconhecedor().map_err(explicar)?;
+        let rec = reconhecedor()?;
         let ditado = SpeechRecognitionTopicConstraint::Create(SpeechRecognitionScenario::Dictation, &HSTRING::from("ditado"))
             .map_err(explicar)?;
         rec.Constraints().and_then(|c| c.Append(&ditado)).map_err(explicar)?;

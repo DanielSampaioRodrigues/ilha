@@ -23,6 +23,10 @@ pub struct EstadoVoz {
     pub pacote_pt: Option<bool>,
     /// Idiomas de fala que o Windows tem (para mostrar).
     pub idiomas: Vec<String>,
+    /// Idioma de fala do Windows (Configurações › Hora e idioma › Fala), ex.: "en-US".
+    pub idioma_windows: Option<String>,
+    /// Teste de verdade: o ditado em português (Brasil) fica pronto para usar.
+    pub ditado_pt: Option<bool>,
 }
 
 #[tauri::command]
@@ -30,7 +34,7 @@ pub async fn conferir_voz() -> EstadoVoz {
     tauri::async_runtime::spawn_blocking(sistema::conferir).await.unwrap_or_default()
 }
 
-/// Conserta um item. `item`: "fala_online", "microfone", "pacote" ou "abrir_microfone".
+/// Conserta um item. `item`: "fala_online", "microfone", "pacote", "abrir_microfone", "abrir_fala" ou "abrir_idiomas".
 #[tauri::command]
 pub async fn consertar_voz(item: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || sistema::consertar(&item))
@@ -146,6 +150,24 @@ mod sistema {
         Some(idiomas)
     }
 
+    /// Prepara um ditado em português de verdade (sem ouvir nada) e diz se deu certo.
+    fn ditado_pt_pronto() -> Option<bool> {
+        use windows::Globalization::Language;
+        use windows::Media::SpeechRecognition::{SpeechRecognitionResultStatus, SpeechRecognitionScenario, SpeechRecognitionTopicConstraint};
+        let idioma = Language::CreateLanguage(&HSTRING::from("pt-BR")).ok()?;
+        let Ok(rec) = SpeechRecognizer::Create(&idioma) else { return Some(false) };
+        let ditado = SpeechRecognitionTopicConstraint::Create(SpeechRecognitionScenario::Dictation, &HSTRING::from("ditado")).ok()?;
+        rec.Constraints().and_then(|c| c.Append(&ditado)).ok()?;
+        let pronto = rec
+            .CompileConstraintsAsync()
+            .and_then(|op| op.join())
+            .and_then(|r| r.Status())
+            .map(|s| s == SpeechRecognitionResultStatus::Success)
+            .unwrap_or(false);
+        let _ = rec.Close();
+        Some(pronto)
+    }
+
     pub fn conferir() -> EstadoVoz {
         let negado = |v: Option<String>| v.is_some_and(|t| t.eq_ignore_ascii_case("Deny"));
         let usuario = negado(ler_texto(HKEY_CURRENT_USER, MICROFONE, "Value"));
@@ -159,6 +181,8 @@ mod sistema {
             fala_online: Some(ler_numero(HKEY_CURRENT_USER, FALA_ONLINE, "HasAccepted") == Some(1)),
             pacote_pt: idiomas.as_ref().map(|l| l.iter().any(|t| t.eq_ignore_ascii_case("pt-BR"))),
             idiomas: idiomas.unwrap_or_default(),
+            idioma_windows: SpeechRecognizer::SystemSpeechLanguage().and_then(|l| l.LanguageTag()).ok().map(|t| t.to_string()),
+            ditado_pt: ditado_pt_pronto(),
         }
     }
 
@@ -216,6 +240,14 @@ mod sistema {
             }
             "abrir_microfone" => {
                 abrir("ms-settings:privacy-microphone");
+                Ok(())
+            }
+            "abrir_fala" => {
+                abrir("ms-settings:speech");
+                Ok(())
+            }
+            "abrir_idiomas" => {
+                abrir("ms-settings:regionlanguage");
                 Ok(())
             }
             "pacote" => instalar_pacote(),

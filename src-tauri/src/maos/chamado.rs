@@ -96,9 +96,8 @@ mod sistema {
     }
 
     fn preparar(app: &AppHandle, nome: &str) -> windows::core::Result<SpeechRecognizer> {
-        let rec = Language::CreateLanguage(&HSTRING::from("pt-BR"))
-            .and_then(|l| SpeechRecognizer::Create(&l))
-            .or_else(|_| SpeechRecognizer::new())?;
+        // Sempre em português (Brasil): em inglês ele não reconhece "Robozinho" direito.
+        let rec = Language::CreateLanguage(&HSTRING::from("pt-BR")).and_then(|l| SpeechRecognizer::Create(&l))?;
         let lista: Vec<HSTRING> = frases(nome).iter().map(HSTRING::from).collect();
         let restricao = SpeechRecognitionListConstraint::Create(&windows_collections::IIterable::from(lista))?;
         rec.Constraints()?.Append(&restricao)?;

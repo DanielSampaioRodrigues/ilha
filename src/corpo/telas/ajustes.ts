@@ -380,6 +380,24 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
           "Vou ligar o “Reconhecimento de fala online” nas configurações de privacidade do Windows. Com ele, o que você fala ao microfone vermelho vai para a Microsoft virar texto.",
       },
       { ok: e.pacote_pt, texto: "Pacote de fala em português (Brasil)", falta: "Não está instalado.", ...pacote },
+      {
+        ok: e.idioma_windows === null ? null : /^pt/i.test(e.idioma_windows),
+        texto: "Idioma de fala do Windows em português",
+        falta: `Está em ${e.idioma_windows ?? "outro idioma"}: o Windows entende o que você fala como se fosse esse idioma (por isso o Win + H escreve em inglês).`,
+        conserto: "abrir_fala",
+        botao: "Abrir Configurações",
+        explica:
+          "Vou abrir Configurações › Hora e idioma › Fala. Em “Idioma de fala”, escolha Português (Brasil). Se ele não aparecer na lista, primeiro adicione o idioma Português (Brasil) em “Idioma e região”, com o recurso de fala.",
+      },
+      {
+        ok: e.ditado_pt,
+        texto: "Ditado em português pronto para usar",
+        falta: "O Windows não preparou o ditado em português (Brasil). Arrume os itens acima e confira de novo.",
+        conserto: "abrir_idiomas",
+        botao: "Abrir Idiomas",
+        explica:
+          "Vou abrir Configurações › Hora e idioma › Idioma e região. Em Português (Brasil) › “…” › Opções de idioma, confira se “Reconhecimento de fala” está instalado (se não estiver, clique em Baixar).",
+      },
       { ok: vozesEmPortugues().length > 0, texto: "Voz em português para responder", falta: "Não achei voz em português.", ...pacote },
       itemChamado(),
     ];

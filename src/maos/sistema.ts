@@ -412,6 +412,10 @@ export interface EstadoVoz {
   fala_online: boolean | null;
   pacote_pt: boolean | null;
   idiomas: string[];
+  /** Idioma de fala do Windows (ex.: "en-US"). */
+  idioma_windows: string | null;
+  /** O ditado em português (Brasil) fica pronto de verdade. */
+  ditado_pt: boolean | null;
 }
 export const conferirVoz = () =>
   pedir<EstadoVoz>("conferir_voz", undefined, {
@@ -421,6 +425,8 @@ export const conferirVoz = () =>
     fala_online: false,
     pacote_pt: false,
     idiomas: [],
+    idioma_windows: "en-US",
+    ditado_pt: false,
   });
 /** Conserta um item ("fala_online", "microfone", "abrir_microfone", "pacote"). Só depois de o Dan confirmar. */
 export const consertarVoz = (item: string) => pedir<void>("consertar_voz", { item });
