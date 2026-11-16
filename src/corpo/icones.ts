@@ -33,6 +33,8 @@ export const ICONES = {
   chave: icone(16, '<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.3-9.3M17 6l3 3M14 9l2 2"/>'),
   personagem: icone(16, '<rect x="4" y="6" width="16" height="13" rx="4"/><path d="M12 6V3M9 12h.01M15 12h.01M10 15.5h4"/>'),
   pasta: icone(16, '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+  central: icone(18, '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/>'),
+  memoria: icone(16, '<path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1V5a3 3 0 0 0-3-1zM15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1"/>'),
   alfinete: icone(16, '<path d="M9 4h6M10 4v6l-3 4h10l-3-4V4M12 14v7"/>'),
   soltar: icone(16, '<rect x="3" y="7" width="14" height="14" rx="2"/><path d="M14 3h7v7M21 3l-8 8"/>'),
   juntar: icone(16, '<path d="M4 3h16M12 21V9M7 14l5-5 5 5"/>'),

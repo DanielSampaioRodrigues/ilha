@@ -21,7 +21,16 @@ export type Expressao =
   | "apaixonado"
   | "piscadinha"
   | "rindo"
-  | "confuso";
+  | "confuso"
+  // Animadas: a ilha usa conforme o que o Dan está fazendo no computador.
+  | "digitando"
+  | "programando"
+  | "desenhando"
+  | "musica"
+  | "lendo"
+  | "chamada"
+  | "assistindo"
+  | "sonolento";
 
 export const NOMES_EXPRESSOES: Record<Expressao, string> = {
   normal: "Repouso",
@@ -37,7 +46,18 @@ export const NOMES_EXPRESSOES: Record<Expressao, string> = {
   piscadinha: "Piscadinha",
   rindo: "Rindo",
   confuso: "Confuso",
+  digitando: "Digitando",
+  programando: "Programando",
+  desenhando: "Desenhando",
+  musica: "Curtindo música",
+  lendo: "Lendo",
+  chamada: "Em chamada",
+  assistindo: "Assistindo",
+  sonolento: "Com sono",
 };
+
+/** Expressões que se mexem sozinhas (quadros de animação). */
+export const ANIMADAS: Expressao[] = ["digitando", "programando", "desenhando", "musica", "lendo", "chamada", "assistindo", "sonolento"];
 
 export type Acessorio = "nenhum" | "chapeu" | "coroa" | "laco" | "oculos" | "fones" | "antena";
 
@@ -53,6 +73,7 @@ export const NOMES_ACESSORIOS: Record<Acessorio, string> = {
 
 type Ponto = [number, number];
 type Olho = Ponto[];
+type Pixel = [number, number, string];
 
 const LARANJA = "#FFA51F";
 const ROSA_FORTE = "#FF5A8A";
@@ -102,6 +123,7 @@ const BOCAS = {
   triste: [[7, 8, 9, 10, 11], [6, 12]],
   grande: [[6, 7, 8, 9, 10, 11, 12], [7, 8, 9, 10, 11]],
   zigue: [[7, 9, 11], [8, 10]],
+  nenhuma: [[], []],
 } as const;
 
 interface Desenho {
@@ -111,6 +133,12 @@ interface Desenho {
   bochechas: boolean;
   /** Cor própria desta expressão (senão, a cor dos olhos escolhida). */
   cor?: string;
+  /** Pixels a mais (cor "" = a cor dos olhos). */
+  extras?: Pixel[];
+  /** Empurra o desenho todo (balançar). */
+  deslocar?: Ponto;
+  /** Acessório que esta animação usa (fones na chamada, óculos programando). */
+  acessorio?: Exclude<Acessorio, "nenhum">;
 }
 
 function desenho(expressao: Expressao, olhar: Ponto): Desenho {
@@ -147,8 +175,6 @@ function desenho(expressao: Expressao, olhar: Ponto): Desenho {
 
 // ---------- Acessórios: [x, y, cor] ----------
 
-type Pixel = [number, number, string];
-
 function linha(y: number, de: number, ate: number, cor: string): Pixel[] {
   return Array.from({ length: ate - de + 1 }, (_, i) => [de + i, y, cor] as Pixel);
 }
@@ -184,6 +210,110 @@ const ACESSORIOS: Record<Exclude<Acessorio, "nenhum">, Pixel[]> = {
   antena: [[9, -1, "#9AA3AD"], [9, -2, "#9AA3AD"], [9, -3, "#9AA3AD"], [8, -4, "#FF4D4D"], [9, -4, "#FF4D4D"], [10, -4, "#FF4D4D"]],
 };
 
+// ---------- Animações (quadros) ----------
+
+const TECLA = "#3A4048";
+const LUVA = "#E9ECEF";
+const MEIO_FECHADO: Olho = deTexto([".......", ".......", ".......", ".......", "xxxxxxx", ".......", "......."]);
+const NOTA: Ponto[] = [[1, 0], [2, 0], [1, 1], [1, 2], [0, 3], [1, 3]];
+
+/** Teclado na linha de baixo e as mãozinhas batendo (esquerda/direita). */
+function teclando(mao: number, esquerda: boolean): Pixel[] {
+  const teclas = Array.from({ length: 11 }, (_, i) => [4 + i, 9, TECLA] as Pixel);
+  const outra = esquerda ? 12 : 6;
+  return [...teclas, [mao, 8, LUVA], [mao, 9, ""], [outra, 7, LUVA]];
+}
+
+function quadros(expressao: Expressao): { quadros: Desenho[]; ms: number } | null {
+  const base = (o: Partial<Desenho>): Desenho => ({
+    esquerdo: olhoAberto(0, 0),
+    direito: olhoAberto(0, 0),
+    boca: "nenhuma",
+    bochechas: true,
+    ...o,
+  });
+  switch (expressao) {
+    case "digitando":
+    case "programando": {
+      const olhos = { esquerdo: olhoAberto(0, 1), direito: olhoAberto(0, 1) };
+      const acessorio = expressao === "programando" ? ("oculos" as const) : undefined;
+      return {
+        ms: 140,
+        quadros: [
+          [6, true],
+          [12, false],
+          [7, true],
+          [11, false],
+          [5, true],
+          [13, false],
+        ].map(([mao, esq]) => base({ ...olhos, acessorio, extras: teclando(mao as number, esq as boolean) })),
+      };
+    }
+    case "desenhando":
+      return {
+        ms: 260,
+        quadros: [5, 6, 7, 8, 9, 10, 11, 12, 13].map((x) =>
+          base({
+            esquerdo: olhoAberto(x < 8 ? -1 : x > 10 ? 1 : 0, 1),
+            direito: olhoAberto(x < 8 ? -1 : x > 10 ? 1 : 0, 1),
+            extras: [
+              ...Array.from({ length: x - 4 }, (_, i) => [5 + i, 9, ""] as Pixel),
+              [x + 1, 8, "#FFD84D"],
+              [x + 2, 7, "#FFD84D"],
+            ],
+          }),
+        ),
+      };
+    case "musica":
+      return {
+        ms: 380,
+        quadros: [
+          base({ esquerdo: FELIZ, direito: FELIZ, boca: "sorriso", deslocar: [-1, 0], extras: NOTA.map(([x, y]) => [x + 8, y + 2, ""] as Pixel) }),
+          base({ esquerdo: FELIZ, direito: FELIZ, boca: "sorriso", deslocar: [1, 0], extras: NOTA.map(([x, y]) => [x + 9, y + 1, ""] as Pixel) }),
+        ],
+      };
+    case "lendo":
+      return {
+        ms: 480,
+        quadros: (
+          [
+            [-1, 0],
+            [0, 0],
+            [1, 0],
+            [-1, 1],
+            [0, 1],
+            [1, 1],
+          ] as Ponto[]
+        ).map(([dx, dy]) => base({ esquerdo: olhoAberto(dx, dy), direito: olhoAberto(dx, dy), boca: "pequena" })),
+      };
+    case "chamada":
+      return {
+        ms: 200,
+        quadros: (["aberta", "pequena", "aberta", "reta", "pequena", "reta", "reta"] as const).map((boca) =>
+          base({ boca, acessorio: "fones" }),
+        ),
+      };
+    case "assistindo":
+      return {
+        ms: 700,
+        quadros: [
+          base({ esquerdo: ARREGALADO, direito: ARREGALADO, boca: "pequena" }),
+          base({ esquerdo: ARREGALADO, direito: ARREGALADO, boca: "pequena" }),
+          base({ esquerdo: ARREGALADO, direito: ARREGALADO, boca: "pequena" }),
+          base({ esquerdo: ARREGALADO, direito: ARREGALADO, boca: "aberta" }),
+          base({ esquerdo: PISCANDO, direito: PISCANDO, boca: "pequena" }),
+        ],
+      };
+    case "sonolento": {
+      const sono = base({ esquerdo: MEIO_FECHADO, direito: MEIO_FECHADO, boca: "reta" });
+      const bocejo = base({ esquerdo: FECHADO, direito: FECHADO, boca: "susto" });
+      return { ms: 700, quadros: [sono, sono, sono, sono, sono, bocejo, bocejo, sono, sono, sono] };
+    }
+    default:
+      return null;
+  }
+}
+
 // ---------- A carinha ----------
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -196,6 +326,8 @@ export interface OpcoesCarinha {
   comAcessorio?: boolean;
   /** Para a prévia nos Ajustes: aparência sem precisar salvar. */
   aparencia?: Partial<Aparencia>;
+  /** Muda sozinha conforme o que o Dan está fazendo (só a carinha da ilha fechada). */
+  segueAtividade?: boolean;
 }
 
 export interface Aparencia {
@@ -214,24 +346,48 @@ export class Carinha {
   private expressao: Expressao;
   private olhar: Ponto = [0, 0];
   private relogio = 0;
+  private animacao = 0;
+  private quadro = 0;
 
   constructor(expressao: Expressao, private readonly opcoes: OpcoesCarinha = {}) {
     this.expressao = expressao;
-    const { acessorio } = this.aparencia();
-    const extra = opcoes.comAcessorio && acessorio !== "nenhum";
-    const tamanho = opcoes.tamanho ?? 2;
-    const [x, y, w, h] = extra ? [-3, -4, 25, 14] : [0, 0, 19, 10];
     this.elemento = document.createElementNS(SVG, "svg");
-    this.elemento.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
-    this.elemento.setAttribute("width", String(w * tamanho));
-    this.elemento.setAttribute("height", String(h * tamanho));
     this.elemento.setAttribute("shape-rendering", "crispEdges");
     this.elemento.setAttribute("aria-hidden", "true");
     this.elemento.classList.add("carinha");
     this.desenhar();
     vivas.add(this);
-    if (expressao === "normal" || expressao === "ouvindo") this.agendarPiscada();
+    this.agendarPiscada();
+    this.animar();
   }
+
+  get atual(): Expressao {
+    return this.expressao;
+  }
+
+  get segueAtividade(): boolean {
+    return !!this.opcoes.segueAtividade;
+  }
+
+  /** Expressões animadas trocam de quadro sozinhas. */
+  private animar(): void {
+    window.clearInterval(this.animacao);
+    const anim = quadros(this.expressao);
+    if (!anim) return;
+    this.quadro = 0;
+    this.animacao = window.setInterval(() => {
+      if (!this.elemento.isConnected) {
+        // Ainda não entrou na tela: espera; saiu de vez: para.
+        if (this.foiMostrada || performance.now() - this.criada > 10_000) this.parar();
+        return;
+      }
+      this.foiMostrada = true;
+      this.quadro = (this.quadro + 1) % anim.quadros.length;
+      this.pintar(anim.quadros[this.quadro]);
+    }, anim.ms);
+  }
+  private foiMostrada = false;
+  private readonly criada = performance.now();
 
   private aparencia(): Aparencia {
     return { ...aparenciaSalva(), ...this.opcoes.aparencia };
@@ -241,8 +397,12 @@ export class Carinha {
   mudar(expressao: Expressao): void {
     if (expressao === this.expressao) return;
     this.expressao = expressao;
+    window.clearInterval(this.animacao);
     this.desenharOlhos(PISCANDO);
-    window.setTimeout(() => this.desenhar(), 90);
+    window.setTimeout(() => {
+      this.desenhar();
+      this.animar();
+    }, 90);
   }
 
   /** Para onde olhar: -1, 0 ou 1 na horizontal e na vertical. */
@@ -254,32 +414,48 @@ export class Carinha {
   }
 
   private desenharOlhos(olho: Olho): void {
-    const d = { ...desenho(this.expressao, this.olhar), esquerdo: olho, direito: olho };
+    const anim = quadros(this.expressao);
+    const atual = anim ? anim.quadros[this.quadro % anim.quadros.length] : desenho(this.expressao, this.olhar);
+    const d = { ...atual, esquerdo: olho, direito: olho };
     this.pintar(d);
   }
 
   private desenhar(): void {
-    if (!this.elemento.isConnected && this.elemento.childNodes.length) {
-      vivas.delete(this);
-    }
-    this.pintar(desenho(this.expressao, this.olhar));
+    const anim = quadros(this.expressao);
+    this.pintar(anim ? anim.quadros[this.quadro % anim.quadros.length] : desenho(this.expressao, this.olhar));
+  }
+
+  /** Área do desenho: maior quando há acessório (chapéu, fones…). */
+  private enquadrar(comExtra: boolean): void {
+    const tamanho = this.opcoes.tamanho ?? 2;
+    const [x, y, w, h] = comExtra ? [-3, -4, 25, 14] : [0, 0, 19, 10];
+    const caixa = `${x} ${y} ${w} ${h}`;
+    if (this.elemento.getAttribute("viewBox") === caixa) return;
+    this.elemento.setAttribute("viewBox", caixa);
+    this.elemento.setAttribute("width", String(w * tamanho));
+    this.elemento.setAttribute("height", String(h * tamanho));
   }
 
   private pintar(d: Desenho): void {
     const ap = this.aparencia();
+    this.enquadrar(!!this.opcoes.comAcessorio && (ap.acessorio !== "nenhum" || !!d.acessorio));
     const cor = d.cor ?? ap.corOlhos;
     const pixels: string[] = [];
+    const [mx, my] = d.deslocar ?? [0, 0];
     const acender = (x: number, y: number, c: string) =>
-      pixels.push(`<rect x="${x}" y="${y}" width="1" height="1" fill="${c}"/>`);
+      pixels.push(`<rect x="${x + mx}" y="${y + my}" width="1" height="1" fill="${c || cor}"/>`);
     d.esquerdo.forEach(([x, y]) => acender(x, y, cor));
     d.direito.forEach(([x, y]) => acender(x + 12, y, cor));
     const [l8, l9] = BOCAS[d.boca];
     l8.forEach((x) => acender(x, 8, cor));
     l9.forEach((x) => acender(x, 9, cor));
     if (d.bochechas && ap.corBochechas !== "nenhuma") [0, 1, 17, 18].forEach((x) => acender(x, 8, ap.corBochechas));
-    if (this.opcoes.comAcessorio && ap.acessorio !== "nenhum") {
-      ACESSORIOS[ap.acessorio].forEach(([x, y, c]) => acender(x, y, c));
+    if (this.opcoes.comAcessorio) {
+      // A animação pode trocar o acessório (ex.: fones numa chamada).
+      const acessorio = d.acessorio ?? (ap.acessorio !== "nenhum" ? ap.acessorio : null);
+      if (acessorio) ACESSORIOS[acessorio].forEach(([x, y, c]) => acender(x, y, c));
     }
+    d.extras?.forEach(([x, y, c]) => acender(x, y, c));
     this.elemento.innerHTML = pixels.join("");
     this.elemento.style.setProperty("--brilho", cor);
   }
@@ -293,6 +469,7 @@ export class Carinha {
         return;
       }
       if (this.expressao === "normal" || this.expressao === "ouvindo") {
+        // (as animadas piscam nos próprios quadros)
         const seguindo = ler().config.olhosSeguemMouse && (this.olhar[0] !== 0 || this.olhar[1] !== 0);
         if (!seguindo && this.expressao === "normal" && Math.random() < 0.25) {
           const lado: Ponto = [Math.random() < 0.5 ? -1 : 1, 0];
@@ -314,7 +491,15 @@ export class Carinha {
 
   parar(): void {
     window.clearTimeout(this.relogio);
+    window.clearInterval(this.animacao);
     vivas.delete(this);
+  }
+}
+
+/** A ilha percebeu outra atividade: troca a carinha da ilha fechada. */
+export function mudarAtividade(expressao: Expressao): void {
+  for (const c of [...vivas]) {
+    if (c.segueAtividade && c.elemento.isConnected) c.mudar(expressao);
   }
 }
 

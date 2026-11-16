@@ -46,9 +46,17 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
   **Tela inteira** traduz tudo; **Esc** fecha. Precisa da chave da
   DeepSeek em Ajustes › Chaves de IA.
 - **Traduções**: histórico com busca de tudo que foi traduzido.
-- **Personagem**: 13 expressões, cor dos olhos e das bochechas, acessórios, olhos que
+- **Conversa rápida** (botão de teclado na ilha aberta): fale com a IA ou perfil que
+  escolher sem abrir a Central. Pedidos simples ela resolve sozinha, sem IA: "volume 30",
+  "timer 10 min pizza", "me lembra em 20 min de ligar", "foco", "pausa a música",
+  "abre o spotify", "copia meu pix", "que horas são". **"Guarda que…"** salva na
+  **Memória**, que vai junto para todas as IAs (tela Memória, ícone de cérebro).
+- **A carinha percebe o que você faz**: digita junto, dança com música, assiste vídeo,
+  põe fones em chamada, desenha quando você está num programa de design. Desliga em
+  Personagem › "Perceber o que estou fazendo".
+- **Personagem**: 21 expressões, cor dos olhos e das bochechas, acessórios, olhos que
   seguem o mouse, mosquinha e cochilo quando parado.
-- **Central** (botão de teclado na ilha, ou menu do ícone › Abrir a Central): a ilha
+- **Central** (botão de painel na ilha aberta, ou menu do ícone › Abrir a Central): a ilha
   cresce do topo num painel grande (sem janela a mais na barra de tarefas). Fecha com
   **Esc**, no **×** ou clicando fora; o **alfinete** deixa ela presa aberta enquanto
   você mexe em outro programa. O botão **Soltar como janela** vira uma janela comum

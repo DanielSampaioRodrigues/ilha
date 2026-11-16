@@ -83,6 +83,7 @@ pub fn run() {
             corpo::central::abrir_central,
             corpo::central::esconder_central,
             corpo::central::modo_central,
+            corpo::atividade::perceber_atividade,
             corpo::central::tela_inicial_central,
             maos::volume::volume_atual,
             maos::volume::definir_volume,
@@ -106,6 +107,7 @@ pub fn run() {
             janela::preparar(app)?;
             corpo::bandeja::criar(app)?;
             corpo::janela_ativa::iniciar(app.clone());
+            corpo::atividade::iniciar(app.clone());
             corpo::tela_cheia::vigiar(app.clone());
             maos::volume::vigiar(app.clone());
             maos::pc::vigiar(app.clone());

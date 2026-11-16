@@ -14,6 +14,7 @@ import {
   definirAtalho,
   esconderEmTelaCheia,
   listarProgramas,
+  perceberAtividade,
   midiaAtual,
   PROGRAMAS_COM_ABAS,
   type Volume,
@@ -52,6 +53,10 @@ async function iniciar(): Promise<void> {
     if (ler().config.olhosSeguemMouse) olharTodas(o.x, o.y);
   });
   ouvir<boolean>("ilha:ocioso", (parado) => ilha.ocioso(parado));
+  ouvir<{ digitando: boolean; categoria: string }>("ilha:atividade", (a) => ilha.atividade(a.digitando, a.categoria));
+  // Madrugada etc.: confere a hora de tempos em tempos.
+  window.setInterval(() => ilha.atualizarAtividade(), 60_000);
+  perceberAtividade(ler().config.perceberAtividade).catch(() => {});
 
   // Atividades ao vivo na ilha fechada: música tocando e volume mudando.
   const conferirMusica = () => midiaAtual(false).then((m) => ilha.definirMusica(m)).catch(() => {});
@@ -233,6 +238,9 @@ function montarTeste(ilha: Ilha): void {
     ["música", () => ilha.definirMusica({ titulo: "Highway to Hell", artista: "AC/DC", tocando: true, capa: null })],
     ["volume", () => ilha.mostrarVolume({ nivel: 64, mudo: false })],
     ["timer", () => ilha.comecarTimer("Macarrão", 10)],
+    ["digitando", () => ilha.atividade(true, "")],
+    ["vídeo", () => ilha.atividade(false, "video")],
+    ["sem atividade", () => ilha.atividade(false, "")],
     ["cochilar", () => ilha.ocioso(true)],
     ["acordar", () => ilha.ocioso(false)],
     ["mouse ↓", () => ilha.mouse(true)],

@@ -1,6 +1,7 @@
 // Personagem: aparência do robô (cor dos olhos, bochechas, acessório) e jeito
 // de ser (olhos seguem o mouse, brincadeiras, cochilo). Com prévia ao vivo.
 import { ler, mudar, type Config } from "../../dados/armazem";
+import { perceberAtividade } from "../../maos/sistema";
 import {
   Carinha,
   NOMES_ACESSORIOS,
@@ -93,6 +94,7 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
         ${interruptor("olhosSeguemMouse", "Olhos seguem o mouse", "Ele olha para o lado onde está o mouse.", c.olhosSeguemMouse)}
         ${interruptor("brincadeiras", "Brincadeiras quando parado", "De vez em quando passa uma mosquinha e ele acompanha com os olhos.", c.brincadeiras)}
         ${interruptor("cochilar", "Cochilar", "Com o mouse parado por 5 minutos, ele dorme; mexeu, acorda.", c.cochilar)}
+        ${interruptor("perceberAtividade", "Perceber o que estou fazendo", "Digitando, ele digita junto; com música, dança; em vídeo, assiste; em chamada, põe fones. Só conta as teclas (não lê quais são) e olha o nome do programa na frente. Nada é guardado.", c.perceberAtividade)}
       </section>
     </div>`);
 
@@ -124,8 +126,9 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
   aoClicar(raiz, "cabeca", (b) => salvar((c) => (c.cabecaAberta = b.dataset.valor as Config["cabecaAberta"])));
   aoClicar(raiz, "alternar", (b) =>
     salvar((c) => {
-      const chave = b.dataset.opcao as "olhosSeguemMouse" | "brincadeiras" | "cochilar";
+      const chave = b.dataset.opcao as "olhosSeguemMouse" | "brincadeiras" | "cochilar" | "perceberAtividade";
       c[chave] = !c[chave];
+      if (chave === "perceberAtividade") perceberAtividade(c[chave]).catch(() => {});
     }),
   );
   return raiz;

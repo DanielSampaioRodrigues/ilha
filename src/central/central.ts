@@ -16,18 +16,20 @@ import { ICONES } from "../corpo/icones";
 import { Carinha } from "../corpo/carinha";
 import type { Contexto, NomeTela } from "../corpo/contexto";
 import { dentroDoApp } from "../ponte";
-import { anexar, comecarNova, montarConversa, pararPeloId } from "./conversa";
+import { anexar, comecarNova, importarConversa, montarConversa, pararPeloId } from "./conversa";
+import type { Conversa } from "../dados/conversas";
 import { montarProjetos } from "./projetos";
 import { montarPerfis } from "./perfis";
 import { montarFerramentas } from "./ferramentas";
 
-type Secao = "conversa" | "projetos" | "perfis" | "ferramentas" | Exclude<NomeTela, "inicio" | "apps">;
+type Secao = "conversa" | "projetos" | "perfis" | "ferramentas" | Exclude<NomeTela, "inicio" | "apps" | "conversa">;
 
 const MENU: [Secao, string, string][] = [
   ["conversa", ICONES.teclado, "Conversa"],
   ["perfis", ICONES.personagem, "Perfis"],
   ["ferramentas", ICONES.ajustes, "MCPs e Skills"],
   ["projetos", ICONES.pasta, "Projetos"],
+  ["memoria", ICONES.memoria, "Memória"],
   ["tarefas", ICONES.tarefas, "Tarefas"],
   ["notas", ICONES.notas, "Notas"],
   ["avisos", ICONES.cartao, "Assinaturas"],
@@ -240,6 +242,10 @@ export async function iniciarCentral(): Promise<void> {
       if (e.payload === "conversa") comecarNova();
     });
     await listen<{ id: string }>("central:parar", (e) => pararPeloId(e.payload.id));
+    await listen<Conversa>("central:importar", (e) => {
+      ir("conversa");
+      importarConversa(e.payload);
+    });
     // Arquivos arrastados para a ilha chegam aqui.
     await listen<string[]>("central:anexar", (e) => {
       ir("conversa");
@@ -256,8 +262,9 @@ export async function iniciarCentral(): Promise<void> {
       }
     });
   }
-  const pedido = await telaInicialCentral().catch(() => ({ tela: null, anexos: [] as string[] }));
+  const pedido = await telaInicialCentral().catch(() => ({ tela: null, anexos: [] as string[], conversa: null }));
   const inicial = pedido.tela ?? new URLSearchParams(location.search).get("secao");
   ir((inicial as Secao) ?? "conversa");
   if (pedido.anexos.length) anexar(pedido.anexos);
+  if (pedido.conversa) importarConversa(pedido.conversa as Conversa);
 }

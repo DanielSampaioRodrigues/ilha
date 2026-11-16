@@ -19,6 +19,8 @@ export interface MensagemConversa {
   anexos?: string[];
   /** O raciocínio que o modelo mostrou antes de responder (DeepSeek). */
   pensamento?: string;
+  /** Resposta que a ilha deu sozinha, sem IA (comando simples). */
+  local?: boolean;
 }
 
 export interface Conversa {

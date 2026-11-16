@@ -32,7 +32,9 @@ export type NomeTela =
   | "textos"
   | "pc"
   | "traducoes"
-  | "personagem";
+  | "personagem"
+  | "conversa"
+  | "memoria";
 
 export interface Notificacao {
   id: string;
@@ -88,6 +90,8 @@ export interface Contexto {
   trabalho?: Trabalho | null;
   /** O robô está cochilando (mouse parado há muito tempo). */
   dormindo: boolean;
+  /** Animação da carinha conforme o que o Dan faz (digitando, música…). */
+  atividade?: Expressao;
   /** Música tocando no Windows (para a ilha fechada). */
   musica: Midia | null;
   /** Último volume visto (para o aviso de volume). */

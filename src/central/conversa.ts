@@ -4,6 +4,7 @@
 // terminal e passar para outro motor.
 import { emit } from "@tauri-apps/api/event";
 import { ler, novoId, type Dados } from "../dados/armazem";
+import { responder, USAM_MCP } from "../dados/pedido";
 import { esforcosDe, guardarModelosExtras, modelosDe, nomeDoEsforco, nomeDoModelo } from "../dados/modelos";
 import {
   adicionarConversa,
@@ -16,7 +17,6 @@ import {
 import { haQuanto } from "../dados/datas";
 import {
   abrirNoTerminal,
-  conversar,
   ditado,
   escolherArquivos,
   listarModelos,
@@ -40,8 +40,6 @@ const DESCRICOES: Record<Motor, string> = {
 };
 /** Motores que podem editar arquivos pela ilha. */
 const EDITAM: Motor[] = ["claude", "codex", "gemini", "antigravity"];
-/** Motores que recebem os MCPs da ilha. */
-const USAM_MCP: Motor[] = ["claude", "codex", "gemini"];
 
 /** O que dá para escolher numa conversa (nova ou já começada). */
 interface Escolhas {
@@ -99,32 +97,6 @@ export function conversaRodando(): boolean {
 /** Para uma conversa (pedido vindo da ilha, pelo botão Parar). */
 export function pararPeloId(id: string): void {
   pararConversa(id).catch(() => {});
-}
-
-function sistemaPara(c: Conversa): string {
-  const cfg = ler().config;
-  const projeto = ler().projetos.find((p) => p.id === c.projetoId);
-  const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  return [
-    `Você é ${cfg.nomeRobo}, o assistente pessoal de ${cfg.nome}, que mora numa ilha no topo da tela do computador dele.`,
-    "Responda em português do Brasil, de forma direta, calorosa e sem enrolação. Use listas curtas quando ajudar.",
-    `Hoje é ${hoje}.`,
-    projeto?.instrucoes ? `Instruções do projeto "${projeto.nome}":\n${projeto.instrucoes}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-/** Instruções do perfil e das skills ligadas (vão para todos os motores). */
-function instrucoesExtras(c: Conversa, d: Dados): string {
-  const perfil = d.perfis.find((p) => p.id === c.perfilId);
-  const skills = d.skills.filter((s) => c.skills?.includes(s.id));
-  return [
-    perfil?.instrucoes ? `Instruções do perfil "${perfil.nome}":\n${perfil.instrucoes}` : "",
-    ...skills.map((s) => `Skill "${s.nome}"${s.descricao ? ` (${s.descricao})` : ""}:\n${s.instrucoes}`),
-  ]
-    .filter(Boolean)
-    .join("\n\n");
 }
 
 /** Busca (uma vez) os modelos que o Antigravity ou a DeepSeek informam. */
@@ -218,75 +190,14 @@ function novaConversa(): Conversa {
 }
 
 async function enviar(c: Conversa, texto: string, anexos: string[], aoMudar: () => void): Promise<void> {
-  const primeira = c.mensagens.length === 0;
-  c.mensagens.push({ papel: "voce", texto, quando: Date.now(), anexos: anexos.length ? anexos : undefined });
-  if (!c.titulo) c.titulo = texto.replace(/\s+/g, " ").slice(0, 60);
-  const resposta: MensagemConversa = { papel: "robo", texto: "", quando: Date.now(), ferramentas: [] };
-  c.mensagens.push(resposta);
-  c.atualizada = Date.now();
-  if (!conversas().includes(c)) adicionarConversa(c);
-  else salvarConversas();
-  rodando.set(c.id, Date.now());
-  aoMudar();
-
-  const d = ler();
-  // Para os programas, as instruções do projeto vão junto da primeira mensagem.
-  const projeto = d.projetos.find((p) => p.id === c.projetoId);
-  let prompt =
-    primeira && projeto?.instrucoes && c.motor !== "deepseek"
-      ? `Instruções do projeto "${projeto.nome}":\n${projeto.instrucoes}\n\n---\n\n${texto}`
-      : texto;
-  // Perfil e skills: DeepSeek e Claude Code recebem como instrução de sistema a
-  // cada mensagem; os outros, junto da mensagem quando mudam (a sessão lembra).
-  const extras = instrucoesExtras(c, d);
-  let sistema = c.motor === "deepseek" ? [sistemaPara(c), extras].filter(Boolean).join("\n\n") : c.motor === "claude" ? extras : "";
-  if (c.motor !== "deepseek" && c.motor !== "claude" && extras !== (c.instrucoesEnviadas ?? "")) {
-    prompt = extras ? `${extras}\n\n---\n\n${prompt}` : prompt;
-    c.instrucoesEnviadas = extras;
-  }
-  const mcps = USAM_MCP.includes(c.motor)
-    ? d.mcps
-        .filter((m) => c.mcps?.includes(m.id))
-        .map((m) => ({ nome: m.nome, tipo: m.tipo, comando: m.comando, argumentos: m.argumentos, url: m.url, segredos: m.segredos }))
-    : [];
-  emit("ilha:trabalho", { id: c.id, titulo: c.titulo, motor: c.motor }).catch(() => {});
   const inicio = Date.now();
-
-  try {
-    await conversar(
-      {
-        conversaId: c.id,
-        motor: c.motor,
-        // A conversa até antes desta mensagem (a nova vai em "prompt", com os anexos).
-        mensagens: c.mensagens.slice(0, -2).slice(-30).map((m) => ({ papel: m.papel, texto: m.texto })),
-        prompt,
-        sessao: c.sessao,
-        pasta: c.pasta,
-        modo: c.modo,
-        sistema,
-        anexos,
-        modelo: c.modelo ?? "",
-        esforco: c.esforco ?? "",
-        mcps,
-        mcpsDaIlha: d.mcps.map((m) => m.nome),
-      },
-      (e) => {
-        if (e.tipo === "sessao") c.sessao = e.id;
-        if (e.tipo === "texto") resposta.texto += e.texto;
-        if (e.tipo === "pensamento") resposta.pensamento = (resposta.pensamento ?? "") + e.texto;
-        if (e.tipo === "ferramenta") resposta.ferramentas!.push({ nome: e.nome, detalhe: e.detalhe });
-        if (e.tipo === "fim") {
-          resposta.erro = e.erro;
-          if (e.custo) c.custo = (c.custo ?? 0) + e.custo;
-        }
-        aoMudar();
-      },
-    );
-  } catch (erro) {
-    resposta.erro = String(erro);
-  }
+  const resposta = await responder(c, texto, anexos, aoMudar, () => {
+    if (!conversas().includes(c)) adicionarConversa(c);
+    else salvarConversas();
+    rodando.set(c.id, Date.now());
+    emit("ilha:trabalho", { id: c.id, titulo: c.titulo, motor: c.motor }).catch(() => {});
+  });
   rodando.delete(c.id);
-  c.atualizada = Date.now();
   salvarConversas();
   aoMudar();
   emit("ilha:trabalho-fim", {
@@ -655,6 +566,17 @@ export function montarConversa(): HTMLElement {
     .catch(() => {});
   desenharTudo();
   return raiz;
+}
+
+/** Conversa rápida da ilha que continua aqui: passa a ser uma conversa da Central. */
+export function importarConversa(c: Conversa): void {
+  if (!c?.id || !Array.isArray(c.mensagens)) return;
+  const existente = conversas().find((x) => x.id === c.id);
+  if (existente) Object.assign(existente, c);
+  else adicionarConversa(c);
+  salvarConversas();
+  atualId = c.id;
+  redesenharTudo();
 }
 
 /** Abre a tela de conversa já pronta para escrever (botão Digitar da ilha). */

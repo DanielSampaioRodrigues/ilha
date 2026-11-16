@@ -1,6 +1,7 @@
 // A ilha: desenha a forma preta, anima a gota e troca o conteúdo de cada estado.
 
 import { caminho, OMBRO } from "./forma";
+import { mudarAtividade, type Expressao } from "./carinha";
 import { Mola, type Firmeza } from "./mola";
 import { ESTADOS, temSinalVerde } from "./estados";
 import type { Contexto, NomeEstado, NomeTela, Notificacao, SessaoFoco, Trabalho } from "./contexto";
@@ -54,6 +55,10 @@ export class Ilha {
   private relogioVolume = 0;
   private dormindo = false;
   private trabalho: Trabalho | null = null;
+  // O que o Dan está fazendo (para a carinha reagir).
+  private digitando = false;
+  private categoria = "";
+  private expressaoAtividade: Expressao = "normal";
   /** Quem cuida de procurar atualização (definido no main.ts). */
   aoProcurarAtualizacao: () => void = () => {};
   private novidade: Novidade | null = null;
@@ -147,6 +152,7 @@ export class Ilha {
   definirMusica(m: Midia | null): void {
     const antes = this.musica;
     this.musica = m;
+    this.atualizarAtividade();
     const mudou = antes?.titulo !== m?.titulo || antes?.tocando !== m?.tocando;
     if (!mudou || !this.emDescanso() || this.estado === "volume" || this.mouseDentro) return;
     if (this.estadoBase() !== this.estado) this.fechar();
@@ -183,6 +189,11 @@ export class Ilha {
         botao: {
           texto: "Ver",
           fazer: () => {
+            // Conversa rápida: abre na própria ilha; as outras, na Central.
+            if (id.startsWith("rapida-")) {
+              this.abrir("conversa");
+              return;
+            }
             import("../maos/sistema").then((m) => m.abrirCentral("conversa-atual")).catch(() => {});
             this.fechar();
           },
@@ -202,9 +213,40 @@ export class Ilha {
     }
   }
 
+  /** O Windows contou: digitando? qual tipo de programa na frente? */
+  atividade(digitando: boolean, categoria: string): void {
+    this.digitando = digitando;
+    this.categoria = categoria;
+    this.atualizarAtividade();
+  }
+
+  /** Escolhe a animação da carinha conforme o que está acontecendo. */
+  private calcularAtividade(): Expressao {
+    if (!ler().config.perceberAtividade) return "normal";
+    const c = this.categoria;
+    if (c === "chamada") return "chamada";
+    if (this.digitando) return c === "codigo" ? "programando" : "digitando";
+    if (c === "design") return "desenhando";
+    if (this.musica?.tocando) return "musica";
+    if (c === "video") return "assistindo";
+    if (c === "navegador" || c === "codigo" || c === "escrita") return "lendo";
+    const hora = new Date().getHours();
+    if (hora < 5) return "sonolento";
+    return "normal";
+  }
+
+  atualizarAtividade(): void {
+    const nova = this.calcularAtividade();
+    if (nova === this.expressaoAtividade) return;
+    this.expressaoAtividade = nova;
+    if (!this.dormindo) mudarAtividade(nova);
+  }
+
   /** Mouse parado há 5 min (ou voltou a mexer): cochila ou acorda. */
   ocioso(parado: boolean): void {
-    const dormir = parado && ler().config.cochilar;
+    // Vendo vídeo, em chamada ou com música tocando, ele não dorme.
+    const ocupado = ["video", "chamada"].includes(this.categoria) || !!this.musica?.tocando;
+    const dormir = parado && ler().config.cochilar && !ocupado;
     if (dormir === this.dormindo) return;
     this.dormindo = dormir;
     if (this.estado === "repouso") this.renovar();
@@ -438,6 +480,7 @@ export class Ilha {
       foco: this.foco,
       musica: this.musica,
       dormindo: this.dormindo,
+      atividade: this.expressaoAtividade,
       trabalho: this.trabalho,
       volume: this.volume,
       ir: (estado) => this.mostrar(estado),

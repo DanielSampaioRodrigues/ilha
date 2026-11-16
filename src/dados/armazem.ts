@@ -120,6 +120,12 @@ export interface Config {
   esconderTelaCheia: boolean;
   /** A Central: "ilha" (cresce do topo) ou "janela" (janela comum, solta). */
   centralModo: "ilha" | "janela";
+  /** Quem responde a conversa rápida da ilha: "motor:deepseek" ou "perfil:<id>". */
+  conversaRapida: string;
+  /** Mandar as memórias para as IAs. */
+  usarMemoria: boolean;
+  /** A carinha reage ao que o Dan faz (digitando, música, vídeo…). */
+  perceberAtividade: boolean;
   /** Lembrar de fazer uma pausa a cada X minutos (0 = não lembrar). */
   pausaACada: number;
   /** Já trocou os sites padrão pelos programas instalados com o mesmo nome. */
@@ -190,7 +196,15 @@ export interface Dados {
   mcps: ServidorMcp[];
   skills: Skill[];
   perfis: Perfil[];
+  /** Coisas que o Dan pediu para a ilha lembrar (vão para todas as IAs). */
+  memorias: Memoria[];
   config: Config;
+}
+
+export interface Memoria {
+  id: string;
+  texto: string;
+  criada: number;
 }
 
 export const CORES = ["#D97757", "#E9ECEF", "#7BA7FF", "#B78CFF", "#FF5A8A", "#5C8BFF", "#5BE38F", "#FFD84D"];
@@ -223,6 +237,7 @@ function padrao(): Dados {
     mcps: [],
     skills: [],
     perfis: [],
+    memorias: [],
     config: {
       nome: "Dan",
       corOlhos: "#3FE6EE",
@@ -238,6 +253,9 @@ function padrao(): Dados {
       musicaNaIlha: true,
       esconderTelaCheia: true,
       centralModo: "ilha",
+      conversaRapida: "motor:deepseek",
+      usarMemoria: true,
+      perceberAtividade: true,
       pausaACada: 0,
       appsConferidos: false,
       atalho: null,

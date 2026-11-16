@@ -257,10 +257,14 @@ export interface PedidoConversa {
   mcpsDaIlha: string[];
 }
 
-export const abrirCentral = (tela?: string, anexos?: string[]) =>
-  pedir<void>("abrir_central", { tela: tela ?? null, anexos: anexos ?? null });
+export const abrirCentral = (tela?: string, anexos?: string[], conversa?: unknown) =>
+  pedir<void>("abrir_central", { tela: tela ?? null, anexos: anexos ?? null, conversa: conversa ?? null });
 export const telaInicialCentral = () =>
-  pedir<{ tela: string | null; anexos: string[] }>("tela_inicial_central", undefined, { tela: null, anexos: [] });
+  pedir<{ tela: string | null; anexos: string[]; conversa: unknown }>("tela_inicial_central", undefined, {
+    tela: null,
+    anexos: [],
+    conversa: null,
+  });
 export const motoresDisponiveis = () =>
   pedir<{ motor: Motor; encontrado: boolean }[]>("motores_disponiveis", undefined, [
     { motor: "deepseek", encontrado: true },
@@ -280,6 +284,8 @@ export const ditado = () => {
 };
 /** Esconde a ilha grande (ela continua viva por trás, terminando conversas). */
 export const esconderCentral = () => pedir<void>("esconder_central");
+/** Liga/desliga a carinha perceber o que o Dan faz (digitação, programa na frente). */
+export const perceberAtividade = (ligar: boolean) => pedir<void>("perceber_atividade", { ligar });
 /** Central como janela comum (true) ou como ilha grande (false). */
 export const modoJanelaCentral = (janela: boolean) => pedir<void>("modo_central", { janela });
 

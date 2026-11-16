@@ -147,7 +147,8 @@ export function montarInicio(ctx: Contexto): HTMLElement {
           <span class="secundario subtitulo">${ctx.atalho ? `${atalhoLegivel(ctx.atalho)} abre e fecha a ilha` : "Clique na carinha para abrir a ilha"}</span>
         </div>
         <button type="button" class="redondo" aria-label="Traduzir a tela" title="Traduzir a tela (Win+Alt+T)" data-acao="traduzir">${ICONES.traduzir}</button>
-        <button type="button" class="redondo" aria-label="Conversar (abre a Central)" title="Conversar" data-acao="digitar">${ICONES.teclado}</button>
+        <button type="button" class="redondo" aria-label="Abrir a Central" title="Abrir a Central (ilha grande)" data-acao="central">${ICONES.central}</button>
+        <button type="button" class="redondo" aria-label="Conversar" title="Conversar aqui na ilha" data-acao="digitar">${ICONES.teclado}</button>
         <button type="button" class="redondo grande vermelho" aria-label="Falar" data-acao="em-breve">${ICONES.microfone}</button>
       </header>
       ${atualizacao}
@@ -212,7 +213,8 @@ export function montarInicio(ctx: Contexto): HTMLElement {
     });
     ctx.renovar();
   });
-  aoClicar(raiz, "digitar", () => {
+  aoClicar(raiz, "digitar", () => ctx.irPara("conversa"));
+  aoClicar(raiz, "central", () => {
     ctx.fechar();
     abrirCentral("conversa").catch(() => {});
   });

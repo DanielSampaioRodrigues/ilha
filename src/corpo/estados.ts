@@ -59,7 +59,10 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
         .map((r) => seloDa(r, 14))
         .join("");
       const raiz = html(`<div class="estado repouso">${selos ? `<span class="sinal-ia">${selos}</span>` : ""}</div>`);
-      const carinha = new Carinha(ctx.dormindo ? "dormindo" : "normal", { comAcessorio: true });
+      const carinha = new Carinha(ctx.dormindo ? "dormindo" : (ctx.atividade ?? "normal"), {
+        comAcessorio: true,
+        segueAtividade: !ctx.dormindo,
+      });
       raiz.prepend(carinha.elemento);
       if (ctx.dormindo) {
         raiz.insertAdjacentHTML("beforeend", '<span class="zzz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>');
@@ -203,7 +206,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
       atualizar();
       ctx.aCada(atualizar, 1000);
       aoClicar(raiz, "parar", () => {
-        import("@tauri-apps/api/event").then(({ emit }) => emit("central:parar", { id: t.id })).catch(() => {});
+        import("../maos/sistema").then((m) => m.pararConversa(t.id)).catch(() => {});
       });
       return raiz;
     },
@@ -293,7 +296,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
       const m = ctx.musica;
       return html(`
         <div class="estado aviso musica-viva">
-          <i data-carinha="feliz"></i>
+          <i data-carinha="${ler().config.perceberAtividade ? "musica" : "feliz"}"></i>
           <span class="barrinhas" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
           <span class="principal">${escapar(m?.titulo ?? "")}</span>
         </div>`);

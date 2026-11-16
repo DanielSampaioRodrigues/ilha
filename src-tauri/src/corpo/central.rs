@@ -15,6 +15,8 @@ pub const JANELA_CENTRAL: &str = "central";
 pub struct Pedido {
     pub tela: Option<String>,
     pub anexos: Vec<String>,
+    /// Conversa rápida da ilha que vai continuar na Central.
+    pub conversa: Option<serde_json::Value>,
 }
 
 #[derive(Default)]
@@ -24,10 +26,10 @@ pub struct TelaPendente(Mutex<Option<Pedido>>);
 static MODO_JANELA: AtomicBool = AtomicBool::new(false);
 
 pub fn abrir(app: &AppHandle, tela: Option<String>) {
-    abrir_com(app, tela, Vec::new());
+    abrir_com(app, tela, Vec::new(), None);
 }
 
-pub fn abrir_com(app: &AppHandle, tela: Option<String>, anexos: Vec<String>) {
+pub fn abrir_com(app: &AppHandle, tela: Option<String>, anexos: Vec<String>, conversa: Option<serde_json::Value>) {
     if let Some(j) = app.get_webview_window(JANELA_CENTRAL) {
         if !MODO_JANELA.load(Ordering::Relaxed) {
             posicionar(app, &j);
@@ -42,10 +44,13 @@ pub fn abrir_com(app: &AppHandle, tela: Option<String>, anexos: Vec<String>) {
         if !anexos.is_empty() {
             let _ = app.emit_to(JANELA_CENTRAL, "central:anexar", anexos);
         }
+        if let Some(c) = conversa {
+            let _ = app.emit_to(JANELA_CENTRAL, "central:importar", c);
+        }
         return;
     }
     if let Ok(mut p) = app.state::<TelaPendente>().0.lock() {
-        *p = Some(Pedido { tela, anexos });
+        *p = Some(Pedido { tela, anexos, conversa });
     }
     let criada = WebviewWindowBuilder::new(app, JANELA_CENTRAL, WebviewUrl::default())
         .title("Ilha")
@@ -123,8 +128,13 @@ pub fn esconder_central(app: AppHandle) {
 /// Precisa ser "async": no Windows, criar janela dentro de um comando comum
 /// trava o programa (a janela fica branca e nem fecha).
 #[tauri::command]
-pub async fn abrir_central(app: AppHandle, tela: Option<String>, anexos: Option<Vec<String>>) {
-    abrir_com(&app, tela, anexos.unwrap_or_default());
+pub async fn abrir_central(
+    app: AppHandle,
+    tela: Option<String>,
+    anexos: Option<Vec<String>>,
+    conversa: Option<serde_json::Value>,
+) {
+    abrir_com(&app, tela, anexos.unwrap_or_default(), conversa);
 }
 
 /// A Central, ao abrir, pergunta o que foi pedido (tela e anexos).

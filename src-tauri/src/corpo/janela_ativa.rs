@@ -33,6 +33,12 @@ pub fn programa_agora() -> Option<String> {
     sistema::janela_ativa().map(|j| j.programa)
 }
 
+/// Título da janela em primeiro plano (só para a carinha saber se é vídeo ou
+/// chamada; não é guardado em lugar nenhum).
+pub fn titulo_agora() -> String {
+    sistema::titulo_ativo()
+}
+
 pub fn iniciar(app: AppHandle) {
     thread::spawn(move || {
         let mut ultima: Option<JanelaAtiva> = None;
@@ -60,8 +66,20 @@ mod sistema {
         OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetSystemMetrics, GetWindowRect, GetWindowThreadProcessId, SM_CXSCREEN,
+        GetForegroundWindow, GetSystemMetrics, GetWindowRect, GetWindowTextW, GetWindowThreadProcessId, SM_CXSCREEN,
     };
+
+    pub fn titulo_ativo() -> String {
+        unsafe {
+            let janela = GetForegroundWindow();
+            if janela.0.is_null() {
+                return String::new();
+            }
+            let mut texto = [0u16; 512];
+            let n = GetWindowTextW(janela, &mut texto);
+            String::from_utf16_lossy(&texto[..n.max(0) as usize])
+        }
+    }
 
     use super::JanelaAtiva;
 
@@ -101,5 +119,9 @@ mod sistema {
 
     pub fn janela_ativa() -> Option<JanelaAtiva> {
         None
+    }
+
+    pub fn titulo_ativo() -> String {
+        String::new()
     }
 }
