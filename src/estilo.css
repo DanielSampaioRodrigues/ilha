@@ -2342,3 +2342,95 @@ body.carinha-fora .estado.repouso > .carinha {
 .bicho-3d .pes {
   display: none;
 }
+
+/* Passeio: onde soltar o personagem para ele voltar para a ilha. */
+.zona-ilha {
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  width: 300px;
+  height: 64px;
+  margin-left: -150px;
+  border: 2px dashed rgba(63, 224, 208, 0.55);
+  border-radius: 0 0 28px 28px;
+  border-top: none;
+  background: rgba(8, 10, 14, 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  box-sizing: border-box;
+  color: rgba(234, 255, 252, 0.85);
+  font: 600 13px/1 system-ui, sans-serif;
+  pointer-events: none;
+  animation: zona-surgir 0.25s ease-out both;
+  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+}
+.zona-ilha.perto {
+  border-color: #3fe0d0;
+  background: rgba(63, 224, 208, 0.22);
+  transform: scale(1.08);
+  box-shadow: 0 0 28px rgba(63, 224, 208, 0.45);
+}
+@keyframes zona-surgir {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+/* Ajustes › Voz › Conferir a voz */
+.linha-cheia {
+  width: 100%;
+  justify-content: space-between;
+}
+.lista-voz {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.item-voz {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.item-voz .coluna {
+  flex: 1;
+}
+.marca-voz {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  flex: none;
+}
+.item-voz.certo .marca-voz {
+  background: rgba(74, 222, 128, 0.18);
+  color: #4ade80;
+}
+.item-voz.falta .marca-voz {
+  background: rgba(248, 113, 113, 0.18);
+  color: #f87171;
+}
+.item-voz.duvida .marca-voz {
+  background: rgba(250, 204, 21, 0.18);
+  color: #facc15;
+}
+.confirma-voz {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--destaque, #3fe0d0);
+  background: rgba(63, 224, 208, 0.06);
+}
+.confirma-voz .linha {
+  gap: 8px;
+}

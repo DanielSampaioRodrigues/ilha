@@ -109,6 +109,8 @@ export interface Config {
   personagem: import("../corpo/carinha").PersonagemId;
   /** Na ilha aberta: a cabeça do robô vermelho ou a carinha de pixel grande. */
   cabecaAberta: "robo" | "carinha";
+  /** Já passou pela troca do padrão (robô vermelho → personagem escolhido). */
+  cabecaRevista?: boolean;
   olhosSeguemMouse: boolean;
   /** Brincadeiras quando parado (pegar uma mosquinha…). */
   brincadeiras: boolean;
@@ -296,7 +298,8 @@ function padrao(): Dados {
       acessorio: "nenhum",
       personagem: "robo",
       estiloOlhos: "redondos",
-      cabecaAberta: "robo",
+      cabecaAberta: "carinha",
+      cabecaRevista: true,
       olhosSeguemMouse: true,
       brincadeiras: true,
       cochilar: true,
@@ -342,11 +345,17 @@ function completar(salvo: (Partial<Dados> & { lembretes?: LembreteAntigo[] }) | 
     repete: "nao",
     avisarDias: 0,
   }));
+  const config = { ...base.config, ...(resto.config ?? {}) };
+  // O padrão antigo era o robô vermelho; agora é o personagem escolhido.
+  if (!config.cabecaRevista) {
+    config.cabecaAberta = "carinha";
+    config.cabecaRevista = true;
+  }
   return {
     ...base,
     ...resto,
     redefinicoes: [...(resto.redefinicoes ?? []), ...convertidos],
-    config: { ...base.config, ...(resto.config ?? {}) },
+    config,
     notas: resto.notas?.length ? resto.notas : base.notas,
   };
 }

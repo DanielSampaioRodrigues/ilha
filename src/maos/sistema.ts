@@ -391,3 +391,24 @@ export const salvarSegredoMcp = (servidor: string, nome: string, valor: string) 
   pedir<void>("salvar_segredo_mcp", { servidor, nome, valor });
 export const temSegredoMcp = (servidor: string, nome: string) =>
   pedir<boolean>("tem_segredo_mcp", { servidor, nome }, false);
+
+/** O que o Windows tem (ou não) para a ilha ouvir. `null` = não deu para saber. */
+export interface EstadoVoz {
+  microfone: boolean | null;
+  microfone_liberado: boolean | null;
+  microfone_bloqueado_no_pc: boolean;
+  fala_online: boolean | null;
+  pacote_pt: boolean | null;
+  idiomas: string[];
+}
+export const conferirVoz = () =>
+  pedir<EstadoVoz>("conferir_voz", undefined, {
+    microfone: true,
+    microfone_liberado: true,
+    microfone_bloqueado_no_pc: false,
+    fala_online: false,
+    pacote_pt: false,
+    idiomas: [],
+  });
+/** Conserta um item ("fala_online", "microfone", "abrir_microfone", "pacote"). Só depois de o Dan confirmar. */
+export const consertarVoz = (item: string) => pedir<void>("consertar_voz", { item });

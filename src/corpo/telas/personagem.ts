@@ -154,8 +154,8 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
         <div class="item">
           <div class="coluna"><span class="principal">Na ilha aberta</span><span class="secundario">O que aparece ao lado da saudação.</span></div>
           <div class="segmentos" role="radiogroup" aria-label="Na ilha aberta">
+            <button type="button" class="segmento" role="radio" aria-checked="${c.cabecaAberta === "carinha"}" data-acao="cabeca" data-valor="carinha">Personagem escolhido</button>
             <button type="button" class="segmento" role="radio" aria-checked="${c.cabecaAberta === "robo"}" data-acao="cabeca" data-valor="robo">Robô vermelho</button>
-            <button type="button" class="segmento" role="radio" aria-checked="${c.cabecaAberta === "carinha"}" data-acao="cabeca" data-valor="carinha">Carinha</button>
           </div>
         </div>
       </section>

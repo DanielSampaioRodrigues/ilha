@@ -467,6 +467,8 @@ interface Personagem {
      * atividades a "câmera" se afasta e mostra a cena inteira na ilha.
      */
     largas?: Partial<Record<Expressao, Cena | Cena[]>>;
+    /** Para que lado a imagem olha (só as que têm lado): andando para o outro lado, ela é espelhada. */
+    lados?: Record<string, "esquerda" | "direita">;
   };
   /** Bocas diferentes (ex.: o "w" do gato no lugar do sorriso). */
   bocas?: Partial<Record<keyof typeof BOCAS, readonly [readonly number[], readonly number[]]>>;
@@ -514,11 +516,19 @@ const FANTASMA = "#C9D0D7";
 const BRANCO = "#E9ECEF";
 const ROSA = "#FF8FB4";
 
+/** Os dois quadros de andar olham para o mesmo lado. */
+const andandoPara = (lado: "esquerda" | "direita") => ({ andando1: lado, andando2: lado });
+
 /**
  * Receita dos personagens feitos com IA: todos têm as mesmas 27 poses
  * (mesmos nomes de arquivo), então só muda a pasta.
  */
-function feitoComIA(id: string, nome: string, jeito: string, extra: { material?: Material } = {}): Personagem {
+function feitoComIA(
+  id: string,
+  nome: string,
+  jeito: string,
+  extra: { material?: Material; lados?: Record<string, "esquerda" | "direita"> } = {},
+): Personagem {
   return {
     nome,
     jeito,
@@ -846,17 +856,17 @@ export const PERSONAGENS: Record<PersonagemId, Personagem> = {
   },
 
   // ---------- Feitos com IA (imagens 3D) ----------
-  broto: feitoComIA("broto", "Broto", "Fofinho, com uma anteninha que acende."),
-  faisca: feitoComIA("faisca", "Faísca", "Punk de moicano rosa e jaqueta de tachinhas. Atitude total."),
+  broto: feitoComIA("broto", "Broto", "Fofinho, com uma anteninha que acende.", { lados: andandoPara("direita") }),
+  faisca: feitoComIA("faisca", "Faísca", "Punk de moicano rosa e jaqueta de tachinhas. Atitude total.", { lados: andandoPara("direita") }),
   mimi: feitoComIA("mimi", "Mimi", "Estilo anime, cabelo lilás e moletom verde-água."),
-  bolota: feitoComIA("bolota", "Bolota", "Um gatinho laranja muito preguiçoso."),
+  bolota: feitoComIA("bolota", "Bolota", "Um gatinho laranja muito preguiçoso.", { lados: { andando1: "esquerda", andando2: "direita" } }),
   lata: feitoComIA("lata", "Lata", "Robozinho de lata antigo, de corda nas costas."),
   neon: feitoComIA("neon", "Neon", "Capacete com viseira de LED: na ilha, você vê só a viseira."),
   cosmo: feitoComIA("cosmo", "Cosmo", "Astronauta de viseira escura com olhos que brilham."),
-  massinha: feitoComIA("massinha", "Massinha", "Feito de massa de modelar: se remolda a cada pose.", { material: "massinha" }),
-  boing: feitoComIA("boing", "Boing", "Dinossauro de borracha: estica e balança quando muda.", { material: "borracha" }),
-  dobra: feitoComIA("dobra", "Dobra", "Raposa de origami: se dobra e desdobra entre as poses.", { material: "papel" }),
-  teo: feitoComIA("teo", "Téo", "Autista, com abafador de ouvido e brinquedo sensorial. Uma homenagem às pessoas neurodivergentes."),
+  massinha: feitoComIA("massinha", "Massinha", "Feito de massa de modelar: se remolda a cada pose.", { material: "massinha", lados: andandoPara("direita") }),
+  boing: feitoComIA("boing", "Boing", "Dinossauro de borracha: estica e balança quando muda.", { material: "borracha", lados: andandoPara("direita") }),
+  dobra: feitoComIA("dobra", "Dobra", "Raposa de origami: se dobra e desdobra entre as poses.", { material: "papel", lados: andandoPara("direita") }),
+  teo: feitoComIA("teo", "Téo", "Autista, com abafador de ouvido e brinquedo sensorial. Uma homenagem às pessoas neurodivergentes.", { lados: andandoPara("direita") }),
   nimbo: feitoComIA("nimbo", "Nimbo", "Nuvenzinha que vira fumacinha ao mudar e chove quando fica triste.", { material: "nuvem" }),
 
   // ---------- Estilo moderno (vetor) ----------
@@ -1095,7 +1105,10 @@ export class Carinha {
       const extras = (acessorio && !rosto ? ACESSORIOS[acessorio] : []).map(([x, y, c]) => quadrado(x, y, c)).join("");
       // Seguindo o mouse: inclina um pouco para o lado.
       const [mx, my] = d.deslocar ?? [this.olhar[0] * 0.6, this.olhar[1] * 0.3];
-      const mover = `translate(${mx} ${my})`;
+      // Imagem que olha para um lado, andando para o outro: espelha (senão ele anda de ré).
+      const lado = im.lados?.[nome];
+      const espelhar = (lado === "direita" && this.olhar[0] < 0) || (lado === "esquerda" && this.olhar[0] > 0);
+      const mover = `translate(${mx} ${my})${espelhar ? " translate(19 0) scale(-1 1)" : ""}`;
       const imagem = (pose: string) => this.imagemDaPose(im, ap.personagem, pose, rosto);
       const emTransicao = performance.now() < this.transicaoAte;
       const antes = this.poseVisivel;

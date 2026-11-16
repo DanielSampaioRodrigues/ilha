@@ -61,9 +61,9 @@ mod sistema {
         let codigo = e.code().0 as u32;
         match codigo {
             // Privacidade: reconhecimento de fala online desligado.
-            0x8004_5509 => "O reconhecimento de fala do Windows está desligado. Ligue em Configurações › Privacidade e segurança › Fala › Reconhecimento de fala online.".into(),
+            0x8004_5509 => "O reconhecimento de fala do Windows está desligado. Em Ajustes › Voz, “Conferir a voz” liga para você.".into(),
             // Sem permissão para o microfone.
-            0x8007_0005 => "O Windows não deixou usar o microfone. Libere em Configurações › Privacidade e segurança › Microfone (inclusive para apps da área de trabalho).".into(),
+            0x8007_0005 => "O Windows não deixou usar o microfone. Em Ajustes › Voz, “Conferir a voz” libera para você.".into(),
             _ => format!("Não consegui ouvir: {}", e.message()),
         }
     }
@@ -85,7 +85,7 @@ mod sistema {
         rec.Constraints().and_then(|c| c.Append(&ditado)).map_err(explicar)?;
         let compilado = rec.CompileConstraintsAsync().and_then(|op| op.join()).map_err(explicar)?;
         if compilado.Status().map_err(explicar)? != SpeechRecognitionResultStatus::Success {
-            return Err("O Windows não preparou o reconhecimento de fala. Confira se o idioma português tem o pacote de fala instalado (Configurações › Hora e idioma › Fala).".into());
+            return Err("O Windows não preparou o reconhecimento de fala (falta o pacote de fala em português?). Em Ajustes › Voz, “Conferir a voz” instala para você.".into());
         }
         if let Ok(t) = rec.Timeouts() {
             // Tempos em unidades de 100 ns.

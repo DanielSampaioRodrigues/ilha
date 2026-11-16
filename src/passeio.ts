@@ -361,11 +361,24 @@ export async function iniciarPasseio(): Promise<void> {
   // ---------- Na mão do Dan ----------
   const rastro: { x: number; y: number; t: number }[] = [];
   let inclinacao = 0;
+  // Soltar perto da ilha (no topo, no meio) devolve o personagem para casa.
+  const zona = document.createElement("div");
+  zona.className = "zona-ilha";
+  zona.innerHTML = "<span>Solte aqui para voltar</span>";
+  const pertoDaIlha = (x: number, y: number) => y < 150 && Math.abs(x - largura / 2) < 260;
+  const voltarParaCasa = async () => {
+    zona.remove();
+    bicho.cara("feliz");
+    await bicho.pular(meio, 4, 520, 60, 0.35);
+    bicho.sumir();
+    if (dentroDoApp) await invoke("fim_passeio").catch(() => {});
+  };
   const pegar = (x: number, y: number) => {
     if (!pego) {
       pego = true;
       geracao++;
       limparPalco(palco, bicho);
+      palco.append(zona);
       bicho.cara("surpreso");
       window.setTimeout(() => pego && bicho.cara("pulando"), 500);
     }
@@ -375,6 +388,7 @@ export async function iniciarPasseio(): Promise<void> {
     const dx = rastro.length > 1 ? rastro[rastro.length - 1].x - rastro[rastro.length - 2].x : 0;
     inclinacao += (Math.max(-30, Math.min(30, -dx * 2.2)) - inclinacao) * 0.35;
     bicho.segurar(x, y, inclinacao);
+    zona.classList.toggle("perto", pertoDaIlha(x, y));
   };
   const soltar = (x: number, y: number) => {
     if (!pego) return;
@@ -388,6 +402,11 @@ export async function iniciarPasseio(): Promise<void> {
     const vy = limite((b.y - a.y) / quadrosPassados);
     rastro.length = 0;
     inclinacao = 0;
+    if (pertoDaIlha(x, y)) {
+      void voltarParaCasa().catch(() => {});
+      return;
+    }
+    zona.remove();
     void rodar(async () => {
       await bicho.cair(vx, vy, chao, largura);
       bicho.cara("confuso");

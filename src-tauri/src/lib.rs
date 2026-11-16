@@ -97,6 +97,8 @@ pub fn run() {
             corpo::passeio::pegar_personagem,
             corpo::passeio::comeco_do_passeio,
             maos::voz::ouvir,
+            maos::conferir_voz::conferir_voz,
+            maos::conferir_voz::consertar_voz,
             maos::voz::parar_de_ouvir,
             maos::chamado::atender_pelo_nome,
             maos::copiados::copiados_listar,

@@ -19,7 +19,7 @@ import {
   PROGRAMAS_COM_ABAS,
   situacaoAvisos,
   type ProgramaIA,
-  type SituacaoAviso, atenderPeloNome } from "../../maos/sistema";
+  type SituacaoAviso, atenderPeloNome, conferirVoz, consertarVoz, type EstadoVoz } from "../../maos/sistema";
 import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
 import { aoClicar, cabecalho, escapar, html, recadoTemporario } from "../ui";
@@ -108,6 +108,13 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
           <div class="coluna"><span class="principal">Voz</span><span class="secundario">As do Windows. As “Natural” soam melhor (Configurações › Hora e idioma › Fala › Adicionar vozes).</span></div>
           <select class="entrada curta2 escolha-voz" aria-label="Voz"><option value="">Automática</option></select>
           <button type="button" class="botao" data-acao="testar-voz">Ouvir</button>
+        </div>
+        <div class="item coluna-item">
+          <div class="linha linha-cheia">
+            <div class="coluna"><span class="principal">Conferir a voz</span><span class="secundario">Vê se o Windows tem tudo para ele ouvir você (microfone, permissões e o pacote de fala em português) e conserta o que faltar, sempre perguntando antes.</span></div>
+            <button type="button" class="botao" data-acao="conferir-voz">Conferir</button>
+          </div>
+          <div class="lista-voz" aria-live="polite"></div>
         </div>
       </section>
 
@@ -253,6 +260,89 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   });
   escolhaVoz.addEventListener("change", () => mudar((d) => (d.config.voz = escolhaVoz.value)));
   aoClicar(raiz, "testar-voz", () => falar(`Oi, ${ler().config.nome}! Eu sou ${ler().config.nomeRobo}. É assim que eu falo.`));
+
+  // Conferir a voz: cada item mostra ✓ ou o que falta, com "Consertar" (que pergunta antes).
+  const listaVoz = raiz.querySelector<HTMLElement>(".lista-voz")!;
+  type ItemVoz = { ok: boolean | null; texto: string; falta?: string; conserto?: string; explica?: string; botao?: string };
+  const itensVoz = (e: EstadoVoz): ItemVoz[] => {
+    const pacote = {
+      conserto: "pacote",
+      explica:
+        "Vou baixar e instalar, pelo próprio Windows, o pacote de fala em português (Brasil) e as vozes em português. Leva alguns minutos e o Windows vai pedir permissão de administrador (a janela “Deseja permitir…?”).",
+    };
+    return [
+      { ok: e.microfone, texto: "Microfone ligado", falta: "Não achei microfone. Ligue um microfone ou um fone com microfone." },
+      e.microfone_bloqueado_no_pc
+        ? {
+            ok: false,
+            texto: "Microfone liberado",
+            falta: "O microfone está bloqueado para o computador inteiro. Só dá para liberar nas Configurações do Windows.",
+            conserto: "abrir_microfone",
+            explica: "Vou abrir as Configurações do Windows na página do microfone. Ligue “Acesso ao microfone” e “Permitir que aplicativos da área de trabalho acessem o microfone”.",
+            botao: "Abrir Configurações",
+          }
+        : {
+            ok: e.microfone_liberado,
+            texto: "Microfone liberado para a ilha",
+            falta: "O Windows não deixa programas usarem o microfone.",
+            conserto: "microfone",
+            explica: "Vou liberar o microfone para os programas do computador, nas configurações de privacidade do Windows.",
+          },
+      {
+        ok: e.fala_online,
+        texto: "Reconhecimento de fala online ligado",
+        falta: "Está desligado; sem ele o Windows não transforma a fala em texto.",
+        conserto: "fala_online",
+        explica:
+          "Vou ligar o “Reconhecimento de fala online” nas configurações de privacidade do Windows. Com ele, o que você fala ao microfone vermelho vai para a Microsoft virar texto.",
+      },
+      { ok: e.pacote_pt, texto: "Pacote de fala em português (Brasil)", falta: "Não está instalado.", ...pacote },
+      { ok: vozesEmPortugues().length > 0, texto: "Voz em português para responder", falta: "Não achei voz em português.", ...pacote },
+    ];
+  };
+  const desenharVoz = (e: EstadoVoz, recado = "") => {
+    const itens = itensVoz(e);
+    const tudoCerto = itens.every((i) => i.ok);
+    listaVoz.innerHTML =
+      itens
+        .map(
+          (i, n) => `
+        <div class="item-voz ${i.ok ? "certo" : i.ok === null ? "duvida" : "falta"}">
+          <span class="marca-voz" aria-hidden="true">${i.ok ? "✓" : i.ok === null ? "?" : "✕"}</span>
+          <div class="coluna"><span>${escapar(i.texto)}</span>${i.ok ? "" : `<span class="secundario">${escapar(i.ok === null ? "Não consegui conferir." : (i.falta ?? ""))}</span>`}</div>
+          ${!i.ok && i.conserto ? `<button type="button" class="botao" data-acao="consertar-voz" data-n="${n}">${escapar(i.botao ?? "Consertar")}</button>` : ""}
+        </div>`,
+        )
+        .join("") +
+      `<p class="secundario recado-voz">${escapar(recado || (tudoCerto ? "Tudo certo. Se ainda não ouvir, feche e abra a ilha." : ""))}</p>`;
+    listaVoz.querySelectorAll<HTMLElement>('[data-acao="consertar-voz"]').forEach((b) =>
+      b.addEventListener("click", () => {
+        const item = itens[Number(b.dataset.n)];
+        // Mexe no Windows: pergunta antes (o que vai acontecer e por quê).
+        const linha = b.closest<HTMLElement>(".item-voz")!;
+        linha.insertAdjacentHTML(
+          "afterend",
+          `<div class="confirma-voz"><p>${escapar(item.explica ?? "")}</p><div class="linha"><button type="button" class="botao ciano" data-sim>Sim, pode</button><button type="button" class="botao" data-nao>Agora não</button></div></div>`,
+        );
+        b.remove();
+        const caixa = linha.nextElementSibling as HTMLElement;
+        caixa.querySelector("[data-nao]")!.addEventListener("click", () => desenharVoz(e));
+        caixa.querySelector("[data-sim]")!.addEventListener("click", async () => {
+          caixa.innerHTML = `<p>${item.conserto === "pacote" ? "Baixando e instalando… pode levar alguns minutos. Pode continuar usando o computador." : "Mudando…"}</p>`;
+          try {
+            await consertarVoz(item.conserto!);
+            desenharVoz(await conferirVoz(), item.conserto === "pacote" ? "Pacote instalado. Feche e abra a ilha para ele começar a usar." : "Pronto.");
+          } catch (erro) {
+            desenharVoz(await conferirVoz(), String(erro));
+          }
+        });
+      }),
+    );
+  };
+  aoClicar(raiz, "conferir-voz", async () => {
+    listaVoz.innerHTML = '<p class="secundario">Conferindo…</p>';
+    desenharVoz(await conferirVoz());
+  });
 
   // Modo discreto
   const explica = raiz.querySelector<HTMLElement>(".explica-discreto")!;
