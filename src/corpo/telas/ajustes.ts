@@ -19,7 +19,7 @@ import {
   PROGRAMAS_COM_ABAS,
   situacaoAvisos,
   type ProgramaIA,
-  type SituacaoAviso, atenderPeloNome, conferirVoz, consertarVoz, type EstadoVoz } from "../../maos/sistema";
+  type SituacaoAviso, atenderPeloNome, conferirVoz, consertarVoz, estadoChamado, type EstadoChamado, type EstadoVoz } from "../../maos/sistema";
 import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
 import { aoClicar, cabecalho, escapar, html, recadoTemporario } from "../ui";
@@ -263,7 +263,26 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
 
   // Conferir a voz: cada item mostra ✓ ou o que falta, com "Consertar" (que pergunta antes).
   const listaVoz = raiz.querySelector<HTMLElement>(".lista-voz")!;
-  type ItemVoz = { ok: boolean | null; texto: string; falta?: string; conserto?: string; explica?: string; botao?: string };
+  type ItemVoz = { ok: boolean | null; texto: string; falta?: string; conserto?: string; explica?: string; botao?: string; nota?: string };
+  let chamado: EstadoChamado = { ligado: false, escutando: false, erro: null, ouviu: null };
+  const itemChamado = (): ItemVoz => {
+    const nome = ler().config.nomeRobo;
+    if (!ler().config.atenderPeloNome)
+      return {
+        ok: false,
+        texto: `Atender quando chamar “${nome}”`,
+        falta: "Está desligado.",
+        conserto: "ligar_chamado",
+        botao: "Ligar",
+        explica: `Vou ligar “Atender quando eu chamar pelo nome”: o microfone fica ligado ouvindo só “${nome}” (e “ei ${nome}”), reconhecido no próprio computador.`,
+      };
+    return {
+      ok: chamado.escutando,
+      texto: `Ouvindo o nome “${nome}”`,
+      falta: chamado.erro ?? "Ainda não começou a ouvir. Espere uns segundos e confira de novo.",
+      nota: chamado.ouviu ? `Última coisa que ouviu: ${chamado.ouviu}` : chamado.escutando ? "Diga o nome agora e confira de novo para ver se ele ouviu." : undefined,
+    };
+  };
   const itensVoz = (e: EstadoVoz): ItemVoz[] => {
     const pacote = {
       conserto: "pacote",
@@ -298,6 +317,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       },
       { ok: e.pacote_pt, texto: "Pacote de fala em português (Brasil)", falta: "Não está instalado.", ...pacote },
       { ok: vozesEmPortugues().length > 0, texto: "Voz em português para responder", falta: "Não achei voz em português.", ...pacote },
+      itemChamado(),
     ];
   };
   const desenharVoz = (e: EstadoVoz, recado = "") => {
@@ -309,7 +329,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
           (i, n) => `
         <div class="item-voz ${i.ok ? "certo" : i.ok === null ? "duvida" : "falta"}">
           <span class="marca-voz" aria-hidden="true">${i.ok ? "✓" : i.ok === null ? "?" : "✕"}</span>
-          <div class="coluna"><span>${escapar(i.texto)}</span>${i.ok ? "" : `<span class="secundario">${escapar(i.ok === null ? "Não consegui conferir." : (i.falta ?? ""))}</span>`}</div>
+          <div class="coluna"><span>${escapar(i.texto)}</span>${i.ok ? "" : `<span class="secundario">${escapar(i.ok === null ? "Não consegui conferir." : (i.falta ?? ""))}</span>`}${i.nota ? `<span class="secundario">${escapar(i.nota)}</span>` : ""}</div>
           ${!i.ok && i.conserto ? `<button type="button" class="botao" data-acao="consertar-voz" data-n="${n}">${escapar(i.botao ?? "Consertar")}</button>` : ""}
         </div>`,
         )
@@ -330,6 +350,15 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         caixa.querySelector("[data-sim]")!.addEventListener("click", async () => {
           caixa.innerHTML = `<p>${item.conserto === "pacote" ? "Baixando e instalando… pode levar alguns minutos. Pode continuar usando o computador." : "Mudando…"}</p>`;
           try {
+            if (item.conserto === "ligar_chamado") {
+              mudar((d) => (d.config.atenderPeloNome = true));
+              raiz.querySelector('[data-acao="atender-nome"]')?.setAttribute("aria-checked", "true");
+              await atenderPeloNome(true, ler().config.nomeRobo);
+              await new Promise((r) => setTimeout(r, 2500));
+              chamado = await estadoChamado();
+              desenharVoz(await conferirVoz(), "Ligado. Diga o nome e confira de novo.");
+              return;
+            }
             await consertarVoz(item.conserto!);
             desenharVoz(await conferirVoz(), item.conserto === "pacote" ? "Pacote instalado. Feche e abra a ilha para ele começar a usar." : "Pronto.");
           } catch (erro) {
@@ -341,6 +370,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   };
   aoClicar(raiz, "conferir-voz", async () => {
     listaVoz.innerHTML = '<p class="secundario">Conferindo…</p>';
+    chamado = await estadoChamado();
     desenharVoz(await conferirVoz());
   });
 

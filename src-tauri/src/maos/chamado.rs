@@ -18,6 +18,35 @@ pub static ATIVO: AtomicBool = AtomicBool::new(false);
 static TERMINOU: AtomicBool = AtomicBool::new(false);
 static NOME: Mutex<String> = Mutex::new(String::new());
 static INICIADO: AtomicBool = AtomicBool::new(false);
+/// Para o "Conferir a voz": o último problema e a última coisa ouvida.
+static ULTIMO_ERRO: Mutex<Option<String>> = Mutex::new(None);
+static ULTIMO_OUVIDO: Mutex<Option<String>> = Mutex::new(None);
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn guardar(onde: &Mutex<Option<String>>, texto: Option<String>) {
+    if let Ok(mut v) = onde.lock() {
+        *v = texto;
+    }
+}
+
+#[derive(serde::Serialize)]
+pub struct EstadoChamado {
+    pub ligado: bool,
+    pub escutando: bool,
+    pub erro: Option<String>,
+    pub ouviu: Option<String>,
+}
+
+/// Como está a escuta do nome (para o "Conferir a voz").
+#[tauri::command]
+pub fn estado_chamado() -> EstadoChamado {
+    EstadoChamado {
+        ligado: LIGADO.load(Ordering::Relaxed),
+        escutando: ATIVO.load(Ordering::Relaxed),
+        erro: ULTIMO_ERRO.lock().ok().and_then(|e| e.clone()),
+        ouviu: ULTIMO_OUVIDO.lock().ok().and_then(|e| e.clone()),
+    }
+}
 
 /// Frases que acordam o robô.
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -47,7 +76,7 @@ mod sistema {
 
     use tauri::{AppHandle, Emitter};
     use windows::core::HSTRING;
-    use windows::Foundation::TypedEventHandler;
+    use windows::Foundation::{TimeSpan, TypedEventHandler};
     use windows::Globalization::Language;
     use windows::Media::SpeechRecognition::{
         SpeechContinuousRecognitionCompletedEventArgs, SpeechContinuousRecognitionSession,
@@ -56,7 +85,15 @@ mod sistema {
     };
     use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
-    use super::{frases, ATIVO, LIGADO, NOME, OCUPADO, TERMINOU};
+    use super::{frases, guardar, ATIVO, LIGADO, NOME, OCUPADO, TERMINOU, ULTIMO_ERRO, ULTIMO_OUVIDO};
+
+    fn explicar(e: &windows::core::Error) -> String {
+        match e.code().0 as u32 {
+            0x8004_5509 => "O reconhecimento de fala está desligado ou falta o pacote de fala em português.".into(),
+            0x8007_0005 => "O Windows não deixou usar o microfone.".into(),
+            _ => e.message().to_string(),
+        }
+    }
 
     fn preparar(app: &AppHandle, nome: &str) -> windows::core::Result<SpeechRecognizer> {
         let rec = Language::CreateLanguage(&HSTRING::from("pt-BR"))
@@ -77,10 +114,19 @@ mod sistema {
             if let Some(args) = args.as_ref() {
                 let r = args.Result()?;
                 let confianca = r.Confidence()?;
-                if r.Status()? == SpeechRecognitionResultStatus::Success
-                    && (confianca == SpeechRecognitionConfidence::High || confianca == SpeechRecognitionConfidence::Medium)
-                {
-                    let _ = app.emit("ilha:chamou", r.Text()?.to_string());
+                let texto = r.Text()?.to_string();
+                let nivel = match confianca {
+                    SpeechRecognitionConfidence::High => "alta",
+                    SpeechRecognitionConfidence::Medium => "média",
+                    SpeechRecognitionConfidence::Low => "baixa",
+                    _ => "nenhuma",
+                };
+                if !texto.is_empty() {
+                    guardar(&ULTIMO_OUVIDO, Some(format!("“{texto}” (certeza {nivel})")));
+                }
+                // A lista só tem as frases com o nome: até a certeza baixa vale.
+                if r.Status()? == SpeechRecognitionResultStatus::Success && confianca != SpeechRecognitionConfidence::Rejected {
+                    let _ = app.emit("ilha:chamou", texto);
                 }
             }
             Ok(())
@@ -89,10 +135,19 @@ mod sistema {
         rec.ContinuousRecognitionSession()?.Completed(&TypedEventHandler::<
             SpeechContinuousRecognitionSession,
             SpeechContinuousRecognitionCompletedEventArgs,
-        >::new(|_, _| {
+        >::new(|_, args| {
+            if let Some(status) = args.as_ref().and_then(|a| a.Status().ok()) {
+                if status == SpeechRecognitionResultStatus::MicrophoneUnavailable {
+                    guardar(&ULTIMO_ERRO, Some("O microfone parou de responder.".into()));
+                } else if status == SpeechRecognitionResultStatus::AudioQualityFailure {
+                    guardar(&ULTIMO_ERRO, Some("O som do microfone está ruim (muito baixo ou com chiado).".into()));
+                }
+            }
             TERMINOU.store(true, Ordering::Relaxed);
             Ok(())
         }))?;
+        // Por padrão o Windows para depois de 20 s de silêncio: aqui, só depois de um dia.
+        let _ = rec.ContinuousRecognitionSession()?.SetAutoStopSilenceTimeout(TimeSpan { Duration: 24 * 3600 * 10_000_000 });
         Ok(rec)
     }
 
@@ -132,18 +187,21 @@ mod sistema {
                             let comecou = rec.ContinuousRecognitionSession().and_then(|s| s.StartAsync()).and_then(|op| op.join());
                             match comecou {
                                 Ok(()) => {
+                                    guardar(&ULTIMO_ERRO, None);
                                     TERMINOU.store(false, Ordering::Relaxed);
                                     ATIVO.store(true, Ordering::Relaxed);
                                     atual = Some((rec, nome));
                                 }
                                 Err(e) => {
                                     log::warn!("Chamar pelo nome: não consegui começar a ouvir: {}", e.message());
+                                    guardar(&ULTIMO_ERRO, Some(format!("Não consegui começar a ouvir: {}", explicar(&e))));
                                     std::thread::sleep(Duration::from_secs(20));
                                 }
                             }
                         }
                         Err(e) => {
                             log::warn!("Chamar pelo nome: {}", e.message());
+                            guardar(&ULTIMO_ERRO, Some(explicar(&e)));
                             std::thread::sleep(Duration::from_secs(20));
                         }
                     }

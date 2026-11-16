@@ -412,3 +412,13 @@ export const conferirVoz = () =>
   });
 /** Conserta um item ("fala_online", "microfone", "abrir_microfone", "pacote"). Só depois de o Dan confirmar. */
 export const consertarVoz = (item: string) => pedir<void>("consertar_voz", { item });
+
+/** Como está a escuta do nome ("chamar pelo nome"). */
+export interface EstadoChamado {
+  ligado: boolean;
+  escutando: boolean;
+  erro: string | null;
+  ouviu: string | null;
+}
+export const estadoChamado = () =>
+  pedir<EstadoChamado>("estado_chamado", undefined, { ligado: false, escutando: false, erro: null, ouviu: null });
