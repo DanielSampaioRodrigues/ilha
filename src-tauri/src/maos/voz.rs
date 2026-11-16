@@ -17,7 +17,16 @@ static ATUAL: Mutex<Option<Operacao>> = Mutex::new(None);
 /// Escuta uma frase (até ~15 s) e devolve o texto. Vazio = não ouviu nada.
 #[tauri::command]
 pub async fn ouvir() -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(sistema::ouvir).await.map_err(|e| e.to_string())?
+    // A escuta do nome solta o microfone enquanto isso.
+    super::chamado::OCUPADO.store(true, std::sync::atomic::Ordering::Relaxed);
+    let r = tauri::async_runtime::spawn_blocking(|| {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        sistema::ouvir()
+    })
+    .await
+    .map_err(|e| e.to_string());
+    super::chamado::OCUPADO.store(false, std::sync::atomic::Ordering::Relaxed);
+    r?
 }
 
 /// Para de ouvir (botão Parar).

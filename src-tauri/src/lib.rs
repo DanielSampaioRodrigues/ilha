@@ -92,6 +92,7 @@ pub fn run() {
             corpo::permissao::responder_permissao,
             maos::voz::ouvir,
             maos::voz::parar_de_ouvir,
+            maos::chamado::atender_pelo_nome,
             corpo::central::tela_inicial_central,
             maos::volume::volume_atual,
             maos::volume::definir_volume,

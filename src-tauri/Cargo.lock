@@ -2354,6 +2354,7 @@ dependencies = [
  "tauri-plugin-updater",
  "toml_edit 0.25.19+spec-1.1.0",
  "windows",
+ "windows-collections",
  "windows-future",
  "xcap",
 ]

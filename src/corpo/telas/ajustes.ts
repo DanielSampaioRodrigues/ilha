@@ -18,8 +18,7 @@ import {
   PROGRAMAS_COM_ABAS,
   situacaoAvisos,
   type ProgramaIA,
-  type SituacaoAviso,
-} from "../../maos/sistema";
+  type SituacaoAviso, atenderPeloNome } from "../../maos/sistema";
 import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
 import { aoClicar, cabecalho, escapar, html, recadoTemporario } from "../ui";
@@ -69,7 +68,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       <section class="secao">
         <p class="titulo-secao">Você</p>
         <div class="item">
-          <div class="coluna"><span class="principal">Nome do robô</span><span class="secundario">Como ele se apresenta. Depois: chamar pelo nome para ele atender.</span></div>
+          <div class="coluna"><span class="principal">Nome do robô</span><span class="secundario">Como ele se apresenta. Dá para chamar por esse nome (veja Voz, abaixo).</span></div>
           <input class="entrada curta2" name="nomeRobo" maxlength="20" value="${escapar(dados.config.nomeRobo)}" aria-label="Nome do robô">
         </div>
         <div class="item">
@@ -87,6 +86,10 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         <div class="item">
           <div class="coluna"><span class="principal">Ler a resposta em voz alta</span><span class="secundario">Quando você pergunta falando (microfone vermelho).</span></div>
           <button type="button" class="chave" role="switch" aria-checked="${dados.config.falarRespostas}" aria-label="Ler a resposta em voz alta" data-acao="falar-respostas"><span></span></button>
+        </div>
+        <div class="item">
+          <div class="coluna"><span class="principal">Atender quando eu chamar pelo nome</span><span class="secundario">Diga “${escapar(dados.config.nomeRobo)}” (ou “ei ${escapar(dados.config.nomeRobo)}”) e ele abre ouvindo. Deixa o microfone sempre ligado; o nome é reconhecido no próprio PC.</span></div>
+          <button type="button" class="chave" role="switch" aria-checked="${dados.config.atenderPeloNome}" aria-label="Atender quando eu chamar pelo nome" data-acao="atender-nome"><span></span></button>
         </div>
         <div class="item">
           <div class="coluna"><span class="principal">Voz</span><span class="secundario">As do Windows. As “Natural” soam melhor (Configurações › Hora e idioma › Fala › Adicionar vozes).</span></div>
@@ -187,7 +190,11 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   const nome = raiz.querySelector<HTMLInputElement>('[name="nome"]')!;
   nome.addEventListener("input", () => mudar((d) => (d.config.nome = nome.value.trim() || "Dan")));
   const nomeRobo = raiz.querySelector<HTMLInputElement>('[name="nomeRobo"]')!;
-  nomeRobo.addEventListener("input", () => mudar((d) => (d.config.nomeRobo = nomeRobo.value.trim() || "Robozinho")));
+  nomeRobo.addEventListener("input", () => {
+    mudar((d) => (d.config.nomeRobo = nomeRobo.value.trim() || "Robozinho"));
+    const c = ler().config;
+    if (c.atenderPeloNome) atenderPeloNome(true, c.nomeRobo).catch(() => {});
+  });
 
   // Cor
   aoClicar(raiz, "cor", (b) => {
@@ -202,6 +209,12 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     const ligado = !ler().config.falarRespostas;
     mudar((d) => (d.config.falarRespostas = ligado));
     b.setAttribute("aria-checked", String(ligado));
+  });
+  aoClicar(raiz, "atender-nome", (b) => {
+    const ligado = !ler().config.atenderPeloNome;
+    mudar((d) => (d.config.atenderPeloNome = ligado));
+    b.setAttribute("aria-checked", String(ligado));
+    atenderPeloNome(ligado, ler().config.nomeRobo).catch(() => {});
   });
   const escolhaVoz = raiz.querySelector<HTMLSelectElement>(".escolha-voz")!;
   aoCarregarVozes(() => {

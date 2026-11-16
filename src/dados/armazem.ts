@@ -132,6 +132,8 @@ export interface Config {
   falarRespostas: boolean;
   /** Voz escolhida para falar ("" = a melhor em português que houver). */
   voz: string;
+  /** Ficar ouvindo o nome do robô para atender (microfone sempre ligado). */
+  atenderPeloNome: boolean;
   /** Lembrar de fazer uma pausa a cada X minutos (0 = não lembrar). */
   pausaACada: number;
   /** Já trocou os sites padrão pelos programas instalados com o mesmo nome. */
@@ -265,6 +267,7 @@ function padrao(): Dados {
       perceberAtividade: true,
       falarRespostas: true,
       voz: "",
+      atenderPeloNome: false,
       pausaACada: 0,
       appsConferidos: false,
       atalho: null,

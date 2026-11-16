@@ -15,6 +15,7 @@ import {
   esconderEmTelaCheia,
   listarProgramas,
   perceberAtividade,
+  atenderPeloNome,
   midiaAtual,
   PROGRAMAS_COM_ABAS,
   type Volume,
@@ -59,6 +60,14 @@ async function iniciar(): Promise<void> {
   // Madrugada etc.: confere a hora de tempos em tempos.
   window.setInterval(() => ilha.atualizarAtividade(), 60_000);
   perceberAtividade(ler().config.perceberAtividade).catch(() => {});
+  if (ler().config.atenderPeloNome) atenderPeloNome(true, ler().config.nomeRobo).catch(() => {});
+  // Chamou pelo nome: abre a conversa já ouvindo o pedido.
+  ouvir<string>("ilha:chamou", () => {
+    import("./corpo/telas/conversa").then((m) => {
+      m.abrirOuvindo();
+      ilha.abrir("conversa");
+    });
+  });
 
   // Atividades ao vivo na ilha fechada: música tocando e volume mudando.
   const conferirMusica = () => midiaAtual(false).then((m) => ilha.definirMusica(m)).catch(() => {});
