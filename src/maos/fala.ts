@@ -82,6 +82,21 @@ function cortar(): void {
   if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
 }
 
+/**
+ * O MP3 vindo do Rust pode chegar como ArrayBuffer, como Uint8Array ou como
+ * lista de números (depende da versão do Tauri): tudo vira um ArrayBuffer novo.
+ */
+export function paraArrayBuffer(dados: unknown): ArrayBuffer {
+  if (dados instanceof ArrayBuffer) return dados.slice(0);
+  if (ArrayBuffer.isView(dados)) {
+    const bytes = new Uint8Array(dados.buffer, dados.byteOffset, dados.byteLength);
+    return bytes.slice().buffer;
+  }
+  if (Array.isArray(dados)) return new Uint8Array(dados).buffer;
+  if (dados && typeof dados === "object" && "byteLength" in dados) return new Uint8Array(dados as ArrayBufferLike).slice().buffer;
+  throw new Error("O áudio da voz natural chegou num formato que não conheço.");
+}
+
 /** Voz natural (ElevenLabs): pede o áudio e toca. Se falhar, usa a do Windows. */
 async function falarComVozNatural(texto: string, aoTerminar?: () => void): Promise<void> {
   const minhaVez = vez;
@@ -93,7 +108,7 @@ async function falarComVozNatural(texto: string, aoTerminar?: () => void): Promi
     somCtx ??= new AudioContext();
     if (somCtx.state === "suspended") await somCtx.resume();
     if (somCtx.state !== "running") throw new Error("O Windows não deixou tocar o som agora.");
-    const som = await somCtx.decodeAudioData(mp3.slice(0));
+    const som = await somCtx.decodeAudioData(paraArrayBuffer(mp3));
     if (minhaVez !== vez) return;
     erroVozNatural = "";
     const tocar = somCtx.createBufferSource();

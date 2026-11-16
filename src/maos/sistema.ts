@@ -424,7 +424,7 @@ export const estadoChamado = () =>
   pedir<EstadoChamado>("estado_chamado", undefined, { ligado: false, escutando: false, erro: null, ouviu: null });
 
 /** Fala com a voz natural da ElevenLabs: devolve o MP3. */
-export const falarNatural = (texto: string, voz: string, modelo: string) => invoke<ArrayBuffer>("falar_natural", { texto, voz, modelo });
+export const falarNatural = (texto: string, voz: string, modelo: string) => invoke<unknown>("falar_natural", { texto, voz, modelo });
 export interface VozNatural {
   id: string;
   nome: string;
