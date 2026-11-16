@@ -401,7 +401,8 @@ export type PersonagemId =
   | "anime"
   | "gota"
   | "cubo"
-  | "astronauta";
+  | "astronauta"
+  | "broto";
 
 interface Personagem {
   nome: string;
@@ -414,6 +415,8 @@ interface Personagem {
   monstro?: boolean;
   /** Desenhado em vetor (curvas, sombras), não em pixels. */
   vetor?: boolean;
+  /** Feito com IA: uma imagem para cada expressão (pasta em public/personagens). */
+  imagens?: { pasta: string; mapa: Partial<Record<Expressao, string>>; padrao: string };
   /** Bocas diferentes (ex.: o "w" do gato no lugar do sorriso). */
   bocas?: Partial<Record<keyof typeof BOCAS, readonly [readonly number[], readonly number[]]>>;
   /** Boca desenhada pelo próprio personagem (ex.: bico). */
@@ -703,6 +706,36 @@ export const PERSONAGENS: Record<PersonagemId, Personagem> = {
     frente: pontos([[8, 7], [10, 7]], "#0E4A3D"),
   },
 
+  // ---------- Feitos com IA (imagens 3D) ----------
+  broto: {
+    nome: "Broto",
+    jeito: "Fofinho em 3D, com uma anteninha que acende. Feito com IA.",
+    pixels: [],
+    imagens: {
+      pasta: "/personagens/broto",
+      padrao: "neutro",
+      mapa: {
+        feliz: "feliz",
+        rindo: "rindo",
+        musica: "rindo",
+        piscadinha: "feliz",
+        chamada: "feliz",
+        surpreso: "surpreso",
+        alerta: "surpreso",
+        assistindo: "surpreso",
+        ouvindo: "surpreso",
+        triste: "triste",
+        dormindo: "dormindo",
+        sonolento: "dormindo",
+        pensando: "pensando",
+        programando: "pensando",
+        desenhando: "pensando",
+        apaixonado: "amor",
+        confuso: "confuso",
+      },
+    },
+  },
+
   // ---------- Estilo moderno (vetor) ----------
   ...(Object.fromEntries(
     Object.entries(PERSONAGENS_VETOR).map(([id, v]) => [id, { nome: v.nome, jeito: v.jeito, pixels: [], vetor: true }]),
@@ -807,7 +840,8 @@ export class Carinha {
   /** Personagens em vetor desenham os olhos do jeito deles (a partir do redondo). */
   private estiloDosOlhos(): EstiloOlhos {
     const ap = this.aparencia();
-    return this.opcoes.comAcessorio && PERSONAGENS[ap.personagem]?.vetor ? "redondos" : (ap.estiloOlhos ?? "redondos");
+    const p = PERSONAGENS[ap.personagem];
+    return this.opcoes.comAcessorio && (p?.vetor || p?.imagens) ? "redondos" : (ap.estiloOlhos ?? "redondos");
   }
 
   private aparencia(): Aparencia {
@@ -864,6 +898,25 @@ export class Carinha {
     // O personagem só aparece "de corpo inteiro" (com acessório); nos outros
     // lugares fica a carinha simples.
     const personagem = this.opcoes.comAcessorio ? (PERSONAGENS[ap.personagem] ?? PERSONAGENS.robo) : PERSONAGENS.robo;
+    if (personagem.imagens) {
+      this.enquadrar(true);
+      this.elemento.setAttribute("shape-rendering", "geometricPrecision");
+      const im = personagem.imagens;
+      // Piscar = um instante de olhos fechados.
+      const nome = d.esquerdo === PISCANDO ? (im.mapa.dormindo ?? im.padrao) : (im.mapa[this.expressao] ?? im.padrao);
+      const corV = d.cor ?? ap.corOlhos;
+      const quadrado = (x: number, y: number, c: string) => `<rect x="${x}" y="${y}" width="1" height="1" rx=".3" fill="${c || corV}"/>`;
+      const acessorio = d.acessorio ?? (ap.acessorio !== "nenhum" ? ap.acessorio : null);
+      const extras = [
+        ...(acessorio ? ACESSORIOS[acessorio] : []).map(([x, y, c]) => quadrado(x, y, c)),
+        ...(d.extras ?? []).map(([x, y, c]) => quadrado(x, y, c)),
+      ].join("");
+      // Seguindo o mouse: inclina um pouco para o lado.
+      const [mx, my] = d.deslocar ?? [this.olhar[0] * 0.6, this.olhar[1] * 0.3];
+      this.elemento.innerHTML = `<g transform="translate(${mx} ${my})"><image href="${im.pasta}/${nome}.png" x="2.5" y="-4.2" width="14.2" height="14.2" preserveAspectRatio="xMidYMid meet"/>${extras}</g>`;
+      this.elemento.style.setProperty("--brilho", "transparent");
+      return;
+    }
     if (personagem.vetor) {
       this.enquadrar(true);
       this.elemento.setAttribute("shape-rendering", "geometricPrecision");
@@ -954,6 +1007,16 @@ export class Carinha {
     window.clearTimeout(this.relogio);
     window.clearInterval(this.animacao);
     vivas.delete(this);
+  }
+}
+
+/** Deixa as imagens dos personagens feitos com IA prontas (sem piscar ao trocar). */
+export function precarregarImagens(id: PersonagemId): void {
+  const im = PERSONAGENS[id]?.imagens;
+  if (!im) return;
+  for (const nome of new Set([im.padrao, ...Object.values(im.mapa)])) {
+    const i = new Image();
+    i.src = `${im.pasta}/${nome}.png`;
   }
 }
 

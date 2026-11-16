@@ -85,7 +85,14 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
         <p class="titulo-secao">Quem mora na ilha</p>
         <div class="grade-personagens">
           ${(Object.keys(PERSONAGENS) as PersonagemId[])
-            .filter((id) => !PERSONAGENS[id].monstro && !PERSONAGENS[id].vetor)
+            .filter((id) => !PERSONAGENS[id].monstro && !PERSONAGENS[id].vetor && !PERSONAGENS[id].imagens)
+            .map(cartao)
+            .join("")}
+        </div>
+        <p class="titulo-secao espaco-acima">Feitos com IA (3D)</p>
+        <div class="grade-personagens">
+          ${(Object.keys(PERSONAGENS) as PersonagemId[])
+            .filter((id) => PERSONAGENS[id].imagens)
             .map(cartao)
             .join("")}
         </div>

@@ -7,7 +7,7 @@ import { procurar, versaoAtual } from "./atualizacao";
 import { aoMudarDeFora, carregar, ler, mudar } from "./dados/armazem";
 import { avancar, paraISO } from "./dados/datas";
 import { aplicarCor } from "./corpo/tema";
-import { olharTodas } from "./corpo/carinha";
+import { olharTodas, precarregarImagens } from "./corpo/carinha";
 import {
   atalhoAtual,
   avisoPendente,
@@ -65,6 +65,7 @@ async function iniciar(): Promise<void> {
   // Madrugada etc.: confere a hora de tempos em tempos.
   window.setInterval(() => ilha.atualizarAtividade(), 60_000);
   perceberAtividade(ler().config.perceberAtividade).catch(() => {});
+  precarregarImagens(ler().config.personagem);
   if (!ler().config.copiadosLigado) copiadosLigar(false).catch(() => {});
   if (ler().config.atenderPeloNome) atenderPeloNome(true, ler().config.nomeRobo).catch(() => {});
   // Calendário da Apple: manda o que mudou (se estiver conectado).
