@@ -55,6 +55,9 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
   responde e lê a resposta em voz alta (escolha a voz em Ajustes › Voz). Usa o
   reconhecimento de fala do Windows: se aparecer erro, ligue "Reconhecimento de fala
   online" em Configurações › Privacidade e segurança › Fala.
+- **Calendário da Apple** (Ajustes › Calendário da Apple): conecte o iCloud com uma
+  senha de app (a tela ensina) e a ilha coloca no seu calendário os vencimentos das
+  assinaturas, as renovações das IAs e as tarefas com data, com alerta no iPhone.
 - **Chamar pelo nome** (opcional, Ajustes › Voz): diga o nome do robô e ele abre
   ouvindo o pedido.
 - **"Posso?"**: com o Claude Code em "pode editar arquivos", quando ele quer rodar um
