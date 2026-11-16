@@ -40,6 +40,20 @@ pub fn apagar_chave(provedor: String) -> Result<(), String> {
     sistema::apagar(&format!("{PREFIXO}{provedor}"))
 }
 
+// ---------- Senha de app do iCloud (calendário) ----------
+
+pub fn ler_icloud() -> Option<String> {
+    sistema::ler(&format!("{PREFIXO}icloud"))
+}
+
+pub fn gravar_icloud(senha: &str) -> Result<(), String> {
+    sistema::gravar(&format!("{PREFIXO}icloud"), senha)
+}
+
+pub fn apagar_icloud() -> Result<(), String> {
+    sistema::apagar(&format!("{PREFIXO}icloud"))
+}
+
 // ---------- Chaves dos servidores MCP (ex.: GITHUB_TOKEN) ----------
 
 fn alvo_mcp(servidor: &str, nome: &str) -> Result<String, String> {

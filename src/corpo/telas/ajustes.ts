@@ -82,6 +82,14 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       </section>
 
       <section class="secao">
+        <p class="titulo-secao">Calendário da Apple</p>
+        <div class="item">
+          <div class="coluna"><span class="principal">Assinaturas, renovações e tarefas no iPhone</span><span class="secundario">${dados.config.icloudCalendario ? `Mandando para “${escapar(dados.config.icloudNomeCalendario)}”.` : "Conecte o iCloud para a ilha colocar tudo no seu calendário."}</span></div>
+          <button type="button" class="botao" data-acao="tela-calendario">${dados.config.icloudCalendario ? "Abrir" : "Conectar"}</button>
+        </div>
+      </section>
+
+      <section class="secao">
         <p class="titulo-secao">Voz</p>
         <div class="item">
           <div class="coluna"><span class="principal">Ler a resposta em voz alta</span><span class="secundario">Quando você pergunta falando (microfone vermelho).</span></div>
@@ -203,6 +211,8 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     aplicarCor(cor);
     raiz.querySelectorAll(".amostra").forEach((a) => a.classList.toggle("ativa", a === b));
   });
+
+  aoClicar(raiz, "tela-calendario", () => ctx.irPara("calendario"));
 
   // Voz
   aoClicar(raiz, "falar-respostas", (b) => {

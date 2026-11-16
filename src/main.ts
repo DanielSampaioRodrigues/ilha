@@ -61,6 +61,8 @@ async function iniciar(): Promise<void> {
   window.setInterval(() => ilha.atualizarAtividade(), 60_000);
   perceberAtividade(ler().config.perceberAtividade).catch(() => {});
   if (ler().config.atenderPeloNome) atenderPeloNome(true, ler().config.nomeRobo).catch(() => {});
+  // Calendário da Apple: manda o que mudou (se estiver conectado).
+  import("./dados/calendario").then((m) => m.sincronizarSempre());
   // Chamou pelo nome: abre a conversa já ouvindo o pedido.
   ouvir<string>("ilha:chamou", () => {
     import("./corpo/telas/conversa").then((m) => {

@@ -134,6 +134,14 @@ export interface Config {
   voz: string;
   /** Ficar ouvindo o nome do robô para atender (microfone sempre ligado). */
   atenderPeloNome: boolean;
+  /** Calendário da Apple (iCloud): e-mail do Apple ID e calendário escolhido. */
+  icloudEmail: string;
+  icloudCalendario: string;
+  icloudNomeCalendario: string;
+  /** O que mandar para o calendário. */
+  calendarioItens: { assinaturas: boolean; redefinicoes: boolean; tarefas: boolean };
+  /** Eventos já mandados (uid → "impressão digital"), para só mandar o que mudou. */
+  calendarioEnviados: Record<string, string>;
   /** Lembrar de fazer uma pausa a cada X minutos (0 = não lembrar). */
   pausaACada: number;
   /** Já trocou os sites padrão pelos programas instalados com o mesmo nome. */
@@ -268,6 +276,11 @@ function padrao(): Dados {
       falarRespostas: true,
       voz: "",
       atenderPeloNome: false,
+      icloudEmail: "",
+      icloudCalendario: "",
+      icloudNomeCalendario: "",
+      calendarioItens: { assinaturas: true, redefinicoes: true, tarefas: true },
+      calendarioEnviados: {},
       pausaACada: 0,
       appsConferidos: false,
       atalho: null,

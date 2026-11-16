@@ -1,5 +1,6 @@
 //! Mãos: ferramentas que mexem no computador.
 pub mod chamado;
+pub mod calendario;
 pub mod cofre;
 pub mod ditado;
 pub mod integracoes;

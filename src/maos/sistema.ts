@@ -289,6 +289,28 @@ export const ouvir = () => pedir<string>("ouvir", undefined, "que horas são");
 export const pararDeOuvir = () => pedir<void>("parar_de_ouvir");
 /** Liga/desliga ouvir o nome do robô para ele atender. */
 export const atenderPeloNome = (ligar: boolean, nome: string) => pedir<void>("atender_pelo_nome", { ligar, nome });
+// ---------- Calendário da Apple (iCloud) ----------
+
+export interface Calendario {
+  url: string;
+  nome: string;
+}
+export interface EventoCalendario {
+  uid: string;
+  titulo: string;
+  notas: string;
+  inicio: string;
+  repete: string;
+  alertaMinutos: number | null;
+}
+export const icloudConectar = (email: string, senha: string) =>
+  pedir<Calendario[]>("icloud_conectar", { email, senha }, [{ url: "https://exemplo/cal/home/", nome: "Casa" }]);
+export const icloudCalendarios = (email: string) => pedir<Calendario[]>("icloud_calendarios", { email }, []);
+export const icloudDesconectar = () => pedir<void>("icloud_desconectar");
+export const icloudConectado = () => pedir<boolean>("icloud_conectado", undefined, false);
+export const icloudEnviar = (email: string, calendario: string, eventos: EventoCalendario[], apagar: string[]) =>
+  pedir<string[]>("icloud_enviar", { email, calendario, eventos, apagar }, [...eventos.map((e) => e.uid), ...apagar]);
+
 /** Responde o "posso?" de uma IA (Sim ou Não). */
 export const responderPermissao = (id: string, permitir: boolean) => pedir<void>("responder_permissao", { id, permitir });
 /** Liga/desliga a carinha perceber o que o Dan faz (digitação, programa na frente). */

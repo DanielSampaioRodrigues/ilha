@@ -34,6 +34,7 @@ const MENU: [Secao, string, string][] = [
   ["ferramentas", ICONES.ajustes, "MCPs e Skills"],
   ["projetos", ICONES.pasta, "Projetos"],
   ["memoria", ICONES.memoria, "Memória"],
+  ["calendario", ICONES.calendario, "Calendário"],
   ["tarefas", ICONES.tarefas, "Tarefas"],
   ["notas", ICONES.notas, "Notas"],
   ["avisos", ICONES.cartao, "Assinaturas"],

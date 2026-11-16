@@ -15,6 +15,7 @@ static NOME: Mutex<String> = Mutex::new(String::new());
 static INICIADO: AtomicBool = AtomicBool::new(false);
 
 /// Frases que acordam o robô.
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn frases(nome: &str) -> Vec<String> {
     let nome = nome.trim();
     if nome.is_empty() {
