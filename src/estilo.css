@@ -2261,3 +2261,21 @@ body.carinha-fora .estado.repouso > .carinha {
   gap: 10px;
   flex-wrap: wrap;
 }
+
+.filtros-copiados {
+  gap: 6px;
+}
+
+.miniatura-copiado {
+  flex: none;
+  width: 56px;
+  height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #000;
+}
+
+.texto-copiado .principal svg {
+  vertical-align: -2px;
+  color: var(--ciano);
+}

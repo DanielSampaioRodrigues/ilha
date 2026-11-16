@@ -101,6 +101,7 @@ pub fn run() {
             maos::copiados::copiados_fixar,
             maos::copiados::copiados_apagar,
             maos::copiados::copiados_limpar,
+            maos::copiados::copiados_copiar_imagem,
             maos::copiados::copiados_ligar,
             maos::calendario::icloud_conectar,
             maos::calendario::icloud_calendarios,

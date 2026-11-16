@@ -321,6 +321,9 @@ export const skillsDoClaude = () =>
 
 export interface Copiado {
   id: string;
+  tipo: "texto" | "imagem" | "arquivos";
+  /** Miniatura da imagem (data URL), quando é imagem. */
+  miniatura: string;
   texto: string;
   quando: number;
   fixo: boolean;
@@ -328,13 +331,15 @@ export interface Copiado {
 }
 export const copiadosListar = () =>
   pedir<Copiado[]>("copiados_listar", undefined, [
-    { id: "1", texto: "chave-pix@exemplo.com", quando: Date.now() - 60_000, fixo: true, programa: "chrome.exe" },
-    { id: "2", texto: "Rua das Flores, 123 — Centro", quando: Date.now() - 3_600_000, fixo: false, programa: "winword.exe" },
-    { id: "3", texto: "npm run tauri build", quando: Date.now() - 86_400_000, fixo: false, programa: "code.exe" },
+    { id: "1", tipo: "texto", miniatura: "", texto: "chave-pix@exemplo.com", quando: Date.now() - 60_000, fixo: true, programa: "chrome.exe" },
+    { id: "4", tipo: "imagem", miniatura: "/robozinho.png", texto: "Imagem 1920×1080", quando: Date.now() - 600_000, fixo: false, programa: "snippingtool.exe" },
+    { id: "5", tipo: "arquivos", miniatura: "", texto: "C:\\Users\\Dan\\Livro\\capitulo1.indd\nC:\\Users\\Dan\\Livro\\capa.psd", quando: Date.now() - 1_800_000, fixo: false, programa: "explorer.exe" },
+    { id: "2", tipo: "texto", miniatura: "", texto: "Rua das Flores, 123 — Centro", quando: Date.now() - 3_600_000, fixo: false, programa: "winword.exe" },
   ]);
 export const copiadosFixar = (id: string) => pedir<void>("copiados_fixar", { id });
 export const copiadosApagar = (id: string) => pedir<void>("copiados_apagar", { id });
 export const copiadosLimpar = () => pedir<void>("copiados_limpar");
+export const copiadosCopiarImagem = (id: string) => pedir<void>("copiados_copiar_imagem", { id });
 export const copiadosLigar = (ligar: boolean) => pedir<void>("copiados_ligar", { ligar });
 
 /** O personagem sai da ilha e passeia pela tela. */

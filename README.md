@@ -70,7 +70,7 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
 - **A carinha percebe o que você faz**: digita junto, dança com música, assiste vídeo,
   põe fones em chamada, desenha quando você está num programa de design. Desliga em
   Personagem › "Perceber o que estou fazendo".
-- **Copiados**: tudo que você copia (Ctrl+C) fica guardado para achar e copiar de novo
+- **Copiados**: tudo que você copia (Ctrl+C) — textos, imagens e arquivos — fica guardado para achar e copiar de novo
   (senhas de gerenciadores de senha não entram).
 - **Rotinas**: várias coisas com uma frase ("bom dia" lê o resumo do dia), um botão ou
   num horário. Comece pelos modelos prontos.
