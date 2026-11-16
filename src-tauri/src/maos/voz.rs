@@ -132,14 +132,17 @@ mod sistema {
                 log::info!("Ouvir: resultado {:?}, {} letras", status, texto.chars().count());
                 use SpeechRecognitionResultStatus as S;
                 match status {
-                    S::Success => Ok(texto),
+                    S::Success if !texto.trim().is_empty() => Ok(texto),
+                    // Chegou som, mas nenhuma palavra: costuma ser o idioma errado.
+                    S::Success => Err("Chegou som, mas o Windows não entendeu nenhuma palavra. Em Ajustes › Voz, “Conferir a voz” confere o idioma de fala.".into()),
                     S::MicrophoneUnavailable => Err("O Windows não achou o microfone (ou outro programa está usando ele só para si).".into()),
                     S::NetworkFailure => Err("O reconhecimento de fala do Windows precisa de internet e não conseguiu falar com a Microsoft.".into()),
                     S::AudioQualityFailure => Err("O som do microfone chegou ruim (baixo demais ou com chiado). Confira em Configurações › Sistema › Som › Entrada qual microfone está escolhido e o volume dele.".into()),
                     S::TopicLanguageNotSupported | S::GrammarLanguageMismatch => Err("Falta o reconhecimento de fala em português. Em Ajustes › Voz, “Conferir a voz” instala.".into()),
                     // Silêncio: o microfone abriu mas não chegou voz nenhuma.
                     S::TimeoutExceeded => Err("O microfone abriu, mas não chegou som nenhum. Confira em Configurações › Sistema › Som › Entrada se o microfone certo está escolhido (e se a barrinha mexe quando você fala).".into()),
-                    _ => Ok(String::new()),
+                    S::UserCanceled => Ok(String::new()),
+                    outro => Err(format!("O Windows não reconheceu a fala (motivo: {outro:?}).")),
                 }
             }
             // Cancelado pelo botão Parar.

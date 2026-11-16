@@ -384,10 +384,9 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         ok: e.idioma_windows === null ? null : /^pt/i.test(e.idioma_windows),
         texto: "Idioma de fala do Windows em português",
         falta: `Está em ${e.idioma_windows ?? "outro idioma"}: o Windows entende o que você fala como se fosse esse idioma (por isso o Win + H escreve em inglês).`,
-        conserto: "abrir_fala",
-        botao: "Abrir Configurações",
+        conserto: "idioma_pt",
         explica:
-          "Vou abrir Configurações › Hora e idioma › Fala. Em “Idioma de fala”, escolha Português (Brasil). Se ele não aparecer na lista, primeiro adicione o idioma Português (Brasil) em “Idioma e região”, com o recurso de fala.",
+          "Vou colocar o Português (Brasil) em primeiro lugar nos idiomas do Windows, com os mesmos teclados que você já usa (o seu teclado continua igual, só passa a ficar no português). Depois abro a página Fala: lá, em “Idioma de fala”, escolha Português (Brasil). Se o Windows estiver em outro idioma, ele pode passar a aparecer em português depois de sair e entrar de novo. Dá para desfazer em Configurações › Hora e idioma › Idioma e região.",
       },
       {
         ok: e.ditado_pt,
@@ -442,7 +441,14 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
               return;
             }
             await consertarVoz(item.conserto!);
-            desenharVoz(await conferirVoz(), item.conserto === "pacote" ? "Pacote instalado. Feche e abra a ilha para ele começar a usar." : "Pronto.");
+            desenharVoz(
+              await conferirVoz(),
+              item.conserto === "pacote"
+                ? "Pacote instalado. Feche e abra a ilha para ele começar a usar."
+                : item.conserto === "idioma_pt"
+                  ? "Pronto: português em primeiro, com o seu teclado. Na página Fala que abri, escolha Português (Brasil) em “Idioma de fala” e depois confira de novo."
+                  : "Pronto.",
+            );
           } catch (erro) {
             desenharVoz(await conferirVoz(), String(erro));
           }

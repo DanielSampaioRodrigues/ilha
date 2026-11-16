@@ -284,7 +284,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     } catch (e) {
       ouvindo = false;
       // Silêncio na conversa contínua: só para de ouvir, sem erro.
-      if (!(continuando && /não chegou som/.test(String(e)))) erroVoz = String(e);
+      if (!(continuando && /não chegou som|nenhuma palavra/.test(String(e)))) erroVoz = String(e);
     }
     desenhar();
   };

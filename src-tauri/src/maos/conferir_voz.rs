@@ -231,8 +231,61 @@ mod sistema {
         }
     }
 
+    /// Põe o Português (Brasil) em primeiro na lista de idiomas do Windows, com
+    /// os MESMOS teclados que a pessoa já usa (ex.: Estados Unidos-Internacional
+    /// continua igual), e deixa esse teclado como o padrão. É do usuário (sem
+    /// administrador) e dá para desfazer em Configurações › Idioma e região.
+    fn idioma_em_portugues() -> Result<(), String> {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let roteiro = r#"
+$ErrorActionPreference = 'Stop'
+try {
+  $lista = Get-WinUserLanguageList
+  $pt = $lista | Where-Object { $_.LanguageTag -eq 'pt-BR' } | Select-Object -First 1
+  $novo = $false
+  if ($pt) { [void]$lista.Remove($pt) } else { $pt = (New-WinUserLanguageList 'pt-BR')[0]; $novo = $true }
+  $copiados = @()
+  foreach ($l in $lista) {
+    foreach ($t in $l.InputMethodTips) {
+      $k = ($t -split ':')[1]
+      if ($k -match '^[0-9A-Fa-f]{8}$') {
+        $tip = "0416:$k"
+        if ($pt.InputMethodTips -notcontains $tip) { $pt.InputMethodTips.Add($tip) }
+        $copiados += $tip
+      }
+    }
+  }
+  if ($novo -and $copiados.Count -gt 0) { [void]$pt.InputMethodTips.Remove('0416:00000416') }
+  $lista.Insert(0, $pt)
+  Set-WinUserLanguageList $lista -Force
+  $padrao = if ($copiados.Count -gt 0) { $copiados[0] } else { $pt.InputMethodTips[0] }
+  Set-WinDefaultInputMethodOverride -InputTip $padrao
+  exit 0
+} catch { Write-Output $_.Exception.Message; exit 1 }
+"#;
+        let saida = std::process::Command::new("powershell.exe")
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", roteiro])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| format!("Não consegui abrir o PowerShell: {e}"))?;
+        if saida.status.success() {
+            Ok(())
+        } else {
+            let motivo = String::from_utf8_lossy(&saida.stdout).trim().to_string();
+            log::warn!("Idioma em português: {motivo}");
+            Err(format!("O Windows não deixou mudar o idioma ({motivo}). Dá para fazer em Configurações › Hora e idioma › Idioma e região."))
+        }
+    }
+
     pub fn consertar(item: &str) -> Result<(), String> {
         match item {
+            "idioma_pt" => {
+                idioma_em_portugues()?;
+                // O "Idioma de fala" o Windows só deixa escolher na tela dele.
+                abrir("ms-settings:speech");
+                Ok(())
+            }
             "fala_online" => gravar_numero(FALA_ONLINE, "HasAccepted", 1),
             "microfone" => {
                 gravar_texto(MICROFONE, "Value", "Allow")?;
