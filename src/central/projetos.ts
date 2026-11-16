@@ -1,6 +1,7 @@
 // Projetos: uma pasta liberada + instruções próprias, iguais para todos os
 // motores (ex.: "Livro novo" → pasta do InDesign + "responda como editor").
 import { open } from "@tauri-apps/plugin-dialog";
+import { enquanto } from "../maos/foco";
 import { ler, mudar, novoId, type Projeto } from "../dados/armazem";
 import { dentroDoApp } from "../ponte";
 import { aoClicar, confirmarAntes, escapar, html } from "../corpo/ui";
@@ -47,7 +48,7 @@ export function montarProjetos(redesenhar: () => void): HTMLElement {
   const form = raiz.querySelector<HTMLFormElement>("form")!;
   aoClicar(raiz, "escolher", () => {
     if (!dentroDoApp) return;
-    open({ directory: true, multiple: false, title: "Escolha a pasta do projeto" })
+    enquanto(open({ directory: true, multiple: false, title: "Escolha a pasta do projeto" }))
       .then((p) => {
         if (typeof p === "string") form.querySelector<HTMLInputElement>('[name="pasta"]')!.value = p;
       })

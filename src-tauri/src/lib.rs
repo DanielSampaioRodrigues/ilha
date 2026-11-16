@@ -81,6 +81,7 @@ pub fn run() {
             cerebro::motores::listar_modelos,
             maos::ditado::ditado,
             corpo::central::abrir_central,
+            corpo::central::esconder_central,
             corpo::central::tela_inicial_central,
             maos::volume::volume_atual,
             maos::volume::definir_volume,

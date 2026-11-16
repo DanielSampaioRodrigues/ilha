@@ -1,10 +1,14 @@
-// A Central: janela grande com menu lateral. A conversa com os motores mora
-// aqui; as outras telas (tarefas, notas, assinaturas…) são as mesmas da ilha.
+// A Central ("ilha grande"): a ilha cresce do topo num painel largo com menu
+// lateral. A conversa com os motores mora aqui; as outras telas (tarefas,
+// notas, assinaturas…) são as mesmas da ilha. Fecha com Esc, com o × ou ao
+// clicar fora (a não ser que esteja presa com o alfinete); fechar só esconde,
+// então as conversas continuam rodando e a ilha pequena avisa quando terminam.
 import "./central.css";
 import { emit, listen } from "@tauri-apps/api/event";
 import { aoMudarDeFora, carregar, ler } from "../dados/armazem";
 import { carregarConversas } from "../dados/conversas";
-import { atalhoAtual, telaInicialCentral, type Midia } from "../maos/sistema";
+import { atalhoAtual, esconderCentral, telaInicialCentral, type Midia } from "../maos/sistema";
+import { focoSeguro } from "../maos/foco";
 import { aplicarCor } from "../corpo/tema";
 import { versaoAtual } from "../atualizacao";
 import { TELAS } from "../corpo/telas";
@@ -40,19 +44,27 @@ const MENU: [Secao, string, string][] = [
 
 export async function iniciarCentral(): Promise<void> {
   document.body.classList.add("modo-central");
+  if (!dentroDoApp) document.body.classList.add("navegador");
   await Promise.all([carregar(), carregarConversas()]);
   aplicarCor(ler().config.corDestaque);
 
   const palco = document.getElementById("palco")!;
   palco.innerHTML = `
+    <div class="ilha-grande">
     <div class="central">
       <nav class="menu-central" aria-label="Seções">
-        <div class="marca"><span class="marca-carinha"></span><span class="principal nome-robo"></span></div>
+        <div class="marca">
+          <span class="marca-carinha"></span><span class="principal nome-robo"></span>
+          <span class="espaco"></span>
+          <button type="button" class="botao-icone alfinete" aria-pressed="false" title="Prender aberta (não fecha ao clicar fora)" aria-label="Prender aberta">${ICONES.alfinete}</button>
+          <button type="button" class="botao-icone fechar-grande" title="Fechar (Esc)" aria-label="Fechar">${ICONES.fechar}</button>
+        </div>
         <div class="itens-menu">${MENU.map(
           ([id, icone, nome]) => `<button type="button" class="item-menu" data-secao="${id}">${icone}<span>${nome}</span></button>`,
         ).join("")}</div>
       </nav>
       <main class="conteudo-central"></main>
+    </div>
     </div>`;
   const conteudo = palco.querySelector<HTMLElement>(".conteudo-central")!;
   const marca = palco.querySelector<HTMLElement>(".marca-carinha")!;
@@ -153,7 +165,46 @@ export async function iniciarCentral(): Promise<void> {
     if (secao !== "conversa" && secao !== "notas") mostrar();
   });
 
+  // ---------- Abrir e fechar como a ilha ----------
+  const grande = palco.querySelector<HTMLElement>(".ilha-grande")!;
+  const alfinete = palco.querySelector<HTMLButtonElement>(".alfinete")!;
+  let presa = false;
+  let fechando = 0;
+  const abrir = () => {
+    window.clearTimeout(fechando);
+    grande.classList.remove("crescida");
+    void grande.offsetWidth; // recomeça a animação
+    grande.classList.add("crescida");
+  };
+  const fechar = () => {
+    if (!grande.classList.contains("crescida")) return;
+    grande.classList.remove("crescida");
+    fechando = window.setTimeout(() => esconderCentral().catch(() => {}), 260);
+  };
+  alfinete.addEventListener("click", () => {
+    presa = !presa;
+    alfinete.setAttribute("aria-pressed", String(presa));
+  });
+  palco.querySelector(".fechar-grande")!.addEventListener("click", fechar);
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    // Esc fecha primeiro um menu aberto; depois, a ilha grande.
+    const menu = palco.querySelector<HTMLDetailsElement>("details[open]");
+    if (menu) menu.open = false;
+    else fechar();
+  });
+  requestAnimationFrame(abrir);
+
   if (dentroDoApp) {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().onFocusChanged(({ payload: comFoco }) => {
+      if (comFoco || presa) return;
+      // Um instante de folga: janelas do Windows abertas daqui roubam o foco.
+      window.setTimeout(() => {
+        if (!presa && !focoSeguro() && !document.hasFocus()) fechar();
+      }, 150);
+    });
+    await listen("central:abrir", abrir);
     await listen<string>("central:tela", (e) => {
       ir(e.payload as Secao);
       if (e.payload === "conversa") comecarNova();

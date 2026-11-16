@@ -48,8 +48,10 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
 - **Traduções**: histórico com busca de tudo que foi traduzido.
 - **Personagem**: 13 expressões, cor dos olhos e das bochechas, acessórios, olhos que
   seguem o mouse, mosquinha e cochilo quando parado.
-- **Central** (botão de teclado na ilha, ou menu do ícone › Abrir a Central): janela
-  grande com a **Conversa** (DeepSeek, Claude Code, Codex, Antigravity, Gemini CLI),
+- **Central** (botão de teclado na ilha, ou menu do ícone › Abrir a Central): a ilha
+  cresce do topo num painel grande (sem janela a mais na barra de tarefas). Fecha com
+  **Esc**, no **×** ou clicando fora; o **alfinete** deixa ela presa aberta enquanto
+  você mexe em outro programa. Tem a **Conversa** (DeepSeek, Claude Code, Codex, Antigravity, Gemini CLI),
   **Perfis**, **MCPs e Skills**, **Projetos** e todas as outras telas. A ilha mostra
   quando uma IA está trabalhando e avisa quando termina.
 - Na conversa: escolha **modelo** e **raciocínio**, ligue **MCPs e skills** só naquela

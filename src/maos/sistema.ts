@@ -1,6 +1,7 @@
 // Pedidos ao lado Rust e aos plugins do Tauri. Fora do app (navegador de
 // teste) tudo responde com valores neutros.
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { enquanto, segurarPor } from "./foco";
 import { open } from "@tauri-apps/plugin-dialog";
 import * as inicioAutomatico from "@tauri-apps/plugin-autostart";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -89,12 +90,12 @@ export async function definirInicioComWindows(ligar: boolean): Promise<void> {
 /** Janela do Windows para escolher um programa. Devolve o caminho ou null. */
 export async function escolherPrograma(): Promise<string | null> {
   if (!dentroDoApp) return null;
-  const escolhido = await open({
+  const escolhido = await enquanto(open({
     title: "Escolha um programa ou atalho",
     multiple: false,
     directory: false,
     filters: [{ name: "Programas e atalhos", extensions: ["exe", "lnk", "url", "bat", "cmd", "appref-ms"] }],
-  });
+  }));
   return typeof escolhido === "string" ? escolhido : null;
 }
 
@@ -272,12 +273,18 @@ export const motoresDisponiveis = () =>
 export const listarModelos = (motor: Motor) =>
   pedir<string[]>("listar_modelos", { motor }, motor === "antigravity" ? ["gemini-3.8-flash-medium", "gemini-4-hydrogen-high"] : []);
 /** Abre a digitação por voz do Windows (Win + H) na caixa com o cursor. */
-export const ditado = () => pedir<void>("ditado");
+export const ditado = () => {
+  // O painel de ditado do Windows pode tirar o foco por um tempo.
+  segurarPor(15000);
+  return pedir<void>("ditado");
+};
+/** Esconde a ilha grande (ela continua viva por trás, terminando conversas). */
+export const esconderCentral = () => pedir<void>("esconder_central");
 
 /** Janela do Windows para escolher arquivos para anexar. */
 export async function escolherArquivos(): Promise<string[]> {
   if (!dentroDoApp) return [];
-  const escolhidos = await open({ title: "Anexar arquivos", multiple: true, directory: false });
+  const escolhidos = await enquanto(open({ title: "Anexar arquivos", multiple: true, directory: false }));
   return Array.isArray(escolhidos) ? escolhidos : typeof escolhidos === "string" ? [escolhidos] : [];
 }
 

@@ -1,7 +1,7 @@
 /* Central: janela grande, escura, com menu lateral. */
 
 body.modo-central {
-  background: #0b0d10;
+  background: transparent;
   user-select: text;
 }
 
@@ -9,10 +9,69 @@ body.modo-central #palco {
   height: 100%;
 }
 
+/* Fora do app (teste no navegador): fundo de "área de trabalho". */
+body.navegador.modo-central {
+  background: #3a4048;
+}
+
+/* A ilha grande: preta como a ilha, colada no topo, cantos de baixo redondos.
+   Abre "crescendo" a partir do tamanho da ilha pequena, como uma gota. */
+.ilha-grande {
+  height: 100%;
+  overflow: hidden;
+  border-radius: 0 0 30px 30px;
+  background: #0b0d10;
+  clip-path: inset(0 calc(50% - 90px) calc(100% - 34px) calc(50% - 90px) round 0 0 17px 17px);
+  transition: clip-path 0.24s cubic-bezier(0.4, 0, 1, 1);
+}
+
+.ilha-grande.crescida {
+  clip-path: inset(0 0 0 0 round 0 0 30px 30px);
+  transition: clip-path 0.42s cubic-bezier(0.2, 1.25, 0.35, 1);
+}
+
+.ilha-grande > .central {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.ilha-grande.crescida > .central {
+  opacity: 1;
+  transition: opacity 0.25s 0.12s;
+}
+
 .central {
   display: flex;
   height: 100%;
   color: var(--texto);
+}
+
+.marca .espaco {
+  flex: 1;
+}
+
+.botao-icone {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--apagado);
+  cursor: pointer;
+}
+
+.botao-icone:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--texto);
+}
+
+.alfinete[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ciano) 18%, transparent);
+  color: var(--ciano);
 }
 
 /* ---------- Menu lateral ---------- */
@@ -22,7 +81,7 @@ body.modo-central #palco {
   flex-direction: column;
   gap: 14px;
   flex: none;
-  width: 210px;
+  width: 244px;
   padding: 18px 12px;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   background: #07080a;
@@ -32,7 +91,7 @@ body.modo-central #palco {
 .marca {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 4px 8px 10px;
 }
 
