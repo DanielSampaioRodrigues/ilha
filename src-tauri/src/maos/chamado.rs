@@ -165,7 +165,9 @@ mod sistema {
                 let querer = LIGADO.load(Ordering::Relaxed) && livre() && !nome.trim().is_empty();
                 // Encerrada pelo Windows: descarta para recomeçar.
                 if TERMINOU.swap(false, Ordering::Relaxed) && atual.is_some() {
-                    atual = None;
+                    if let Some((rec, _)) = atual.take() {
+                        let _ = rec.Close();
+                    }
                     ATIVO.store(false, Ordering::Relaxed);
                     std::thread::sleep(Duration::from_secs(2));
                     continue;
@@ -176,6 +178,8 @@ mod sistema {
                         if let Ok(s) = rec.ContinuousRecognitionSession() {
                             let _ = s.StopAsync().and_then(|op| op.join());
                         }
+                        // Fecha de vez: assim o microfone fica livre para o "ouvir".
+                        let _ = rec.Close();
                         atual = None;
                         ATIVO.store(false, Ordering::Relaxed);
                     }

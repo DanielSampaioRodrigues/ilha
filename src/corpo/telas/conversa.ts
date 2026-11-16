@@ -283,7 +283,8 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
       else if (!continuando) erroVoz = "Não ouvi nada. Aperte o microfone e fale de novo.";
     } catch (e) {
       ouvindo = false;
-      erroVoz = String(e);
+      // Silêncio na conversa contínua: só para de ouvir, sem erro.
+      if (!(continuando && /não chegou som/.test(String(e)))) erroVoz = String(e);
     }
     desenhar();
   };

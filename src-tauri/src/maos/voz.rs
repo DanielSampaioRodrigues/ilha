@@ -115,17 +115,23 @@ mod sistema {
         if super::PARAR.load(std::sync::atomic::Ordering::Relaxed) || operacao.Status().is_ok_and(|s| s == windows_future::AsyncStatus::Canceled) {
             return Ok(String::new());
         }
+        // Solta o microfone na hora (a escuta do nome volta logo depois).
+        let _ = rec.Close();
         match resultado {
             Ok(r) => {
                 let status = r.Status().map_err(explicar)?;
-                if status == SpeechRecognitionResultStatus::Success {
-                    Ok(r.Text().map(|t| t.to_string()).unwrap_or_default())
-                } else if status == SpeechRecognitionResultStatus::MicrophoneUnavailable {
-                    Err("Não achei microfone ligado.".into())
-                } else if status == SpeechRecognitionResultStatus::NetworkFailure {
-                    Err("O reconhecimento de fala do Windows precisa de internet.".into())
-                } else {
-                    Ok(String::new())
+                let texto = r.Text().map(|t| t.to_string()).unwrap_or_default();
+                log::info!("Ouvir: resultado {:?}, {} letras", status, texto.chars().count());
+                use SpeechRecognitionResultStatus as S;
+                match status {
+                    S::Success => Ok(texto),
+                    S::MicrophoneUnavailable => Err("O Windows não achou o microfone (ou outro programa está usando ele só para si).".into()),
+                    S::NetworkFailure => Err("O reconhecimento de fala do Windows precisa de internet e não conseguiu falar com a Microsoft.".into()),
+                    S::AudioQualityFailure => Err("O som do microfone chegou ruim (baixo demais ou com chiado). Confira em Configurações › Sistema › Som › Entrada qual microfone está escolhido e o volume dele.".into()),
+                    S::TopicLanguageNotSupported | S::GrammarLanguageMismatch => Err("Falta o reconhecimento de fala em português. Em Ajustes › Voz, “Conferir a voz” instala.".into()),
+                    // Silêncio: o microfone abriu mas não chegou voz nenhuma.
+                    S::TimeoutExceeded => Err("O microfone abriu, mas não chegou som nenhum. Confira em Configurações › Sistema › Som › Entrada se o microfone certo está escolhido (e se a barrinha mexe quando você fala).".into()),
+                    _ => Ok(String::new()),
                 }
             }
             // Cancelado pelo botão Parar.
