@@ -82,6 +82,7 @@ pub fn run() {
             maos::ditado::ditado,
             corpo::central::abrir_central,
             corpo::central::esconder_central,
+            corpo::central::modo_central,
             corpo::central::tela_inicial_central,
             maos::volume::volume_atual,
             maos::volume::definir_volume,

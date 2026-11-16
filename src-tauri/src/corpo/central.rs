@@ -3,6 +3,7 @@
 //! janela comum: sem moldura, sem aparecer na barra de tarefas, presa no topo.
 //! Ao fechar ela só se esconde (as conversas continuam rodando por trás).
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -19,13 +20,19 @@ pub struct Pedido {
 #[derive(Default)]
 pub struct TelaPendente(Mutex<Option<Pedido>>);
 
+/// A Central está solta, como janela comum (o Dan escolhe; dá para juntar de volta).
+static MODO_JANELA: AtomicBool = AtomicBool::new(false);
+
 pub fn abrir(app: &AppHandle, tela: Option<String>) {
     abrir_com(app, tela, Vec::new());
 }
 
 pub fn abrir_com(app: &AppHandle, tela: Option<String>, anexos: Vec<String>) {
     if let Some(j) = app.get_webview_window(JANELA_CENTRAL) {
-        posicionar(app, &j);
+        if !MODO_JANELA.load(Ordering::Relaxed) {
+            posicionar(app, &j);
+        }
+        let _ = j.unminimize();
         let _ = j.show();
         let _ = j.set_focus();
         let _ = app.emit_to(JANELA_CENTRAL, "central:abrir", ());
@@ -72,6 +79,38 @@ fn posicionar(app: &AppHandle, j: &tauri::WebviewWindow) {
     let x = area.position.x as f64 / escala + (largura_tela - largura) / 2.0;
     let y = tela.position().y as f64 / escala;
     let _ = j.set_position(tauri::LogicalPosition::new(x, y));
+}
+
+/// Solta a Central como janela comum (com moldura, na barra de tarefas, sem
+/// ficar por cima de tudo) ou junta de volta como ilha grande. É a mesma
+/// janela: as conversas em andamento continuam.
+#[tauri::command]
+pub fn modo_central(app: AppHandle, janela: bool) {
+    let Some(j) = app.get_webview_window(JANELA_CENTRAL) else { return };
+    let antes = MODO_JANELA.swap(janela, Ordering::Relaxed);
+    if janela {
+        let _ = j.set_always_on_top(false);
+        let _ = j.set_decorations(true);
+        let _ = j.set_shadow(true);
+        let _ = j.set_resizable(true);
+        let _ = j.set_skip_taskbar(false);
+        let _ = j.set_title("Ilha · Central");
+        let _ = j.set_min_size(Some(tauri::LogicalSize::new(860.0, 560.0)));
+        if !antes {
+            let _ = j.set_size(tauri::LogicalSize::new(1180.0, 780.0));
+            let _ = j.center();
+        }
+    } else {
+        let _ = j.set_min_size(None::<tauri::LogicalSize<f64>>);
+        let _ = j.set_decorations(false);
+        let _ = j.set_shadow(false);
+        let _ = j.set_resizable(false);
+        let _ = j.set_skip_taskbar(true);
+        let _ = j.set_always_on_top(true);
+        let _ = j.set_title("Ilha");
+        posicionar(&app, &j);
+    }
+    let _ = j.set_focus();
 }
 
 #[tauri::command]

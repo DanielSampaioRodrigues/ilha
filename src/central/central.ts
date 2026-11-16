@@ -5,9 +5,9 @@
 // então as conversas continuam rodando e a ilha pequena avisa quando terminam.
 import "./central.css";
 import { emit, listen } from "@tauri-apps/api/event";
-import { aoMudarDeFora, carregar, ler } from "../dados/armazem";
+import { aoMudarDeFora, carregar, ler, mudar } from "../dados/armazem";
 import { carregarConversas } from "../dados/conversas";
-import { atalhoAtual, esconderCentral, telaInicialCentral, type Midia } from "../maos/sistema";
+import { atalhoAtual, esconderCentral, modoJanelaCentral, telaInicialCentral, type Midia } from "../maos/sistema";
 import { focoSeguro } from "../maos/foco";
 import { aplicarCor } from "../corpo/tema";
 import { versaoAtual } from "../atualizacao";
@@ -56,8 +56,11 @@ export async function iniciarCentral(): Promise<void> {
         <div class="marca">
           <span class="marca-carinha"></span><span class="principal nome-robo"></span>
           <span class="espaco"></span>
+          <span class="controles-grande">
+          <button type="button" class="botao-icone soltar"></button>
           <button type="button" class="botao-icone alfinete" aria-pressed="false" title="Prender aberta (não fecha ao clicar fora)" aria-label="Prender aberta">${ICONES.alfinete}</button>
           <button type="button" class="botao-icone fechar-grande" title="Fechar (Esc)" aria-label="Fechar">${ICONES.fechar}</button>
+          </span>
         </div>
         <div class="itens-menu">${MENU.map(
           ([id, icone, nome]) => `<button type="button" class="item-menu" data-secao="${id}">${icone}<span>${nome}</span></button>`,
@@ -168,7 +171,18 @@ export async function iniciarCentral(): Promise<void> {
   // ---------- Abrir e fechar como a ilha ----------
   const grande = palco.querySelector<HTMLElement>(".ilha-grande")!;
   const alfinete = palco.querySelector<HTMLButtonElement>(".alfinete")!;
+  const soltar = palco.querySelector<HTMLButtonElement>(".soltar")!;
   let presa = false;
+  // Solta (janela comum) ou junta (ilha grande); a escolha fica salva.
+  let janela = ler().config.centralModo === "janela";
+  const aplicarModo = () => {
+    document.body.classList.toggle("central-janela", janela);
+    soltar.innerHTML = janela ? ICONES.juntar : ICONES.soltar;
+    soltar.title = janela ? "Juntar de volta à ilha" : "Soltar como janela";
+    soltar.setAttribute("aria-label", soltar.title);
+  };
+  aplicarModo();
+  if (janela) modoJanelaCentral(true).catch(() => {});
   let fechando = 0;
   const abrir = () => {
     window.clearTimeout(fechando);
@@ -177,6 +191,10 @@ export async function iniciarCentral(): Promise<void> {
     grande.classList.add("crescida");
   };
   const fechar = () => {
+    if (janela) {
+      esconderCentral().catch(() => {});
+      return;
+    }
     if (!grande.classList.contains("crescida")) return;
     grande.classList.remove("crescida");
     fechando = window.setTimeout(() => esconderCentral().catch(() => {}), 260);
@@ -186,19 +204,31 @@ export async function iniciarCentral(): Promise<void> {
     alfinete.setAttribute("aria-pressed", String(presa));
   });
   palco.querySelector(".fechar-grande")!.addEventListener("click", fechar);
+  soltar.addEventListener("click", () => {
+    janela = !janela;
+    mudar((d) => (d.config.centralModo = janela ? "janela" : "ilha"));
+    aplicarModo();
+    modoJanelaCentral(janela).catch(() => {});
+    if (!janela) abrir();
+  });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     // Esc fecha primeiro um menu aberto; depois, a ilha grande.
     const menu = palco.querySelector<HTMLDetailsElement>("details[open]");
     if (menu) menu.open = false;
-    else fechar();
+    else if (!janela) fechar();
   });
   requestAnimationFrame(abrir);
 
   if (dentroDoApp) {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    // O × da janela (ou Alt+F4) só esconde: as conversas continuam rodando.
+    await getCurrentWindow().onCloseRequested((e) => {
+      e.preventDefault();
+      esconderCentral().catch(() => {});
+    });
     await getCurrentWindow().onFocusChanged(({ payload: comFoco }) => {
-      if (comFoco || presa) return;
+      if (comFoco || presa || janela) return;
       // Um instante de folga: janelas do Windows abertas daqui roubam o foco.
       window.setTimeout(() => {
         if (!presa && !focoSeguro() && !document.hasFocus()) fechar();

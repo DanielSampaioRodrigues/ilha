@@ -50,12 +50,17 @@ body.navegador.modo-central {
   flex: 1;
 }
 
+.controles-grande {
+  display: flex;
+  gap: 2px;
+}
+
 .botao-icone {
   display: grid;
   place-items: center;
   flex: none;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: 0;
   border-radius: 8px;
@@ -81,7 +86,7 @@ body.navegador.modo-central {
   flex-direction: column;
   gap: 14px;
   flex: none;
-  width: 244px;
+  width: 272px;
   padding: 18px 12px;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   background: #07080a;
@@ -870,4 +875,30 @@ body.modo-central.soltando::after {
 
 .opcoes-nova select {
   max-width: 260px;
+}
+
+/* Solta como janela comum: sem forma de ilha nem animação. */
+body.central-janela .ilha-grande,
+body.central-janela .ilha-grande.crescida {
+  border-radius: 0;
+  clip-path: none;
+  transition: none;
+}
+
+body.central-janela .ilha-grande > .central {
+  opacity: 1;
+  transition: none;
+}
+
+body.central-janela .alfinete,
+body.central-janela .fechar-grande {
+  display: none;
+}
+
+.marca .nome-robo {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

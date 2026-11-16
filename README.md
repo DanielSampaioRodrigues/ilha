@@ -51,7 +51,8 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
 - **Central** (botão de teclado na ilha, ou menu do ícone › Abrir a Central): a ilha
   cresce do topo num painel grande (sem janela a mais na barra de tarefas). Fecha com
   **Esc**, no **×** ou clicando fora; o **alfinete** deixa ela presa aberta enquanto
-  você mexe em outro programa. Tem a **Conversa** (DeepSeek, Claude Code, Codex, Antigravity, Gemini CLI),
+  você mexe em outro programa. O botão **Soltar como janela** vira uma janela comum
+  (com moldura e na barra de tarefas); **Juntar de volta à ilha** desfaz. Tem a **Conversa** (DeepSeek, Claude Code, Codex, Antigravity, Gemini CLI),
   **Perfis**, **MCPs e Skills**, **Projetos** e todas as outras telas. A ilha mostra
   quando uma IA está trabalhando e avisa quando termina.
 - Na conversa: escolha **modelo** e **raciocínio**, ligue **MCPs e skills** só naquela

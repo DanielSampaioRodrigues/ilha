@@ -118,6 +118,8 @@ export interface Config {
   musicaNaIlha: boolean;
   /** Esconder a ilha em jogos, vídeos e apresentações em tela cheia. */
   esconderTelaCheia: boolean;
+  /** A Central: "ilha" (cresce do topo) ou "janela" (janela comum, solta). */
+  centralModo: "ilha" | "janela";
   /** Lembrar de fazer uma pausa a cada X minutos (0 = não lembrar). */
   pausaACada: number;
   /** Já trocou os sites padrão pelos programas instalados com o mesmo nome. */
@@ -235,6 +237,7 @@ function padrao(): Dados {
       modoDiscreto: "desligado",
       musicaNaIlha: true,
       esconderTelaCheia: true,
+      centralModo: "ilha",
       pausaACada: 0,
       appsConferidos: false,
       atalho: null,

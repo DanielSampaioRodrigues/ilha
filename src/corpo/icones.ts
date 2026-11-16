@@ -34,6 +34,8 @@ export const ICONES = {
   personagem: icone(16, '<rect x="4" y="6" width="16" height="13" rx="4"/><path d="M12 6V3M9 12h.01M15 12h.01M10 15.5h4"/>'),
   pasta: icone(16, '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
   alfinete: icone(16, '<path d="M9 4h6M10 4v6l-3 4h10l-3-4V4M12 14v7"/>'),
+  soltar: icone(16, '<rect x="3" y="7" width="14" height="14" rx="2"/><path d="M14 3h7v7M21 3l-8 8"/>'),
+  juntar: icone(16, '<path d="M4 3h16M12 21V9M7 14l5-5 5 5"/>'),
   fechar: icone(16, '<path d="M6 6l12 12M18 6 6 18"/>'),
   clipe: icone(18, '<path d="m21 11-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.3-8.3"/>'),
   arquivo: icone(14, '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/>'),

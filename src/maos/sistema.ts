@@ -280,6 +280,8 @@ export const ditado = () => {
 };
 /** Esconde a ilha grande (ela continua viva por trás, terminando conversas). */
 export const esconderCentral = () => pedir<void>("esconder_central");
+/** Central como janela comum (true) ou como ilha grande (false). */
+export const modoJanelaCentral = (janela: boolean) => pedir<void>("modo_central", { janela });
 
 /** Janela do Windows para escolher arquivos para anexar. */
 export async function escolherArquivos(): Promise<string[]> {
