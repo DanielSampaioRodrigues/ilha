@@ -142,6 +142,10 @@ body.ouvindo-voz .forma path.contorno-siri {
   display: block;
   flex: none;
   filter: drop-shadow(0 0 3px color-mix(in srgb, var(--brilho) 55%, transparent));
+  /* Nas cenas largas do modo viseira a caixa cresce junto com a câmera. */
+  transition:
+    width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1),
+    height 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .linha {

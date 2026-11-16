@@ -466,7 +466,7 @@ interface Personagem {
      * Poses largas (deitado, com o objeto do lado) para o modo viseira: nas
      * atividades a "câmera" se afasta e mostra a cena inteira na ilha.
      */
-    largas?: Partial<Record<Expressao, string | { quadros: string[]; ms: number }>>;
+    largas?: Partial<Record<Expressao, Cena | Cena[]>>;
   };
   /** Bocas diferentes (ex.: o "w" do gato no lugar do sorriso). */
   bocas?: Partial<Record<keyof typeof BOCAS, readonly [readonly number[], readonly number[]]>>;
@@ -555,17 +555,34 @@ function feitoComIA(id: string, nome: string, jeito: string, extra: { material?:
         andando: { quadros: ["andando1", "andando2"], ms: 260 },
         sonolento: { quadros: ["bocejando", "dormindo", "dormindo", "bocejando", "soneca", "soneca"], ms: 1100 },
       },
-      largas: {
-        digitando: { quadros: ["deitado-digitando1", "deitado-digitando2"], ms: 220 },
-        programando: "deitado-programando",
-        foco: "deitado-programando",
-        desenhando: "deitado-desenhando",
-        lendo: "deitado-lendo",
-        assistindo: "deitado-pipoca",
-        musica: "deitado-musica",
-        chamada: "deitado-chamada",
-        dormindo: "deitado-dormindo",
-      },
+      largas: (() => {
+        const sentarNaMesa = ["escritorio-chegando", "escritorio-sentando"];
+        const sentarNaPoltrona = ["sala-chegando", "sala-sentando"];
+        const programando: Cena[] = [
+          // De vez em quando se espreguiça.
+          { entrada: sentarNaMesa, quadros: [...Array(8).fill("escritorio-programando"), "escritorio-espreguicando", "escritorio-espreguicando"], ms: 900 },
+          "deitado-programando",
+        ];
+        return {
+          // Cada atividade tem mais de um jeito; ele escolhe um (e fica no mesmo cenário se já estiver nele).
+          digitando: [
+            { entrada: sentarNaMesa, quadros: ["escritorio-digitando1", "escritorio-digitando2"], ms: 220 },
+            { quadros: ["deitado-digitando1", "deitado-digitando2"], ms: 220 },
+          ],
+          programando,
+          foco: programando,
+          desenhando: [{ entrada: sentarNaMesa, quadros: ["escritorio-desenhando"], ms: 1000 }, "deitado-desenhando"],
+          chamada: [{ entrada: sentarNaMesa, quadros: ["escritorio-chamada"], ms: 1000 }, { entrada: sentarNaPoltrona, quadros: ["sala-chamada"], ms: 1000 }, "deitado-chamada"],
+          assistindo: [
+            { entrada: sentarNaPoltrona, quadros: [...Array(5).fill("sala-pipoca"), "sala-rindo", "sala-rindo"], ms: 700 },
+            "deitado-pipoca",
+          ],
+          lendo: [{ entrada: sentarNaPoltrona, quadros: ["sala-lendo"], ms: 1000 }, "deitado-lendo"],
+          musica: [{ entrada: sentarNaPoltrona, quadros: ["sala-musica"], ms: 1000 }, "deitado-musica"],
+          dormindo: ["deitado-dormindo", "sala-cochilo", "escritorio-cochilo"],
+          acenando: { entrada: sentarNaPoltrona.slice(0, 1), quadros: ["sala-acenando"], ms: 1000 },
+        };
+      })(),
     },
   };
 }
@@ -857,6 +874,17 @@ const vivas = new Set<Carinha>();
 
 export type Material = "massinha" | "borracha" | "papel" | "nuvem";
 
+/**
+ * Uma cena larga do modo viseira: uma imagem só, ou quadros em loop. A
+ * "entrada" (ex.: chegar e sentar na poltrona) toca uma vez antes do loop,
+ * só quando ele ainda não estava nessa cena.
+ */
+export type Cena = string | { entrada?: string[]; quadros: string[]; ms: number };
+type CenaAnimada = Exclude<Cena, string>;
+
+/** "sala-pipoca" → "sala": em que cenário a pose está. */
+const cenario = (pose: string) => (/^(deitado|sala|escritorio)-/.exec(pose)?.[1] ?? "");
+
 export interface OpcoesCarinha {
   /** Sempre o corpo inteiro (passeio, cartões de escolha), mesmo no modo viseira. */
   corpoInteiro?: boolean;
@@ -897,10 +925,10 @@ export class Carinha {
     this.elemento.setAttribute("shape-rendering", "crispEdges");
     this.elemento.setAttribute("aria-hidden", "true");
     this.elemento.classList.add("carinha");
+    this.animar();
     this.desenhar();
     vivas.add(this);
     this.agendarPiscada();
-    this.animar();
   }
 
   get atual(): Expressao {
@@ -917,18 +945,27 @@ export class Carinha {
     // Personagem feito com IA: troca de imagem (ex.: mãos no teclado).
     const ap = this.aparencia();
     const imgs = this.opcoes.comAcessorio ? PERSONAGENS[ap.personagem]?.imagens : undefined;
+    this.cena = imgs ? this.escolherCena(imgs) : undefined;
     const animImagem = imgs ? this.animDaImagem(imgs) : undefined;
     if (animImagem) {
-      this.quadro = 0;
-      this.animacao = window.setInterval(() => {
-        if (!this.elemento.isConnected) {
-          if (this.foiMostrada || performance.now() - this.criada > 10_000) this.parar();
-          return;
-        }
-        this.foiMostrada = true;
-        this.quadro++;
-        this.desenhar();
-      }, animImagem.ms);
+      const entrada = animImagem.entrada ?? [];
+      // Já estava nesse cenário (ex.: de digitando para programando): não levanta e senta de novo.
+      const jaEstava = entrada.length > 0 && cenario(this.poseVisivel) === cenario(entrada[0]);
+      this.quadro = jaEstava ? entrada.length : 0;
+      const tique = () => {
+        this.animacao = window.setTimeout(() => {
+          if (!this.elemento.isConnected) {
+            if (this.foiMostrada || performance.now() - this.criada > 10_000) this.parar();
+            else tique();
+            return;
+          }
+          this.foiMostrada = true;
+          this.quadro++;
+          this.desenhar();
+          tique();
+        }, this.quadro < entrada.length ? 420 : animImagem.ms);
+      };
+      if (animImagem.quadros.length > 1 || this.quadro < entrada.length) tique();
       return;
     }
     estiloOlhos = this.estiloDosOlhos();
@@ -967,8 +1004,8 @@ export class Carinha {
     window.clearInterval(this.animacao);
     const imgs = this.opcoes.comAcessorio ? PERSONAGENS[this.aparencia().personagem]?.imagens : undefined;
     if (imgs && (imgs.material || this.modoRosto(imgs))) {
-      this.desenhar();
       this.animar();
+      this.desenhar();
       return;
     }
     this.desenharOlhos(PISCANDO);
@@ -1021,13 +1058,13 @@ export class Carinha {
       this.elemento.setAttribute("shape-rendering", "geometricPrecision");
       const im = personagem.imagens;
       const rosto = this.modoRosto(im);
-      const larga = rosto ? im.largas?.[this.expressao] : undefined;
+      const larga = rosto ? this.cena : undefined;
       const anim = this.animDaImagem(im);
       // Piscar = um instante de olhos fechados ("dormindo" é a de olhos fechados, sem zzz).
       // Nas poses largas não pisca (não existe a versão de olhos fechados).
       const piscando = !anim && !larga && d.esquerdo === PISCANDO;
       const nome = anim
-        ? anim.quadros[this.quadro % anim.quadros.length]
+        ? this.quadroDe(anim, this.quadro)
         : typeof larga === "string"
           ? larga
           : piscando
@@ -1046,7 +1083,10 @@ export class Carinha {
       const emTransicao = performance.now() < this.transicaoAte;
       const antes = this.poseVisivel;
       const material = im.material;
-      const enquadramento = !rosto ? "corpo" : nome.startsWith("deitado-") ? "largo" : "rosto";
+      const enquadramento = !rosto ? "corpo" : cenario(nome) ? "largo" : "rosto";
+      this.tamanhoDaCena(enquadramento === "largo");
+      // Chegando e sentando: um quadro se funde no outro.
+      const naEntrada = !!anim?.entrada && this.quadro <= anim.entrada.length;
       const podeAnimar = !!antes && this.elemento.isConnected && !reduzirMovimento();
       if (emTransicao && this.expressao === this.alvoTransicao) {
         // No meio da troca: não interrompe (nem para piscar, nem o quadro seguinte).
@@ -1054,7 +1094,9 @@ export class Carinha {
       } else if (podeAnimar && rosto && this.enquadramento && this.enquadramento !== enquadramento) {
         // A "câmera" se afasta para mostrar a cena (ou volta para o rosto).
         this.trocarComMaterial(enquadramento === "largo" ? "afastar" : "aproximar", imagem(antes), imagem(nome), mover, extras, rosto);
-      } else if (podeAnimar && material && antes !== nome && !anim && !piscando && !this.piscou) {
+      } else if (podeAnimar && naEntrada && antes !== nome && this.enquadramento === "largo" && enquadramento === "largo") {
+        this.trocarComMaterial("fundir", imagem(antes), imagem(nome), mover, extras, rosto);
+      } else if (podeAnimar && material && antes !== nome && (!anim || cenario(antes) !== cenario(nome)) && !piscando && !this.piscou) {
         this.trocarComMaterial(material, imagem(antes), imagem(nome), mover, extras, rosto);
       } else {
         this.pararTransicao();
@@ -1158,11 +1200,32 @@ export class Carinha {
   private enquadramento: "corpo" | "rosto" | "largo" | "" = "";
   private alvoTransicao: Expressao | null = null;
 
-  /** Quadros que trocam sozinhos (no modo viseira, os da pose larga). */
-  private animDaImagem(im: NonNullable<Personagem["imagens"]>): { quadros: string[]; ms: number } | undefined {
-    const larga = this.modoRosto(im) ? im.largas?.[this.expressao] : undefined;
-    if (larga) return typeof larga === "string" ? undefined : larga;
+  private cena: Cena | undefined;
+
+  /** No modo viseira: qual cena larga mostrar para a expressão atual. */
+  private escolherCena(im: NonNullable<Personagem["imagens"]>): Cena | undefined {
+    if (!this.modoRosto(im)) return undefined;
+    const opcoes = im.largas?.[this.expressao];
+    if (!opcoes) return undefined;
+    const lista = Array.isArray(opcoes) ? opcoes : [opcoes];
+    // Se já está num cenário (ex.: no escritório), continua nele.
+    const primeira = (c: Cena) => (typeof c === "string" ? c : (c.entrada?.[0] ?? c.quadros[0]));
+    const aqui = cenario(this.poseVisivel);
+    const mesmoLugar = aqui ? lista.filter((c) => cenario(primeira(c)) === aqui) : [];
+    const escolhas = mesmoLugar.length ? mesmoLugar : lista;
+    return escolhas[Math.floor(Math.random() * escolhas.length)];
+  }
+
+  /** Quadros que trocam sozinhos (no modo viseira, os da cena larga). */
+  private animDaImagem(im: NonNullable<Personagem["imagens"]>): CenaAnimada | undefined {
+    if (this.cena) return typeof this.cena === "string" ? undefined : this.cena;
     return im.anim?.[this.expressao];
+  }
+
+  /** Quadro número i: primeiro os da entrada (uma vez), depois o loop. */
+  private quadroDe(anim: CenaAnimada, i: number): string {
+    const entrada = anim.entrada ?? [];
+    return i < entrada.length ? entrada[i] : anim.quadros[(i - entrada.length) % anim.quadros.length];
   }
   private transicaoAte = 0;
   private quadroTransicao = 0;
@@ -1177,7 +1240,7 @@ export class Carinha {
   private imagemDaPose(im: NonNullable<Personagem["imagens"]>, id: PersonagemId, pose: string, rosto: boolean): string {
     const href = `${im.pasta}/${pose}.${im.ext}`;
     // Pose larga: a cena inteira enche a caixa da ilha.
-    if (pose.startsWith("deitado-")) return `<image href="${href}" x="-3" y="-4" width="25" height="14" preserveAspectRatio="xMidYMid meet"/>`;
+    if (cenario(pose)) return `<image href="${href}" x="-3" y="-4" width="25" height="14" preserveAspectRatio="xMidYMid meet"/>`;
     const r = rosto ? ROSTOS[id]?.[pose] : undefined;
     if (r) {
       // O rosto (192 px de imagem) esticado para encher a caixa da ilha (25 × 14).
@@ -1208,10 +1271,18 @@ export class Carinha {
    * remolda, a borracha estica e balança, o papel dobra e desdobra, a nuvem
    * vira fumacinha.
    */
-  private trocarComMaterial(material: Material | "afastar" | "aproximar", velha: string, nova: string, mover: string, extras: string, rosto: boolean): void {
+  /** Nas cenas largas a caixa cresce (com transição suave no CSS) para os detalhes aparecerem. */
+  private tamanhoDaCena(larga: boolean): void {
+    const t = this.opcoes.tamanho ?? 2;
+    const k = larga && t <= 3 ? 1.45 : 1;
+    this.elemento.style.width = `${25 * t * k}px`;
+    this.elemento.style.height = `${14 * t * k}px`;
+  }
+
+  private trocarComMaterial(material: Material | "afastar" | "aproximar" | "fundir", velha: string, nova: string, mover: string, extras: string, rosto: boolean): void {
     cancelAnimationFrame(this.quadroTransicao);
     const id = `mat${this.uid}`;
-    const ms = { massinha: 620, borracha: 680, papel: 460, nuvem: 560, afastar: 560, aproximar: 520 }[material];
+    const ms = { massinha: 620, borracha: 680, papel: 460, nuvem: 560, afastar: 560, aproximar: 520, fundir: 320 }[material];
     this.alvoTransicao = this.expressao;
     const filtros =
       material === "massinha"
@@ -1242,7 +1313,10 @@ export class Carinha {
       const t = Math.min(1, (agora - comeco) / ms);
       const suave = t * t * (3 - 2 * t);
       const onda = Math.sin(Math.PI * t);
-      if (material === "afastar" || material === "aproximar") {
+      if (material === "fundir") {
+        gV.setAttribute("opacity", String(1 - suave));
+        gN.setAttribute("opacity", String(suave));
+      } else if (material === "afastar" || material === "aproximar") {
         // Câmera: a imagem velha sai de cena e a nova chega, como num zoom.
         const e = 1 - Math.pow(1 - t, 3);
         const k = Math.min(1, t / 0.55);
@@ -1298,7 +1372,9 @@ export class Carinha {
 export function precarregarImagens(id: PersonagemId): void {
   const im = PERSONAGENS[id]?.imagens;
   if (!im) return;
-  const largas = Object.values(im.largas ?? {}).flatMap((l) => (typeof l === "string" ? [l] : l.quadros));
+  const largas = Object.values(im.largas ?? {})
+    .flatMap((l) => (Array.isArray(l) ? l : [l]))
+    .flatMap((c) => (typeof c === "string" ? [c] : [...(c.entrada ?? []), ...c.quadros]));
   const todos = [im.padrao, "dormindo", ...Object.values(im.mapa), ...Object.values(im.anim ?? {}).flatMap((a) => a.quadros), ...largas];
   for (const nome of new Set(todos)) {
     const i = new Image();
