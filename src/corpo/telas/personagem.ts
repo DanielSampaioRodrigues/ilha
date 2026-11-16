@@ -89,13 +89,34 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
             .map(cartao)
             .join("")}
         </div>
-        <p class="titulo-secao espaco-acima">Feitos com IA (3D)</p>
+        <p class="titulo-secao espaco-acima">Ilustrados</p>
         <div class="grade-personagens">
           ${(Object.keys(PERSONAGENS) as PersonagemId[])
             .filter((id) => PERSONAGENS[id].imagens)
             .map(cartao)
             .join("")}
         </div>
+        ${
+          PERSONAGENS[c.personagem]?.imagens
+            ? `<div class="item espaco-acima">
+          <div class="coluna"><span class="principal">Na ilha fechada</span><span class="secundario">Só o rosto ocupa melhor a ilha; quando ele sai para passear, aparece inteiro.</span></div>
+          <div class="segmentos" role="radiogroup" aria-label="Na ilha fechada">
+            ${(
+              [
+                ["auto", "Padrão"],
+                ["rosto", "Só o rosto"],
+                ["corpo", "Corpo inteiro"],
+              ] as const
+            )
+              .map(
+                ([v, nome]) =>
+                  `<button type="button" class="segmento" role="radio" aria-checked="${(c.rostoNaIlha ?? "auto") === v}" data-acao="rosto-ilha" data-valor="${v}">${nome}</button>`,
+              )
+              .join("")}
+          </div>
+        </div>`
+            : ""
+        }
         <p class="titulo-secao espaco-acima">Estilo moderno</p>
         <div class="grade-personagens">
           ${(Object.keys(PERSONAGENS) as PersonagemId[])
@@ -172,7 +193,7 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
   // Cada cartão mostra o personagem feliz, com as cores escolhidas.
   raiz.querySelectorAll<HTMLElement>("[data-rosto]").forEach((lugar) => {
     const personagem = lugar.dataset.rosto as PersonagemId;
-    lugar.replaceChildren(new Carinha("feliz", { tamanho: 3, comAcessorio: true, aparencia: { personagem, acessorio: "nenhum" } }).elemento);
+    lugar.replaceChildren(new Carinha("feliz", { tamanho: 3, comAcessorio: true, corpoInteiro: true, aparencia: { personagem, acessorio: "nenhum" } }).elemento);
   });
 
   const salvar = (fazer: (c: Config) => void) => {
@@ -210,6 +231,7 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
   });
   aoClicar(raiz, "personagem", (b) => salvar((c) => (c.personagem = b.dataset.personagem as PersonagemId)));
   aoClicar(raiz, "acessorio", (b) => salvar((c) => (c.acessorio = b.dataset.acessorio as Acessorio)));
+  aoClicar(raiz, "rosto-ilha", (b) => salvar((c) => (c.rostoNaIlha = b.dataset.valor as Config["rostoNaIlha"])));
   aoClicar(raiz, "cabeca", (b) => salvar((c) => (c.cabecaAberta = b.dataset.valor as Config["cabecaAberta"])));
   aoClicar(raiz, "alternar", (b) =>
     salvar((c) => {

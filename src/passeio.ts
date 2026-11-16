@@ -30,6 +30,7 @@ class Bicho {
     this.carinha = new Carinha("normal", {
       tamanho,
       comAcessorio: true,
+      corpoInteiro: true,
       aparencia: personagem ? { personagem, acessorio: "nenhum" } : undefined,
     });
     // Corpinho: uma mini-ilha preta com a carinha, e os pezinhos embaixo.

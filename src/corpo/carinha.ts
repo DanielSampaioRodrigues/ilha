@@ -8,6 +8,10 @@
 
 import { ler } from "../dados/armazem";
 import { PERSONAGENS_VETOR, pintarVetor, type OlhoSemantico } from "./vetor";
+import { ROSTOS } from "./rostos";
+
+let contadorCarinhas = 0;
+const reduzirMovimento = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
 export type Expressao =
   | "normal"
@@ -428,7 +432,14 @@ export type PersonagemId =
   | "faisca"
   | "mimi"
   | "bolota"
-  | "lata";
+  | "lata"
+  | "neon"
+  | "cosmo"
+  | "massinha"
+  | "boing"
+  | "dobra"
+  | "teo"
+  | "nimbo";
 
 interface Personagem {
   nome: string;
@@ -449,6 +460,10 @@ interface Personagem {
     mapa: Partial<Record<Expressao, string>>;
     /** Expressões que trocam de imagem sozinhas (ex.: digitando = mãos para cima e para baixo). */
     anim?: Partial<Record<Expressao, { quadros: string[]; ms: number }>>;
+    /** Do que ele é feito: muda o jeito de trocar de pose (massinha se remolda, borracha estica…). */
+    material?: Material;
+    /** Na ilha fechada mostra só o rosto (a viseira), por padrão. */
+    viseira?: boolean;
   };
   /** Bocas diferentes (ex.: o "w" do gato no lugar do sorriso). */
   bocas?: Partial<Record<keyof typeof BOCAS, readonly [readonly number[], readonly number[]]>>;
@@ -500,12 +515,13 @@ const ROSA = "#FF8FB4";
  * Receita dos personagens feitos com IA: todos têm as mesmas 27 poses
  * (mesmos nomes de arquivo), então só muda a pasta.
  */
-function feitoComIA(id: string, nome: string, jeito: string): Personagem {
+function feitoComIA(id: string, nome: string, jeito: string, extra: { material?: Material; viseira?: boolean } = {}): Personagem {
   return {
     nome,
     jeito,
     pixels: [],
     imagens: {
+      ...extra,
       pasta: `/personagens/${id}`,
       ext: "webp",
       padrao: "neutro",
@@ -784,11 +800,18 @@ export const PERSONAGENS: Record<PersonagemId, Personagem> = {
   },
 
   // ---------- Feitos com IA (imagens 3D) ----------
-  broto: feitoComIA("broto", "Broto", "Fofinho em 3D, com uma anteninha que acende. Feito com IA."),
-  faisca: feitoComIA("faisca", "Faísca", "Punk de moicano rosa e jaqueta de tachinhas. Atitude total. Feito com IA."),
-  mimi: feitoComIA("mimi", "Mimi", "Estilo anime, cabelo lilás e moletom verde-água. Feita com IA."),
-  bolota: feitoComIA("bolota", "Bolota", "Um gatinho laranja muito preguiçoso. Feito com IA."),
-  lata: feitoComIA("lata", "Lata", "Robozinho de lata antigo, de corda nas costas. Feito com IA."),
+  broto: feitoComIA("broto", "Broto", "Fofinho, com uma anteninha que acende."),
+  faisca: feitoComIA("faisca", "Faísca", "Punk de moicano rosa e jaqueta de tachinhas. Atitude total."),
+  mimi: feitoComIA("mimi", "Mimi", "Estilo anime, cabelo lilás e moletom verde-água."),
+  bolota: feitoComIA("bolota", "Bolota", "Um gatinho laranja muito preguiçoso."),
+  lata: feitoComIA("lata", "Lata", "Robozinho de lata antigo, de corda nas costas."),
+  neon: feitoComIA("neon", "Neon", "Capacete com viseira de LED: na ilha, você vê só a viseira.", { viseira: true }),
+  cosmo: feitoComIA("cosmo", "Cosmo", "Astronauta de viseira escura com olhos que brilham.", { viseira: true }),
+  massinha: feitoComIA("massinha", "Massinha", "Feito de massa de modelar: se remolda a cada pose.", { material: "massinha" }),
+  boing: feitoComIA("boing", "Boing", "Dinossauro de borracha: estica e balança quando muda.", { material: "borracha" }),
+  dobra: feitoComIA("dobra", "Dobra", "Raposa de origami: se dobra e desdobra entre as poses.", { material: "papel" }),
+  teo: feitoComIA("teo", "Téo", "Autista, com abafador de ouvido e brinquedo sensorial. Uma homenagem às pessoas neurodivergentes."),
+  nimbo: feitoComIA("nimbo", "Nimbo", "Nuvenzinha que vira fumacinha ao mudar e chove quando fica triste.", { material: "nuvem" }),
 
   // ---------- Estilo moderno (vetor) ----------
   ...(Object.fromEntries(
@@ -818,7 +841,11 @@ function semantico(olho: Olho): OlhoSemantico {
 const SVG = "http://www.w3.org/2000/svg";
 const vivas = new Set<Carinha>();
 
+export type Material = "massinha" | "borracha" | "papel" | "nuvem";
+
 export interface OpcoesCarinha {
+  /** Sempre o corpo inteiro (passeio, cartões de escolha), mesmo no modo viseira. */
+  corpoInteiro?: boolean;
   /** Tamanho de cada "pixel" em px. */
   tamanho?: number;
   /** Mostrar o acessório escolhido (só onde o personagem aparece "de corpo inteiro"). */
@@ -923,6 +950,11 @@ export class Carinha {
     if (expressao === this.expressao) return;
     this.expressao = expressao;
     window.clearInterval(this.animacao);
+    if (this.opcoes.comAcessorio && PERSONAGENS[this.aparencia().personagem]?.imagens?.material) {
+      this.desenhar();
+      this.animar();
+      return;
+    }
     this.desenharOlhos(PISCANDO);
     window.setTimeout(() => {
       this.desenhar();
@@ -974,19 +1006,33 @@ export class Carinha {
       const im = personagem.imagens;
       const anim = im.anim?.[this.expressao];
       // Piscar = um instante de olhos fechados ("dormindo" é a de olhos fechados, sem zzz).
-      const nome = anim
-        ? anim.quadros[this.quadro % anim.quadros.length]
-        : d.esquerdo === PISCANDO
-          ? "dormindo"
-          : (im.mapa[this.expressao] ?? im.padrao);
+      const piscando = !anim && d.esquerdo === PISCANDO;
+      const nome = anim ? anim.quadros[this.quadro % anim.quadros.length] : piscando ? "dormindo" : (im.mapa[this.expressao] ?? im.padrao);
       const corV = d.cor ?? ap.corOlhos;
       const quadrado = (x: number, y: number, c: string) => `<rect x="${x}" y="${y}" width="1" height="1" rx=".3" fill="${c || corV}"/>`;
       const acessorio = d.acessorio ?? (ap.acessorio !== "nenhum" ? ap.acessorio : null);
-      // As poses já trazem o teclado, o lápis etc.: aqui só o acessório escolhido.
-      const extras = (acessorio ? ACESSORIOS[acessorio] : []).map(([x, y, c]) => quadrado(x, y, c)).join("");
+      // As poses já trazem o teclado, o lápis etc.: aqui só o acessório escolhido
+      // (no modo viseira o rosto ocupa tudo, então fica sem).
+      const rosto = this.modoRosto(im);
+      const extras = (acessorio && !rosto ? ACESSORIOS[acessorio] : []).map(([x, y, c]) => quadrado(x, y, c)).join("");
       // Seguindo o mouse: inclina um pouco para o lado.
       const [mx, my] = d.deslocar ?? [this.olhar[0] * 0.6, this.olhar[1] * 0.3];
-      this.elemento.innerHTML = `<g transform="translate(${mx} ${my})"><image href="${im.pasta}/${nome}.${im.ext}" x="2.5" y="-4.2" width="14.2" height="14.2" preserveAspectRatio="xMidYMid meet"/>${extras}</g>`;
+      const mover = `translate(${mx} ${my})`;
+      const imagem = (pose: string) => this.imagemDaPose(im, ap.personagem, pose, rosto);
+      const emTransicao = performance.now() < this.transicaoAte;
+      const antes = this.poseVisivel;
+      const material = im.material;
+      if (material && antes && antes !== nome && !anim && !piscando && !this.piscou && this.elemento.isConnected && !reduzirMovimento()) {
+        this.trocarComMaterial(material, imagem(antes), imagem(nome), mover, extras, rosto);
+      } else if (emTransicao && (piscando || nome === antes)) {
+        // No meio da troca de pose: não interrompe (nem para piscar).
+        return;
+      } else {
+        this.pararTransicao();
+        this.elemento.innerHTML = this.envolver(`<g transform="${mover}">${imagem(nome)}${extras}</g>`, "", rosto);
+      }
+      this.poseVisivel = nome;
+      this.piscou = piscando;
       this.elemento.style.setProperty("--brilho", "transparent");
       return;
     }
@@ -1076,7 +1122,119 @@ export class Carinha {
     }, espera);
   }
 
+  // ---------- Personagens ilustrados: viseira e troca de pose ----------
+  private poseVisivel = "";
+  private piscou = false;
+  private transicaoAte = 0;
+  private quadroTransicao = 0;
+
+  /** Na ilha fechada: só o rosto (viseira) ou o corpo inteiro. */
+  private modoRosto(im: NonNullable<Personagem["imagens"]>): boolean {
+    if (this.opcoes.corpoInteiro || !this.opcoes.comAcessorio) return false;
+    const escolha = ler().config.rostoNaIlha ?? "auto";
+    return escolha === "rosto" || (escolha === "auto" && !!im.viseira);
+  }
+
+  private imagemDaPose(im: NonNullable<Personagem["imagens"]>, id: PersonagemId, pose: string, rosto: boolean): string {
+    const href = `${im.pasta}/${pose}.${im.ext}`;
+    const r = rosto ? ROSTOS[id]?.[pose] : undefined;
+    if (r) {
+      // O rosto (192 px de imagem) esticado para encher a caixa da ilha (25 × 14).
+      const [x0, y0, h] = r;
+      const k = 14 / h;
+      return `<image href="${href}" x="${(-3 - x0 * k).toFixed(2)}" y="${(-4 - y0 * k).toFixed(2)}" width="${(192 * k).toFixed(2)}" height="${(192 * k).toFixed(2)}" preserveAspectRatio="xMidYMid meet"/>`;
+    }
+    return `<image href="${href}" x="2.5" y="-4.2" width="14.2" height="14.2" preserveAspectRatio="xMidYMid meet"/>`;
+  }
+
+  /** No modo viseira, recorta com cantos arredondados. */
+  private envolver(conteudo: string, defs: string, rosto: boolean): string {
+    if (!rosto) return defs ? `<defs>${defs}</defs>${conteudo}` : conteudo;
+    const id = `viseira${this.uid}`;
+    return `<defs><clipPath id="${id}"><rect x="-3" y="-4" width="25" height="14" rx="2.4"/></clipPath>${defs}</defs><g clip-path="url(#${id})">${conteudo}</g>`;
+  }
+
+  private readonly uid = ++contadorCarinhas;
+
+  private pararTransicao(): void {
+    if (!this.transicaoAte) return;
+    cancelAnimationFrame(this.quadroTransicao);
+    this.transicaoAte = 0;
+  }
+
+  /**
+   * Troca de pose com o jeito do material: a massinha se deforma e se
+   * remolda, a borracha estica e balança, o papel dobra e desdobra, a nuvem
+   * vira fumacinha.
+   */
+  private trocarComMaterial(material: Material, velha: string, nova: string, mover: string, extras: string, rosto: boolean): void {
+    cancelAnimationFrame(this.quadroTransicao);
+    const id = `mat${this.uid}`;
+    const ms = { massinha: 620, borracha: 680, papel: 460, nuvem: 560 }[material];
+    const filtros =
+      material === "massinha"
+        ? `<filter id="${id}" x="-30%" y="-30%" width="160%" height="160%"><feTurbulence type="fractalNoise" baseFrequency="0.22" numOctaves="2" seed="${Math.floor(Math.random() * 90)}"/><feDisplacementMap in="SourceGraphic" scale="0" xChannelSelector="R" yChannelSelector="G"/></filter>`
+        : material === "nuvem"
+          ? `<filter id="${id}a" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="0"/></filter><filter id="${id}b" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="1.4"/></filter>`
+          : "";
+    const filtroCorpo = material === "massinha" ? ` filter="url(#${id})"` : "";
+    const fV = material === "nuvem" ? ` filter="url(#${id}a)"` : "";
+    const fN = material === "nuvem" ? ` filter="url(#${id}b)"` : "";
+    this.elemento.innerHTML = this.envolver(
+      `<g transform="${mover}"><g class="t-corpo"${filtroCorpo}><g class="t-velha"${fV}>${velha}</g><g class="t-nova" opacity="0"${fN}>${nova}</g></g>${extras}</g>`,
+      filtros,
+      rosto,
+    );
+    const corpo = this.elemento.querySelector(".t-corpo")!;
+    const gV = this.elemento.querySelector(".t-velha")!;
+    const gN = this.elemento.querySelector(".t-nova")!;
+    const desloc = this.elemento.querySelector("feDisplacementMap");
+    const borroes = this.elemento.querySelectorAll("feGaussianBlur");
+    // Deforma a partir dos pés (embaixo, no meio).
+    const [cx, base] = [9.5, 10];
+    const escala = (g: Element, sx: number, sy: number) =>
+      g.setAttribute("transform", `translate(${cx} ${base}) scale(${sx.toFixed(3)} ${sy.toFixed(3)}) translate(${-cx} ${-base})`);
+    const comeco = performance.now();
+    this.transicaoAte = comeco + ms;
+    const passo = (agora: number) => {
+      const t = Math.min(1, (agora - comeco) / ms);
+      const suave = t * t * (3 - 2 * t);
+      const onda = Math.sin(Math.PI * t);
+      if (material === "massinha") {
+        desloc?.setAttribute("scale", (onda * 2.4).toFixed(2));
+        gV.setAttribute("opacity", String(1 - suave));
+        gN.setAttribute("opacity", String(suave));
+        escala(corpo, 1 + 0.08 * onda, 1 - 0.08 * onda);
+      } else if (material === "borracha") {
+        const k = Math.min(1, t / 0.2);
+        gV.setAttribute("opacity", String(1 - k));
+        gN.setAttribute("opacity", String(k));
+        const mola = Math.sin(t * Math.PI * 4.5) * Math.exp(-3.8 * t);
+        escala(corpo, 1 - 0.16 * mola, 1 + 0.26 * mola);
+      } else if (material === "papel") {
+        const primeira = t < 0.5;
+        gV.setAttribute("opacity", primeira ? "1" : "0");
+        gN.setAttribute("opacity", primeira ? "0" : "1");
+        const dobra = Math.max(0.02, Math.abs(Math.cos(Math.PI * t)));
+        escala(primeira ? gV : gN, dobra, 1 + 0.04 * onda);
+      } else {
+        gV.setAttribute("opacity", String(1 - suave));
+        gN.setAttribute("opacity", String(suave));
+        borroes[0]?.setAttribute("stdDeviation", (suave * 1.4).toFixed(2));
+        borroes[1]?.setAttribute("stdDeviation", ((1 - suave) * 1.4).toFixed(2));
+        escala(corpo, 1 + 0.07 * onda, 1 + 0.07 * onda);
+      }
+      if (t < 1) this.quadroTransicao = requestAnimationFrame(passo);
+      else {
+        this.transicaoAte = 0;
+        this.desenhar();
+      }
+    };
+    this.quadroTransicao = requestAnimationFrame(passo);
+  }
+
   parar(): void {
+    this.pararTransicao();
     window.clearTimeout(this.relogio);
     window.clearInterval(this.animacao);
     vivas.delete(this);
