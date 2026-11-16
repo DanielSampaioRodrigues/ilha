@@ -137,6 +137,43 @@ export interface Projeto {
   instrucoes: string;
 }
 
+/** Servidor MCP: dá ferramentas novas às IAs (ex.: navegar, ler arquivos, memória). */
+export interface ServidorMcp {
+  id: string;
+  /** Nome curto, sem espaços (é como os programas chamam o servidor). */
+  nome: string;
+  descricao: string;
+  tipo: "local" | "remoto";
+  /** Local: programa e argumentos (ex.: npx -y @playwright/mcp@latest). */
+  comando: string;
+  argumentos: string[];
+  /** Remoto: endereço (https://…). */
+  url: string;
+  /** Nomes de variáveis cujo valor fica no cofre do Windows (ex.: GITHUB_TOKEN). */
+  segredos: string[];
+}
+
+/** Skill: instruções prontas que a IA segue quando o assunto aparece. */
+export interface Skill {
+  id: string;
+  nome: string;
+  descricao: string;
+  instrucoes: string;
+}
+
+/** Perfil (agente): motor, modelo, raciocínio, instruções, MCPs e skills. */
+export interface Perfil {
+  id: string;
+  nome: string;
+  motor: "deepseek" | "claude" | "codex" | "gemini" | "antigravity";
+  modelo: string;
+  esforco: string;
+  modo: "conversar" | "editar";
+  instrucoes: string;
+  mcps: string[];
+  skills: string[];
+}
+
 export interface Dados {
   assinaturas: Assinatura[];
   redefinicoes: Redefinicao[];
@@ -148,6 +185,9 @@ export interface Dados {
   textos: TextoRapido[];
   timers: Timer[];
   projetos: Projeto[];
+  mcps: ServidorMcp[];
+  skills: Skill[];
+  perfis: Perfil[];
   config: Config;
 }
 
@@ -178,6 +218,9 @@ function padrao(): Dados {
     textos: [],
     timers: [],
     projetos: [],
+    mcps: [],
+    skills: [],
+    perfis: [],
     config: {
       nome: "Dan",
       corOlhos: "#3FE6EE",

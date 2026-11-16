@@ -15,6 +15,10 @@ export interface MensagemConversa {
   quando: number;
   ferramentas?: Ferramenta[];
   erro?: string | null;
+  /** Caminhos dos arquivos anexados (mensagens do Dan). */
+  anexos?: string[];
+  /** O raciocínio que o modelo mostrou antes de responder (DeepSeek). */
+  pensamento?: string;
 }
 
 export interface Conversa {
@@ -26,6 +30,16 @@ export interface Conversa {
   projetoId: string | null;
   pasta: string | null;
   modo: "conversar" | "editar";
+  /** Perfil (agente) usado, se houver. */
+  perfilId?: string | null;
+  /** Modelo e nível de raciocínio escolhidos ("" = o padrão do programa). */
+  modelo?: string;
+  esforco?: string;
+  /** MCPs e skills ligados nesta conversa. */
+  mcps?: string[];
+  skills?: string[];
+  /** Instruções (perfil + skills) já mandadas na sessão do programa. */
+  instrucoesEnviadas?: string;
   mensagens: MensagemConversa[];
   criada: number;
   atualizada: number;

@@ -220,18 +220,20 @@ export function nomeDoPrograma(exe: string): string {
 
 // ---------- Central e conversa ----------
 
-export type Motor = "deepseek" | "claude" | "codex" | "gemini";
+export type Motor = "deepseek" | "claude" | "codex" | "gemini" | "antigravity";
 
 export const NOMES_MOTORES: Record<Motor, string> = {
   deepseek: "DeepSeek",
   claude: "Claude Code",
   codex: "Codex",
   gemini: "Gemini CLI",
+  antigravity: "Antigravity",
 };
 
 export type EventoMotor =
   | { tipo: "sessao"; id: string }
   | { tipo: "texto"; texto: string }
+  | { tipo: "pensamento"; texto: string }
   | { tipo: "ferramenta"; nome: string; detalhe: string }
   | { tipo: "fim"; erro: string | null; custo: number | null };
 
@@ -244,17 +246,41 @@ export interface PedidoConversa {
   pasta: string | null;
   modo: "conversar" | "editar";
   sistema: string;
+  anexos: string[];
+  /** "" = o padrão do programa. */
+  modelo: string;
+  esforco: string;
+  /** Servidores MCP da ilha ligados nesta conversa. */
+  mcps: { nome: string; tipo: string; comando: string; argumentos: string[]; url: string; segredos: string[] }[];
+  /** Nomes de todos os MCPs da ilha (para deixar de fora os não escolhidos). */
+  mcpsDaIlha: string[];
 }
 
-export const abrirCentral = (tela?: string) => pedir<void>("abrir_central", { tela: tela ?? null });
-export const telaInicialCentral = () => pedir<string | null>("tela_inicial_central", undefined, null);
+export const abrirCentral = (tela?: string, anexos?: string[]) =>
+  pedir<void>("abrir_central", { tela: tela ?? null, anexos: anexos ?? null });
+export const telaInicialCentral = () =>
+  pedir<{ tela: string | null; anexos: string[] }>("tela_inicial_central", undefined, { tela: null, anexos: [] });
 export const motoresDisponiveis = () =>
   pedir<{ motor: Motor; encontrado: boolean }[]>("motores_disponiveis", undefined, [
     { motor: "deepseek", encontrado: true },
     { motor: "claude", encontrado: true },
     { motor: "codex", encontrado: true },
     { motor: "gemini", encontrado: false },
+    { motor: "antigravity", encontrado: true },
   ]);
+/** Modelos que o programa/API informa (Antigravity e DeepSeek). */
+export const listarModelos = (motor: Motor) =>
+  pedir<string[]>("listar_modelos", { motor }, motor === "antigravity" ? ["gemini-3.8-flash-medium", "gemini-4-hydrogen-high"] : []);
+/** Abre a digitação por voz do Windows (Win + H) na caixa com o cursor. */
+export const ditado = () => pedir<void>("ditado");
+
+/** Janela do Windows para escolher arquivos para anexar. */
+export async function escolherArquivos(): Promise<string[]> {
+  if (!dentroDoApp) return [];
+  const escolhidos = await open({ title: "Anexar arquivos", multiple: true, directory: false });
+  return Array.isArray(escolhidos) ? escolhidos : typeof escolhidos === "string" ? [escolhidos] : [];
+}
+
 export const pararConversa = (conversaId: string) => pedir<void>("parar_conversa", { conversaId });
 export const abrirNoTerminal = (motor: Motor, sessao: string | null, pasta: string | null) =>
   pedir<void>("abrir_no_terminal", { motor, sessao, pasta });
@@ -264,6 +290,7 @@ export async function conversar(pedido: PedidoConversa, aoEvento: (e: EventoMoto
   if (!dentroDoApp) {
     // Navegador de teste: finge uma resposta escrevendo aos poucos.
     aoEvento({ tipo: "sessao", id: "teste-123" });
+    if (pedido.esforco && pedido.esforco !== "none") aoEvento({ tipo: "pensamento", texto: "Pensando em como responder de um jeito curto e claro…" });
     if (pedido.motor !== "deepseek") aoEvento({ tipo: "ferramenta", nome: "Read", detalhe: "PLANO.md" });
     const resposta = `Resposta de teste do **${NOMES_MOTORES[pedido.motor]}** para: “${pedido.prompt.slice(0, 60)}”.\n\n- primeiro ponto\n- segundo ponto\n\n\`\`\`\nexemplo de código\n\`\`\``;
     for (const pedaco of resposta.match(/.{1,12}/gs) ?? []) {
@@ -277,3 +304,10 @@ export async function conversar(pedido: PedidoConversa, aoEvento: (e: EventoMoto
   canal.onmessage = aoEvento;
   await invoke("conversar", { pedido, canal });
 }
+
+// ---------- Chaves dos MCPs (cofre do Windows) ----------
+
+export const salvarSegredoMcp = (servidor: string, nome: string, valor: string) =>
+  pedir<void>("salvar_segredo_mcp", { servidor, nome, valor });
+export const temSegredoMcp = (servidor: string, nome: string) =>
+  pedir<boolean>("tem_segredo_mcp", { servidor, nome }, false);

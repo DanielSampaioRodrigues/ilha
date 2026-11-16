@@ -40,6 +40,31 @@ pub fn apagar_chave(provedor: String) -> Result<(), String> {
     sistema::apagar(&format!("{PREFIXO}{provedor}"))
 }
 
+// ---------- Chaves dos servidores MCP (ex.: GITHUB_TOKEN) ----------
+
+fn alvo_mcp(servidor: &str, nome: &str) -> Result<String, String> {
+    let ok = |t: &str| !t.is_empty() && t.len() <= 60 && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+    if ok(servidor) && ok(nome) {
+        Ok(format!("{PREFIXO}mcp/{servidor}/{nome}"))
+    } else {
+        Err("Nome inválido.".into())
+    }
+}
+
+pub fn ler_segredo_mcp(servidor: &str, nome: &str) -> Option<String> {
+    sistema::ler(&alvo_mcp(servidor, nome).ok()?)
+}
+
+#[tauri::command]
+pub fn salvar_segredo_mcp(servidor: String, nome: String, valor: String) -> Result<(), String> {
+    sistema::gravar(&alvo_mcp(&servidor, &nome)?, valor.trim())
+}
+
+#[tauri::command]
+pub fn tem_segredo_mcp(servidor: String, nome: String) -> bool {
+    ler_segredo_mcp(&servidor, &nome).is_some()
+}
+
 #[cfg(windows)]
 mod sistema {
     use windows::core::{PCWSTR, PWSTR};

@@ -120,6 +120,18 @@ async function iniciar(): Promise<void> {
   ouvir<"desligado" | "automatico" | "sempre">("ilha:modo-discreto", (m) => ilha.definirModoDiscreto(m));
   ouvir<string>("ilha:atalho", (a) => ilha.definirAtalho(a));
 
+  // Arrastar arquivos para a ilha: abre a Central com eles anexados.
+  if (dentroDoApp) {
+    const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+    const { abrirCentral } = await import("./maos/sistema");
+    getCurrentWebview()
+      .onDragDropEvent((e) => {
+        if (e.payload.type !== "drop" || !e.payload.paths.length) return;
+        abrirCentral("conversa-atual", e.payload.paths).catch(() => {});
+      })
+      .catch(() => {});
+  }
+
   ouvir("ilha:abrir", () => ilha.abrir());
   ouvir("ilha:alternar", () => ilha.alternar());
   ouvir<NomeTela>("ilha:tela", (tela) => ilha.abrir(tela));

@@ -1,8 +1,10 @@
 // Conversa com os motores: lista de conversas (separadas por motor), as
-// mensagens com a resposta aparecendo enquanto é escrita, escolher motor,
-// projeto e modo, parar, continuar no terminal e passar para outro motor.
+// mensagens com a resposta aparecendo enquanto é escrita, escolher perfil,
+// motor, modelo, raciocínio, projeto, modo, MCPs e skills; parar, continuar no
+// terminal e passar para outro motor.
 import { emit } from "@tauri-apps/api/event";
-import { ler, novoId } from "../dados/armazem";
+import { ler, novoId, type Dados } from "../dados/armazem";
+import { esforcosDe, guardarModelosExtras, modelosDe, nomeDoEsforco, nomeDoModelo } from "../dados/modelos";
 import {
   adicionarConversa,
   apagarConversa,
@@ -15,23 +17,40 @@ import { haQuanto } from "../dados/datas";
 import {
   abrirNoTerminal,
   conversar,
+  ditado,
+  escolherArquivos,
+  listarModelos,
   motoresDisponiveis,
   NOMES_MOTORES,
   pararConversa,
   type Motor,
 } from "../maos/sistema";
-import { selo, type TipoIA } from "../corpo/selos";
+import { selo, SELO_MOTOR as SELO } from "../corpo/selos";
 import { aoClicar, confirmarAntes, escapar, html } from "../corpo/ui";
+import { ICONES } from "../corpo/icones";
 import { textoRico } from "./texto-rico";
 
-const MOTORES: Motor[] = ["deepseek", "claude", "codex", "gemini"];
+const MOTORES: Motor[] = ["deepseek", "claude", "codex", "antigravity", "gemini"];
 const DESCRICOES: Record<Motor, string> = {
   deepseek: "Rápido e barato · conversa do dia a dia",
   claude: "Pesado · usa sua assinatura Claude",
   codex: "Pesado · usa sua assinatura ChatGPT",
-  gemini: "Pesado · usa sua conta Google",
+  antigravity: "Pesado · usa sua conta Google",
+  gemini: "Pesado · só com chave paga da API",
 };
-const SELO: Record<Motor, TipoIA> = { deepseek: "deepseek", claude: "claude", codex: "chatgpt", gemini: "gemini" };
+/** Motores que podem editar arquivos pela ilha (o Antigravity recusa sozinho). */
+const EDITAM: Motor[] = ["claude", "codex", "gemini"];
+/** Motores que recebem os MCPs da ilha. */
+const USAM_MCP: Motor[] = ["claude", "codex", "gemini"];
+
+/** O que dá para escolher numa conversa (nova ou já começada). */
+interface Escolhas {
+  motor: Motor;
+  modelo: string;
+  esforco: string;
+  mcps: string[];
+  skills: string[];
+}
 
 const FERRAMENTAS: Record<string, string> = {
   Read: "Leu",
@@ -52,12 +71,25 @@ const FERRAMENTAS: Record<string, string> = {
 const rodando = new Map<string, number>();
 let atualId: string | null = null;
 let filtro: Motor | "todas" = "todas";
-let disponiveis: Record<Motor, boolean> = { deepseek: true, claude: true, codex: true, gemini: true };
+let disponiveis: Record<Motor, boolean> = { deepseek: true, claude: true, codex: true, gemini: true, antigravity: true };
+const buscouModelos = new Set<Motor>();
 let rascunho = "";
+/** Arquivos esperando a próxima mensagem. */
+let anexosPendentes: string[] = [];
+let aoMudarAnexos: () => void = () => {};
+
+const nomeDo = (caminho: string) => caminho.split(/[\\/]/).pop() ?? caminho;
+
+/** Anexa arquivos à próxima mensagem (botão, arrastar para a Central ou para a ilha). */
+export function anexar(caminhos: string[]): void {
+  for (const c of caminhos) if (!anexosPendentes.includes(c)) anexosPendentes.push(c);
+  aoMudarAnexos();
+}
 // Escolhas para a próxima conversa nova.
-let novoMotor: Motor = "deepseek";
 let novoProjeto: string | null = null;
 let novoModo: "conversar" | "editar" = "conversar";
+let novoPerfil: string | null = null;
+const nova: Escolhas = { motor: "deepseek", modelo: "", esforco: "", mcps: [], skills: [] };
 let redesenharTudo: () => void = () => {};
 
 export function conversaRodando(): boolean {
@@ -83,25 +115,111 @@ function sistemaPara(c: Conversa): string {
     .join("\n");
 }
 
+/** Instruções do perfil e das skills ligadas (vão para todos os motores). */
+function instrucoesExtras(c: Conversa, d: Dados): string {
+  const perfil = d.perfis.find((p) => p.id === c.perfilId);
+  const skills = d.skills.filter((s) => c.skills?.includes(s.id));
+  return [
+    perfil?.instrucoes ? `Instruções do perfil "${perfil.nome}":\n${perfil.instrucoes}` : "",
+    ...skills.map((s) => `Skill "${s.nome}"${s.descricao ? ` (${s.descricao})` : ""}:\n${s.instrucoes}`),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** Busca (uma vez) os modelos que o Antigravity ou a DeepSeek informam. */
+function buscarModelos(motor: Motor, depois: () => void): void {
+  if ((motor !== "antigravity" && motor !== "deepseek") || buscouModelos.has(motor) || !disponiveis[motor]) return;
+  buscouModelos.add(motor);
+  listarModelos(motor)
+    .then((l) => {
+      if (!l.length) return;
+      guardarModelosExtras(motor, l);
+      depois();
+    })
+    .catch(() => {});
+}
+
+/** Selects de modelo e raciocínio + marcas de MCPs e skills. */
+function campoEscolhas(e: Escolhas, d: Dados): string {
+  const opcoes = (lista: { valor: string; nome: string }[], escolhido: string) =>
+    lista.map((o) => `<option value="${escapar(o.valor)}" ${o.valor === escolhido ? "selected" : ""}>${escapar(o.nome)}</option>`).join("");
+  const esforcos = esforcosDe(e.motor, e.esforco);
+  const marcas = (lista: { id: string; nome: string; descricao: string }[], ligados: string[], grupo: string) =>
+    lista
+      .map(
+        (x) => `
+      <label class="marca-item"><input type="checkbox" data-grupo="${grupo}" value="${x.id}" ${ligados.includes(x.id) ? "checked" : ""}>
+        <span class="coluna"><span class="principal">${escapar(x.nome)}</span>${x.descricao ? `<span class="secundario">${escapar(x.descricao)}</span>` : ""}</span></label>`,
+      )
+      .join("");
+  const ligados = e.mcps.filter((id) => d.mcps.some((m) => m.id === id)).length + e.skills.filter((id) => d.skills.some((s) => s.id === id)).length;
+  const temFerramentas = d.mcps.length + d.skills.length > 0;
+  return `
+    <label class="campo-inline">Modelo<select class="entrada" data-campo="modelo">${opcoes(modelosDe(e.motor, e.modelo), e.modelo)}</select></label>
+    ${esforcos.length > 1 ? `<label class="campo-inline">Raciocínio<select class="entrada" data-campo="esforco">${opcoes(esforcos, e.esforco)}</select></label>` : ""}
+    ${
+      temFerramentas
+        ? `<details class="escolha-ferramentas">
+        <summary class="botao">MCPs e skills${ligados ? ` (${ligados})` : ""}</summary>
+        <div class="caixa-ferramentas">
+          ${d.mcps.length ? `<p class="titulo-secao">MCPs</p>${USAM_MCP.includes(e.motor) ? "" : `<p class="secundario">${NOMES_MOTORES[e.motor]} ainda não recebe MCPs da ilha.</p>`}${marcas(d.mcps, e.mcps, "mcps")}` : ""}
+          ${d.skills.length ? `<p class="titulo-secao">Skills</p>${marcas(d.skills, e.skills, "skills")}` : ""}
+          <p class="secundario">Valem a partir da próxima mensagem. Os MCPs que o programa já tem continuam ligados.</p>
+        </div>
+      </details>`
+        : ""
+    }`;
+}
+
+/** Liga os campos de campoEscolhas ao objeto de escolhas. */
+function ligarEscolhas(raiz: HTMLElement, e: Escolhas, aoMudar: (redesenhar: boolean) => void): void {
+  raiz.querySelector<HTMLSelectElement>('[data-campo="modelo"]')?.addEventListener("change", (ev) => {
+    e.modelo = (ev.target as HTMLSelectElement).value;
+    aoMudar(false);
+  });
+  raiz.querySelector<HTMLSelectElement>('[data-campo="esforco"]')?.addEventListener("change", (ev) => {
+    e.esforco = (ev.target as HTMLSelectElement).value;
+    aoMudar(false);
+  });
+  raiz.querySelectorAll<HTMLInputElement>("[data-grupo]").forEach((caixa) =>
+    caixa.addEventListener("change", () => {
+      const grupo = caixa.dataset.grupo as "mcps" | "skills";
+      const lista = e[grupo].filter((x) => x !== caixa.value);
+      if (caixa.checked) lista.push(caixa.value);
+      e[grupo] = lista;
+      const resumo = raiz.querySelector(".escolha-ferramentas summary");
+      const total = raiz.querySelectorAll<HTMLInputElement>("[data-grupo]:checked").length;
+      if (resumo) resumo.textContent = `MCPs e skills${total ? ` (${total})` : ""}`;
+      aoMudar(false);
+    }),
+  );
+}
+
 function novaConversa(): Conversa {
   const projeto = ler().projetos.find((p) => p.id === novoProjeto);
   return {
     id: novoId(),
     titulo: "",
-    motor: novoMotor,
+    motor: nova.motor,
     sessao: null,
     projetoId: projeto?.id ?? null,
     pasta: projeto?.pasta ?? null,
-    modo: novoModo,
+    modo: EDITAM.includes(nova.motor) ? novoModo : "conversar",
+    perfilId: novoPerfil,
+    modelo: nova.modelo,
+    esforco: nova.esforco,
+    mcps: [...nova.mcps],
+    skills: [...nova.skills],
     mensagens: [],
     criada: Date.now(),
     atualizada: Date.now(),
   };
 }
 
-async function enviar(c: Conversa, texto: string, aoMudar: () => void): Promise<void> {
+async function enviar(c: Conversa, texto: string, anexos: string[], aoMudar: () => void): Promise<void> {
   const primeira = c.mensagens.length === 0;
-  c.mensagens.push({ papel: "voce", texto, quando: Date.now() });
+  c.mensagens.push({ papel: "voce", texto, quando: Date.now(), anexos: anexos.length ? anexos : undefined });
   if (!c.titulo) c.titulo = texto.replace(/\s+/g, " ").slice(0, 60);
   const resposta: MensagemConversa = { papel: "robo", texto: "", quando: Date.now(), ferramentas: [] };
   c.mensagens.push(resposta);
@@ -111,12 +229,26 @@ async function enviar(c: Conversa, texto: string, aoMudar: () => void): Promise<
   rodando.set(c.id, Date.now());
   aoMudar();
 
+  const d = ler();
   // Para os programas, as instruções do projeto vão junto da primeira mensagem.
-  const projeto = ler().projetos.find((p) => p.id === c.projetoId);
-  const prompt =
+  const projeto = d.projetos.find((p) => p.id === c.projetoId);
+  let prompt =
     primeira && projeto?.instrucoes && c.motor !== "deepseek"
       ? `Instruções do projeto "${projeto.nome}":\n${projeto.instrucoes}\n\n---\n\n${texto}`
       : texto;
+  // Perfil e skills: DeepSeek e Claude Code recebem como instrução de sistema a
+  // cada mensagem; os outros, junto da mensagem quando mudam (a sessão lembra).
+  const extras = instrucoesExtras(c, d);
+  let sistema = c.motor === "deepseek" ? [sistemaPara(c), extras].filter(Boolean).join("\n\n") : c.motor === "claude" ? extras : "";
+  if (c.motor !== "deepseek" && c.motor !== "claude" && extras !== (c.instrucoesEnviadas ?? "")) {
+    prompt = extras ? `${extras}\n\n---\n\n${prompt}` : prompt;
+    c.instrucoesEnviadas = extras;
+  }
+  const mcps = USAM_MCP.includes(c.motor)
+    ? d.mcps
+        .filter((m) => c.mcps?.includes(m.id))
+        .map((m) => ({ nome: m.nome, tipo: m.tipo, comando: m.comando, argumentos: m.argumentos, url: m.url, segredos: m.segredos }))
+    : [];
   emit("ilha:trabalho", { id: c.id, titulo: c.titulo, motor: c.motor }).catch(() => {});
   const inicio = Date.now();
 
@@ -125,16 +257,23 @@ async function enviar(c: Conversa, texto: string, aoMudar: () => void): Promise<
       {
         conversaId: c.id,
         motor: c.motor,
-        mensagens: c.mensagens.slice(0, -1).slice(-30).map((m) => ({ papel: m.papel, texto: m.texto })),
+        // A conversa até antes desta mensagem (a nova vai em "prompt", com os anexos).
+        mensagens: c.mensagens.slice(0, -2).slice(-30).map((m) => ({ papel: m.papel, texto: m.texto })),
         prompt,
         sessao: c.sessao,
         pasta: c.pasta,
         modo: c.modo,
-        sistema: sistemaPara(c),
+        sistema,
+        anexos,
+        modelo: c.modelo ?? "",
+        esforco: c.esforco ?? "",
+        mcps,
+        mcpsDaIlha: d.mcps.map((m) => m.nome),
       },
       (e) => {
         if (e.tipo === "sessao") c.sessao = e.id;
         if (e.tipo === "texto") resposta.texto += e.texto;
+        if (e.tipo === "pensamento") resposta.pensamento = (resposta.pensamento ?? "") + e.texto;
         if (e.tipo === "ferramenta") resposta.ferramentas!.push({ nome: e.nome, detalhe: e.detalhe });
         if (e.tipo === "fim") {
           resposta.erro = e.erro;
@@ -169,16 +308,23 @@ function contextoPara(c: Conversa, destino: Motor): string {
 }
 
 function bolha(m: MensagemConversa, motor: Motor, ativa: boolean): string {
-  if (m.papel === "voce") return `<div class="bolha voce">${escapar(m.texto).replace(/\n/g, "<br>")}</div>`;
+  if (m.papel === "voce") {
+    const anexos = (m.anexos ?? []).map((a) => `<span class="chip-anexo" title="${escapar(a)}">${ICONES.clipe}${escapar(nomeDo(a))}</span>`).join("");
+    return `<div class="bolha voce">${anexos ? `<div class="anexos-msg">${anexos}</div>` : ""}${escapar(m.texto).replace(/\n/g, "<br>")}</div>`;
+  }
   const ferramentas = (m.ferramentas ?? [])
     .map((f) => `<span class="uso-ferramenta"><b>${escapar(FERRAMENTAS[f.nome] ?? f.nome)}</b> ${escapar(f.detalhe)}</span>`)
     .join("");
   const corpo = m.texto ? textoRico(m.texto) : "";
   const pensando = ativa && !m.texto ? '<span class="digitando"><i></i><i></i><i></i></span>' : "";
+  const raciocinio = m.pensamento
+    ? `<details class="pensamento" ${ativa && !m.texto ? "open" : ""}><summary>${ativa && !m.texto ? "Pensando…" : "Como pensou"}</summary><div>${escapar(m.pensamento).replace(/\n/g, "<br>")}</div></details>`
+    : "";
   const erro = m.erro && m.erro !== "Parado." ? `<p class="erro-msg">${escapar(m.erro)}</p>` : m.erro === "Parado." ? '<p class="secundario">Parado.</p>' : "";
   return `
     <div class="bolha robo">
       <span class="autor">${selo(SELO[motor], 14)}${NOMES_MOTORES[motor]}</span>
+      ${raciocinio}
       ${ferramentas ? `<div class="ferramentas">${ferramentas}</div>` : ""}
       <div class="md">${corpo}${pensando}${ativa && m.texto ? '<span class="cursor"></span>' : ""}</div>
       ${erro}
@@ -239,14 +385,37 @@ export function montarConversa(): HTMLElement {
   };
 
   const desenharNova = () => {
-    const projetos = ler().projetos;
+    const d = ler();
+    const projetos = d.projetos;
+    const motor = nova.motor;
+    const dica: Record<Motor, string> = {
+      deepseek: "A DeepSeek responde rápido e lembra desta conversa. Não mexe em arquivos. O deepseek-flash também lê imagens.",
+      claude: "Ele trabalha na pasta do projeto (ou na sua pasta pessoal). Comandos no computador ficam bloqueados por enquanto; liberar com sua confirmação vem na fase 3.",
+      codex: "Ele trabalha na pasta do projeto (ou na sua pasta pessoal). Comandos no computador ficam bloqueados por enquanto; liberar com sua confirmação vem na fase 3.",
+      antigravity: "Precisa do Antigravity CLI (agy) instalado e com login feito uma vez no terminal. Pela ilha ele conversa e lê; o que precisaria da sua aprovação é recusado.",
+      gemini: "Atenção: desde junho de 2026 o Gemini CLI só funciona com chave paga da API do Gemini. Com a assinatura Google AI Pro, use o Antigravity.",
+    };
     painel.innerHTML = `
       <div class="comeco">
+        ${
+          d.perfis.length
+            ? `<p class="titulo-comeco">Começar com um perfil</p>
+          <div class="perfis-rapidos">
+            <button type="button" class="chip-perfil ${novoPerfil ? "" : "ativo"}" data-acao="perfil" data-id="">Sem perfil</button>
+            ${d.perfis
+              .map(
+                (p) =>
+                  `<button type="button" class="chip-perfil ${p.id === novoPerfil ? "ativo" : ""}" data-acao="perfil" data-id="${p.id}" ${disponiveis[p.motor] ? "" : "disabled"} title="${escapar(NOMES_MOTORES[p.motor])}">${selo(SELO[p.motor], 14)}${escapar(p.nome)}</button>`,
+              )
+              .join("")}
+          </div>`
+            : ""
+        }
         <p class="titulo-comeco">Com quem você quer conversar?</p>
         <div class="motores">
           ${MOTORES.map(
             (m) => `
-            <button type="button" class="cartao-motor ${m === novoMotor ? "ativo" : ""}" data-acao="motor" data-motor="${m}" ${disponiveis[m] ? "" : "disabled"}>
+            <button type="button" class="cartao-motor ${m === motor ? "ativo" : ""}" data-acao="motor" data-motor="${m}" ${disponiveis[m] ? "" : "disabled"}>
               ${selo(SELO[m], 22)}
               <span class="principal">${NOMES_MOTORES[m]}</span>
               <span class="secundario">${disponiveis[m] ? DESCRICOES[m] : m === "deepseek" ? "Falta a chave (Ajustes › Chaves de IA)" : "Não encontrei instalado"}</span>
@@ -260,44 +429,91 @@ export function montarConversa(): HTMLElement {
               ${projetos.map((p) => `<option value="${p.id}" ${p.id === novoProjeto ? "selected" : ""}>${escapar(p.nome)}</option>`).join("")}
             </select>
           </label>
+          ${campoEscolhas(nova, d)}
           ${
-            novoMotor === "deepseek"
-              ? ""
-              : `<div class="segmentos" role="radiogroup" aria-label="O que ele pode fazer">
+            EDITAM.includes(motor)
+              ? `<div class="segmentos" role="radiogroup" aria-label="O que ele pode fazer">
                   <button type="button" class="segmento" role="radio" aria-checked="${novoModo === "conversar"}" data-acao="modo" data-modo="conversar">Só conversar e ler</button>
                   <button type="button" class="segmento" role="radio" aria-checked="${novoModo === "editar"}" data-acao="modo" data-modo="editar">Pode editar arquivos</button>
                 </div>`
+              : ""
           }
         </div>
-        <p class="secundario dica-nova">${
-          novoMotor === "deepseek"
-            ? "A DeepSeek responde rápido e lembra desta conversa. Não mexe em arquivos."
-            : "Ele trabalha na pasta do projeto (ou na sua pasta pessoal). Comandos no computador ficam bloqueados por enquanto; liberar com sua confirmação vem na fase 3."
-        }</p>
+        <p class="secundario dica-nova">${dica[motor]}</p>
       </div>`;
-    aoClicar(painel, "motor", (b) => {
-      novoMotor = b.dataset.motor as Motor;
+    const refazer = () => {
       desenharNova();
       painel.append(compositor(null));
+    };
+    aoClicar(painel, "perfil", (b) => {
+      const p = d.perfis.find((x) => x.id === b.dataset.id);
+      novoPerfil = p?.id ?? null;
+      if (p) {
+        Object.assign(nova, { motor: p.motor, modelo: p.modelo, esforco: p.esforco, mcps: [...p.mcps], skills: [...p.skills] });
+        novoModo = p.modo;
+      } else Object.assign(nova, { modelo: "", esforco: "", mcps: [], skills: [] });
+      refazer();
+    });
+    aoClicar(painel, "motor", (b) => {
+      if (nova.motor !== b.dataset.motor) {
+        // Trocar de motor sai do perfil (e das ferramentas que vieram dele).
+        if (novoPerfil) Object.assign(nova, { mcps: [], skills: [] });
+        nova.motor = b.dataset.motor as Motor;
+        nova.modelo = "";
+        nova.esforco = "";
+        novoPerfil = null;
+      }
+      refazer();
     });
     aoClicar(painel, "modo", (b) => {
       novoModo = b.dataset.modo as "conversar" | "editar";
-      desenharNova();
-      painel.append(compositor(null));
+      refazer();
     });
     painel.querySelector<HTMLSelectElement>('[data-campo="projeto"]')!.addEventListener("change", (e) => {
       novoProjeto = (e.target as HTMLSelectElement).value || null;
     });
+    ligarEscolhas(painel.querySelector(".opcoes-nova")!, nova, () => {});
+    buscarModelos(motor, () => !atualId && painel.isConnected && refazer());
   };
 
   const compositor = (c: Conversa | null): HTMLElement => {
     const ocupado = c ? rodando.has(c.id) : false;
     const caixa = html(`
       <form class="compositor">
-        <textarea rows="1" placeholder="Escreva para ${escapar(ler().config.nomeRobo)}… (Enter envia, Shift+Enter pula linha)" aria-label="Mensagem">${escapar(rascunho)}</textarea>
-        ${ocupado ? '<button type="button" class="botao" data-acao="parar">Parar</button>' : '<button type="submit" class="botao ciano">Enviar</button>'}
+        <div class="anexos-pendentes"></div>
+        <div class="linha-compositor">
+          <button type="button" class="redondo" aria-label="Anexar arquivos" title="Anexar arquivos (ou arraste para a janela)" data-acao="anexar">${ICONES.clipe}</button>
+          <button type="button" class="redondo" aria-label="Ditado" title="Ditado: fale e o Windows escreve (Win + H)" data-acao="ditado">${ICONES.microfone}</button>
+          <textarea rows="1" placeholder="Escreva para ${escapar(ler().config.nomeRobo)}… (Enter envia, Shift+Enter pula linha)" aria-label="Mensagem">${escapar(rascunho)}</textarea>
+          ${ocupado ? '<button type="button" class="botao" data-acao="parar">Parar</button>' : '<button type="submit" class="botao ciano">Enviar</button>'}
+        </div>
       </form>`) as HTMLFormElement;
     const campo = caixa.querySelector("textarea")!;
+    const listaAnexos = caixa.querySelector<HTMLElement>(".anexos-pendentes")!;
+    const desenharAnexos = () => {
+      listaAnexos.innerHTML = anexosPendentes
+        .map(
+          (a, i) =>
+            `<span class="chip-anexo" title="${escapar(a)}">${ICONES.clipe}${escapar(nomeDo(a))}<button type="button" aria-label="Tirar ${escapar(nomeDo(a))}" data-tirar="${i}">×</button></span>`,
+        )
+        .join("");
+      listaAnexos.hidden = !anexosPendentes.length;
+      listaAnexos.querySelectorAll<HTMLElement>("[data-tirar]").forEach((b) =>
+        b.addEventListener("click", () => {
+          anexosPendentes.splice(Number(b.dataset.tirar), 1);
+          desenharAnexos();
+        }),
+      );
+    };
+    aoMudarAnexos = desenharAnexos;
+    desenharAnexos();
+    aoClicar(caixa, "anexar", () => {
+      escolherArquivos().then(anexar).catch(() => {});
+    });
+    aoClicar(caixa, "ditado", () => {
+      campo.focus();
+      window.setTimeout(() => ditado().catch(() => {}), 80);
+    });
     const ajustar = () => {
       campo.style.height = "auto";
       campo.style.height = `${Math.min(220, campo.scrollHeight)}px`;
@@ -314,13 +530,15 @@ export function montarConversa(): HTMLElement {
     });
     caixa.addEventListener("submit", (e) => {
       e.preventDefault();
-      const texto = campo.value.trim();
+      const texto = campo.value.trim() || (anexosPendentes.length ? "Veja os arquivos anexados." : "");
       if (!texto || ocupado) return;
       const conversa = c ?? novaConversa();
       if (!disponiveis[conversa.motor]) return;
+      const anexos = anexosPendentes;
+      anexosPendentes = [];
       rascunho = "";
       atualId = conversa.id;
-      enviar(conversa, texto, () => (atualId === conversa.id ? desenharMensagens() : desenharLista()));
+      enviar(conversa, texto, anexos, () => (atualId === conversa.id ? desenharMensagens() : desenharLista()));
       desenharTudo();
     });
     aoClicar(caixa, "parar", () => c && pararConversa(c.id).catch(() => {}));
@@ -347,15 +565,19 @@ export function montarConversa(): HTMLElement {
   };
 
   const desenharConversa = (c: Conversa) => {
-    const projeto = ler().projetos.find((p) => p.id === c.projetoId);
+    const d = ler();
+    const projeto = d.projetos.find((p) => p.id === c.projetoId);
+    const perfil = d.perfis.find((p) => p.id === c.perfilId);
+    const escolhas: Escolhas = { motor: c.motor, modelo: c.modelo ?? "", esforco: c.esforco ?? "", mcps: c.mcps ?? [], skills: c.skills ?? [] };
     const outros = MOTORES.filter((m) => m !== c.motor && disponiveis[m]);
     painel.innerHTML = `
       <header class="topo-conversa">
         ${selo(SELO[c.motor], 22)}
         <div class="coluna">
           <span class="principal">${escapar(c.titulo || "Conversa nova")}</span>
-          <span class="secundario">${NOMES_MOTORES[c.motor]}${projeto ? ` · ${escapar(projeto.nome)}` : c.pasta ? ` · ${escapar(c.pasta)}` : ""}${c.motor !== "deepseek" ? ` · ${c.modo === "editar" ? "pode editar arquivos" : "só conversa e lê"}` : ""}${c.custo ? ` · US$ ${c.custo.toFixed(2)}` : ""}</span>
+          <span class="secundario">${perfil ? `${escapar(perfil.nome)} · ` : ""}${NOMES_MOTORES[c.motor]}${c.modelo ? ` (${escapar(nomeDoModelo(c.motor, c.modelo))})` : ""}${c.esforco ? ` · raciocínio ${escapar(nomeDoEsforco(c.motor, c.esforco).toLowerCase())}` : ""}${projeto ? ` · ${escapar(projeto.nome)}` : c.pasta ? ` · ${escapar(c.pasta)}` : ""}${EDITAM.includes(c.motor) ? ` · ${c.modo === "editar" ? "pode editar arquivos" : "só conversa e lê"}` : ""}${c.custo ? ` · US$ ${c.custo.toFixed(2)}` : ""}</span>
         </div>
+        <details class="menu-ajustes"><summary class="botao">Ajustes</summary><div class="opcoes-ajustes">${campoEscolhas(escolhas, d)}</div></details>
         ${c.motor !== "deepseek" && c.sessao ? '<button type="button" class="botao" data-acao="terminal">Abrir no terminal</button>' : ""}
         ${
           outros.length && c.mensagens.length
@@ -372,6 +594,16 @@ export function montarConversa(): HTMLElement {
     desenharMensagens();
     if (mensagensEl) mensagensEl.scrollTop = mensagensEl.scrollHeight;
 
+    const ajustes = painel.querySelector<HTMLElement>(".opcoes-ajustes")!;
+    ligarEscolhas(ajustes, escolhas, () => {
+      Object.assign(c, { modelo: escolhas.modelo, esforco: escolhas.esforco, mcps: escolhas.mcps, skills: escolhas.skills });
+      salvarConversas();
+    });
+    // Fechar o menu de ajustes atualiza o resumo do topo.
+    painel.querySelector(".menu-ajustes")!.addEventListener("toggle", (e) => {
+      if (!(e.target as HTMLDetailsElement).open) desenharConversa(c);
+    });
+    buscarModelos(c.motor, () => atualId === c.id && painel.isConnected && desenharConversa(c));
     aoClicar(painel, "terminal", () => abrirNoTerminal(c.motor, c.sessao, c.pasta).catch(() => {}));
     aoClicar(painel, "apagar", (b) =>
       confirmarAntes(b, "Apagar conversa?", () => {
@@ -382,7 +614,8 @@ export function montarConversa(): HTMLElement {
     );
     aoClicar(painel, "passar", (b) => {
       const destino = b.dataset.motor as Motor;
-      novoMotor = destino;
+      Object.assign(nova, { motor: destino, modelo: "", esforco: "", mcps: [...(c.mcps ?? [])], skills: [...(c.skills ?? [])] });
+      novoPerfil = null;
       novoProjeto = c.projetoId;
       novoModo = c.modo;
       rascunho = contextoPara(c, destino);
@@ -413,7 +646,7 @@ export function montarConversa(): HTMLElement {
   motoresDisponiveis()
     .then((l) => {
       l.forEach((m) => (disponiveis[m.motor] = m.encontrado));
-      if (!disponiveis[novoMotor]) novoMotor = MOTORES.find((m) => disponiveis[m]) ?? "deepseek";
+      if (!disponiveis[nova.motor]) nova.motor = MOTORES.find((m) => disponiveis[m]) ?? "deepseek";
       if (!atualId) desenharTudo();
     })
     .catch(() => {});

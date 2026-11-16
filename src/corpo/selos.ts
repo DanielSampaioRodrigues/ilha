@@ -58,3 +58,12 @@ export function selo(tipo: TipoIA, tamanho = 16, letra = "?"): string {
 export function seloDa(r: Pick<Redefinicao, "nome" | "ia">, tamanho = 16): string {
   return selo(tipoDa(r), tamanho, (r.nome.trim().charAt(0) || "?").toUpperCase().replace(/[<>&]/g, ""));
 }
+
+/** Selo de cada motor da conversa (o Antigravity é do Google, como o Gemini). */
+export const SELO_MOTOR: Record<"deepseek" | "claude" | "codex" | "gemini" | "antigravity", TipoIA> = {
+  deepseek: "deepseek",
+  claude: "claude",
+  codex: "chatgpt",
+  gemini: "gemini",
+  antigravity: "gemini",
+};

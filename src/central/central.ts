@@ -12,13 +12,17 @@ import { ICONES } from "../corpo/icones";
 import { Carinha } from "../corpo/carinha";
 import type { Contexto, NomeTela } from "../corpo/contexto";
 import { dentroDoApp } from "../ponte";
-import { comecarNova, montarConversa, pararPeloId } from "./conversa";
+import { anexar, comecarNova, montarConversa, pararPeloId } from "./conversa";
 import { montarProjetos } from "./projetos";
+import { montarPerfis } from "./perfis";
+import { montarFerramentas } from "./ferramentas";
 
-type Secao = "conversa" | "projetos" | Exclude<NomeTela, "inicio" | "apps">;
+type Secao = "conversa" | "projetos" | "perfis" | "ferramentas" | Exclude<NomeTela, "inicio" | "apps">;
 
 const MENU: [Secao, string, string][] = [
   ["conversa", ICONES.teclado, "Conversa"],
+  ["perfis", ICONES.personagem, "Perfis"],
+  ["ferramentas", ICONES.ajustes, "MCPs e Skills"],
   ["projetos", ICONES.pasta, "Projetos"],
   ["tarefas", ICONES.tarefas, "Tarefas"],
   ["notas", ICONES.notas, "Notas"],
@@ -119,6 +123,14 @@ export async function iniciarCentral(): Promise<void> {
       conteudo.replaceChildren(montarProjetos(mostrar));
       return;
     }
+    if (secao === "perfis") {
+      conteudo.replaceChildren(montarPerfis(mostrar));
+      return;
+    }
+    if (secao === "ferramentas") {
+      conteudo.replaceChildren(montarFerramentas(mostrar));
+      return;
+    }
     const pagina = document.createElement("div");
     pagina.className = "pagina pagina-tela";
     pagina.append(TELAS[secao].montar(contexto()));
@@ -147,7 +159,24 @@ export async function iniciarCentral(): Promise<void> {
       if (e.payload === "conversa") comecarNova();
     });
     await listen<{ id: string }>("central:parar", (e) => pararPeloId(e.payload.id));
+    // Arquivos arrastados para a ilha chegam aqui.
+    await listen<string[]>("central:anexar", (e) => {
+      ir("conversa");
+      anexar(e.payload);
+    });
+    // Arrastar arquivos para a janela da Central: anexa à conversa.
+    const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+    await getCurrentWebview().onDragDropEvent((e) => {
+      const tipo = e.payload.type;
+      document.body.classList.toggle("soltando", tipo === "enter" || tipo === "over");
+      if (tipo === "drop") {
+        ir("conversa");
+        anexar(e.payload.paths);
+      }
+    });
   }
-  const inicial = (await telaInicialCentral().catch(() => null)) ?? new URLSearchParams(location.search).get("secao");
+  const pedido = await telaInicialCentral().catch(() => ({ tela: null, anexos: [] as string[] }));
+  const inicial = pedido.tela ?? new URLSearchParams(location.search).get("secao");
   ir((inicial as Secao) ?? "conversa");
+  if (pedido.anexos.length) anexar(pedido.anexos);
 }

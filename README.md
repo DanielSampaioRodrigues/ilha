@@ -49,9 +49,13 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
 - **Personagem**: 13 expressões, cor dos olhos e das bochechas, acessórios, olhos que
   seguem o mouse, mosquinha e cochilo quando parado.
 - **Central** (botão de teclado na ilha, ou menu do ícone › Abrir a Central): janela
-  grande com a **Conversa** (DeepSeek, Claude Code, Codex, Gemini CLI), **Projetos**
-  e todas as outras telas. A ilha mostra quando uma IA está trabalhando e avisa
-  quando termina.
+  grande com a **Conversa** (DeepSeek, Claude Code, Codex, Antigravity, Gemini CLI),
+  **Perfis**, **MCPs e Skills**, **Projetos** e todas as outras telas. A ilha mostra
+  quando uma IA está trabalhando e avisa quando termina.
+- Na conversa: escolha **modelo** e **raciocínio**, ligue **MCPs e skills** só naquela
+  conversa (ou mude depois em **Ajustes** no topo dela), **anexe** arquivos (clipe ou
+  arrastando para a Central ou para a ilha) e use o **ditado** (microfone). Um
+  **perfil** guarda tudo isso junto, como um agente pronto.
 - Se algo der errado: menu do ícone › **Abrir registro de erros**.
 - "Ouvindo", "trabalhando" e "confirmação" ainda são de teste (menu do ícone ›
   **Ver os estados**); chegam de verdade nas fases 2 e 3.

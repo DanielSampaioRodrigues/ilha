@@ -7,11 +7,21 @@ use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder
 
 pub const JANELA_CENTRAL: &str = "central";
 
-/// Tela pedida antes de a janela ficar pronta.
+/// O que foi pedido antes de a janela ficar pronta (tela e arquivos para anexar).
+#[derive(Default, Clone, serde::Serialize)]
+pub struct Pedido {
+    pub tela: Option<String>,
+    pub anexos: Vec<String>,
+}
+
 #[derive(Default)]
-pub struct TelaPendente(Mutex<Option<String>>);
+pub struct TelaPendente(Mutex<Option<Pedido>>);
 
 pub fn abrir(app: &AppHandle, tela: Option<String>) {
+    abrir_com(app, tela, Vec::new());
+}
+
+pub fn abrir_com(app: &AppHandle, tela: Option<String>, anexos: Vec<String>) {
     if let Some(j) = app.get_webview_window(JANELA_CENTRAL) {
         let _ = j.unminimize();
         let _ = j.show();
@@ -19,10 +29,13 @@ pub fn abrir(app: &AppHandle, tela: Option<String>) {
         if let Some(t) = tela {
             let _ = app.emit_to(JANELA_CENTRAL, "central:tela", t);
         }
+        if !anexos.is_empty() {
+            let _ = app.emit_to(JANELA_CENTRAL, "central:anexar", anexos);
+        }
         return;
     }
     if let Ok(mut p) = app.state::<TelaPendente>().0.lock() {
-        *p = tela;
+        *p = Some(Pedido { tela, anexos });
     }
     let criada = WebviewWindowBuilder::new(app, JANELA_CENTRAL, WebviewUrl::default())
         .title("Ilha · Central")
@@ -36,11 +49,12 @@ pub fn abrir(app: &AppHandle, tela: Option<String>) {
 }
 
 #[tauri::command]
-pub fn abrir_central(app: AppHandle, tela: Option<String>) {
-    abrir(&app, tela);
+pub fn abrir_central(app: AppHandle, tela: Option<String>, anexos: Option<Vec<String>>) {
+    abrir_com(&app, tela, anexos.unwrap_or_default());
 }
 
+/// A Central, ao abrir, pergunta o que foi pedido (tela e anexos).
 #[tauri::command]
-pub fn tela_inicial_central(pendente: State<'_, TelaPendente>) -> Option<String> {
-    pendente.0.lock().ok().and_then(|mut p| p.take())
+pub fn tela_inicial_central(pendente: State<'_, TelaPendente>) -> Pedido {
+    pendente.0.lock().ok().and_then(|mut p| p.take()).unwrap_or_default()
 }

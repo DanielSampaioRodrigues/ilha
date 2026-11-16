@@ -447,8 +447,8 @@ body.modo-central #palco {
 
 .compositor {
   display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   margin: 0 22px 18px;
   padding: 10px 10px 10px 14px;
   border-radius: 18px;
@@ -495,7 +495,7 @@ body.modo-central #palco {
 
 .motores {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 10px;
 }
 
@@ -534,4 +534,281 @@ body.modo-central #palco {
 
 .dica-nova {
   margin: 0;
+}
+
+.linha-compositor {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.linha-compositor .redondo {
+  flex: none;
+}
+
+.anexos-pendentes,
+.anexos-msg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.anexos-msg {
+  margin-bottom: 6px;
+}
+
+.chip-anexo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 260px;
+  padding: 3px 6px 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip-anexo svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.chip-anexo button {
+  border: 0;
+  background: none;
+  color: var(--apagado);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* Arrastando arquivos sobre a Central. */
+body.modo-central.soltando::after {
+  content: "Solte para anexar à conversa";
+  position: fixed;
+  inset: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--ciano);
+  border-radius: 18px;
+  background: rgba(7, 8, 10, 0.75);
+  color: var(--ciano);
+  font-size: 20px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+/* ---------- Perfis, MCPs e Skills ---------- */
+
+.catalogo {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.cartao-catalogo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--vidro);
+}
+
+.cartao-catalogo .botao {
+  align-self: flex-start;
+  margin-top: auto;
+}
+
+.form-mcp .linha .campo,
+.grade-perfil .campo {
+  flex: 1;
+}
+
+.grade-perfil {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.duas-colunas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.caixa-marcas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.caixa-marcas legend {
+  padding: 0 6px;
+}
+
+.marca-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.marca-item input {
+  margin-top: 3px;
+  accent-color: var(--ciano);
+}
+
+.form-segredos {
+  gap: 8px;
+  margin: -4px 0 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.espaco-acima {
+  margin-top: 26px;
+}
+
+.formulario-projeto select.entrada {
+  height: 34px;
+}
+
+/* ---------- Escolhas da conversa (perfil, modelo, raciocínio, ferramentas) ---------- */
+
+.perfis-rapidos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip-perfil {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: #15171b;
+  color: var(--texto);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chip-perfil.ativo {
+  border-color: var(--ciano);
+  background: color-mix(in srgb, var(--ciano) 10%, #15171b);
+}
+
+.chip-perfil:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.escolha-ferramentas,
+.menu-ajustes {
+  position: relative;
+}
+
+.escolha-ferramentas summary,
+.menu-ajustes summary {
+  list-style: none;
+}
+
+.escolha-ferramentas summary::-webkit-details-marker,
+.menu-ajustes summary::-webkit-details-marker {
+  display: none;
+}
+
+.caixa-ferramentas,
+.opcoes-ajustes {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 320px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: #16181c;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+
+.caixa-ferramentas {
+  left: 0;
+  top: 40px;
+}
+
+.opcoes-ajustes {
+  right: 0;
+  top: 40px;
+}
+
+.opcoes-ajustes .campo-inline {
+  justify-content: space-between;
+}
+
+.opcoes-ajustes .campo-inline select {
+  height: 34px;
+  max-width: 200px;
+}
+
+/* Dentro do menu de ajustes, a lista de ferramentas aparece no próprio fluxo. */
+.opcoes-ajustes .caixa-ferramentas {
+  position: static;
+  width: auto;
+  max-height: none;
+  padding: 10px 0 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.opcoes-ajustes .escolha-ferramentas summary {
+  width: 100%;
+}
+
+.caixa-ferramentas .titulo-secao {
+  margin: 4px 0 0;
+}
+
+.pensamento {
+  margin: 2px 0 6px;
+  font-size: 13px;
+  color: var(--apagado);
+}
+
+.pensamento summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.pensamento > div {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-left: 2px solid rgba(255, 255, 255, 0.12);
+  max-height: 260px;
+  overflow-y: auto;
+  white-space: normal;
+}
+
+/* Na tela de conversa nova, a lista abre para cima (há mais espaço). */
+.opcoes-nova .caixa-ferramentas {
+  top: auto;
+  bottom: 42px;
+}
+
+.opcoes-nova select {
+  max-width: 260px;
 }

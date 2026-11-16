@@ -188,7 +188,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
         aoClicar(raiz, "parar", () => ctx.fechar());
         return raiz;
       }
-      const nomes: Record<string, string> = { deepseek: "DeepSeek", claude: "Claude Code", codex: "Codex", gemini: "Gemini" };
+      const nomes: Record<string, string> = { deepseek: "DeepSeek", claude: "Claude Code", codex: "Codex", gemini: "Gemini", antigravity: "Antigravity" };
       const raiz = html(`
         <div class="estado compacto">
           <i data-carinha="pensando"></i>

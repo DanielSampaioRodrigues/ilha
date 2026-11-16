@@ -174,7 +174,7 @@ export class Ilha {
   /** Terminou: volta ao descanso e, se demorou ou é um motor "pesado", avisa. */
   terminarTrabalho(id: string, titulo: string, motor: string, ok: boolean, segundos: number): void {
     if (this.trabalho?.id === id) this.trabalho = null;
-    const nomes: Record<string, string> = { deepseek: "DeepSeek", claude: "Claude Code", codex: "Codex", gemini: "Gemini" };
+    const nomes: Record<string, string> = { deepseek: "DeepSeek", claude: "Claude Code", codex: "Codex", gemini: "Gemini", antigravity: "Antigravity" };
     if (motor !== "deepseek" || segundos > 20 || !ok) {
       this.notificar({
         titulo: ok ? `${nomes[motor] ?? motor} respondeu` : `${nomes[motor] ?? motor} parou`,
