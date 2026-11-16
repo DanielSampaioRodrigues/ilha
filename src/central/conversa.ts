@@ -181,7 +181,7 @@ function campoEscolhas(e: Escolhas, d: Dados): string {
             <option value="">Alto (padrão)</option>
             <option value="max" ${e.esforco === "max" ? "selected" : ""}>Máximo</option>
           </select></label>`
-        : esforcos.length > 1
+        : esforcos.length > 1 && !e.modelo.startsWith("Orchestrator")
           ? `<label class="campo-inline">Raciocínio<select class="entrada" data-campo="esforco">${opcoes(esforcos, e.esforco)}</select></label>`
           : ""
     }

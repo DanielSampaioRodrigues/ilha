@@ -49,7 +49,9 @@ export const MODELOS: Record<Motor, Opcao[]> = {
     { valor: "gemini-3.8-flash", nome: "Gemini 3.8 Flash (rápido)" },
     { valor: "gemini-3.5-flash-lite", nome: "Gemini 3.5 Flash-Lite (o mais leve)" },
   ],
-  antigravity: [PADRAO],
+  // O resto vem do "agy models". O Orquestrador (Argon, plano Pro) divide o
+  // trabalho entre vários agentes; tem configuração fixa (sem nível de raciocínio).
+  antigravity: [PADRAO, { valor: "Orchestrator (Argon)", nome: "Orquestrador Argon (divide o trabalho entre agentes)" }],
   deepseek: [
     { valor: "", nome: "deepseek-flash (rápido, lê imagens)" },
     { valor: "deepseek-v4-pro", nome: "deepseek-v4-pro (o mais capaz)" },

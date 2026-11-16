@@ -305,10 +305,16 @@ fn valor_simples(v: &str) -> bool {
     !v.is_empty() && v.len() <= 60 && v.chars().all(|c| c.is_ascii_alphanumeric() || "-._[]".contains(c))
 }
 
+/// Modelos do Antigravity que coordenam outros agentes (nomes da documentação).
+const ORQUESTRADORES: [&str; 2] = ["Orchestrator (Argon)", "Orchestrator (Carbon)"];
+
 fn argumentos(motor: &str, sessao: Option<&str>, editar: bool, modelo: &str, esforco: &str) -> Vec<String> {
     let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
-    let modelo = Some(modelo).filter(|m| valor_simples(m));
-    let esforco = Some(esforco).filter(|e| valor_simples(e));
+    // O Orquestrador do Antigravity tem nome com espaço e parênteses: só esses dois passam.
+    let orquestrador = motor == "antigravity" && ORQUESTRADORES.contains(&modelo);
+    let modelo = Some(modelo).filter(|m| valor_simples(m) || orquestrador);
+    // O Orquestrador tem configuração fixa: não aceita nível de raciocínio.
+    let esforco = Some(esforco).filter(|e| valor_simples(e) && !orquestrador);
     match motor {
         "claude" => {
             let mut a = s(&["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages"]);
@@ -932,6 +938,10 @@ mod testes {
 
     #[test]
     fn argumentos_dos_programas() {
+        let o = argumentos("antigravity", None, false, "Orchestrator (Argon)", "high");
+        assert!(o.windows(2).any(|w| w == ["--model", "Orchestrator (Argon)"]));
+        assert!(!o.iter().any(|a| a == "--effort"));
+        assert!(!argumentos("antigravity", None, false, "x (y); rm", "").iter().any(|a| a == "--model"));
         let c = argumentos("claude", Some("abc"), false, "opus", "high");
         assert!(c.windows(2).any(|w| w == ["--model", "opus"]));
         assert!(c.windows(2).any(|w| w == ["--resume", "abc"]));
