@@ -86,6 +86,8 @@ async function enviar(texto: string, ctx: Contexto, porVoz = false): Promise<voi
   // Uma de cada vez (ex.: algo ouvido enquanto uma mensagem digitada ainda roda).
   if (rodando || enviando) return;
   enviando = true;
+  // Mandou algo: o recado antigo do microfone ("não ouvi nada") sai.
+  erroVoz = "";
   try {
     await enviarAgora(texto, ctx, porVoz);
   } finally {

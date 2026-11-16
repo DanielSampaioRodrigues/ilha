@@ -525,45 +525,47 @@ impl Leitor {
                 }
                 _ => {}
             },
-            "antigravity" => match tipo {
-                "step_update" => {
-                    if let Some(id) = v["conversation_id"].as_str().filter(|_| !self.avisou_sessao) {
-                        self.avisou_sessao = true;
-                        let _ = canal.send(Evento::Sessao { id: id.into() });
-                    }
-                    match v["step_type"].as_str() {
+            // Formato oficial (antigravity.google/docs/cli/headless): cada linha tem
+            // "event" com o tipo e os dados dentro de uma chave com o mesmo nome:
+            // {"event":"step_update","step_update":{...}}.
+            "antigravity" => {
+                let tipo = v["event"].as_str().or(v["type"].as_str()).unwrap_or_default();
+                let p = if v[tipo].is_object() { &v[tipo] } else { &v };
+                let conversa = p["conversation_id"].as_str().or(v["conversation_id"].as_str());
+                if let Some(id) = conversa.filter(|_| !self.avisou_sessao) {
+                    self.avisou_sessao = true;
+                    let _ = canal.send(Evento::Sessao { id: id.into() });
+                }
+                match tipo {
+                    "step_update" => match p["step_type"].as_str() {
                         Some("agent_response") => {
-                            if v["step_index"] != self.passo {
-                                self.passo = v["step_index"].clone();
+                            if p["step_index"] != self.passo {
+                                self.passo = p["step_index"].clone();
                                 self.separar(canal);
                             }
-                            let t = v["text_delta"].as_str().unwrap_or_default().to_string();
+                            let t = p["text_delta"].as_str().unwrap_or_default().to_string();
                             self.texto(&t, canal);
                         }
-                        Some("tool") if v["state"] == "ACTIVE" && v["step_index"] != self.passo => {
-                            self.passo = v["step_index"].clone();
-                            let info = &v["tool_info"];
-                            let nome = info["name"].as_str().or_else(|| info.as_str()).unwrap_or("ferramenta");
-                            let _ = canal.send(Evento::Ferramenta { nome: nome.into(), detalhe: detalhe_de(&info["args"]) });
+                        Some("tool") if p["state"] == "ACTIVE" && p["step_index"] != self.passo => {
+                            self.passo = p["step_index"].clone();
+                            let info = &p["tool_info"];
+                            let nome = info["name"].as_str().or(p["tool_name"].as_str()).unwrap_or("ferramenta");
+                            let _ = canal.send(Evento::Ferramenta { nome: nome.into(), detalhe: detalhe_de(&info["parameters"]) });
                         }
                         _ => {}
+                    },
+                    "result" => {
+                        let erro = p["error"].as_str().map(String::from).or_else(|| p["error"]["message"].as_str().map(String::from));
+                        if erro.is_some() || p["status"].as_str().is_some_and(|s| s.eq_ignore_ascii_case("error")) {
+                            self.erro = Some(erro.unwrap_or_else(|| "O Antigravity parou com erro.".into()));
+                        } else if !self.escreveu_texto {
+                            let t = p["response"].as_str().unwrap_or_default().to_string();
+                            self.texto(&t, canal);
+                        }
                     }
+                    _ => {}
                 }
-                "result" => {
-                    if let Some(id) = v["conversation_id"].as_str().filter(|_| !self.avisou_sessao) {
-                        self.avisou_sessao = true;
-                        let _ = canal.send(Evento::Sessao { id: id.into() });
-                    }
-                    let erro = v["error"].as_str().map(String::from).or_else(|| v["error"]["message"].as_str().map(String::from));
-                    if erro.is_some() || v["status"].as_str().is_some_and(|s| s.eq_ignore_ascii_case("error")) {
-                        self.erro = Some(erro.unwrap_or_else(|| "O Antigravity parou com erro.".into()));
-                    } else if !self.escreveu_texto {
-                        let t = v["response"].as_str().unwrap_or_default().to_string();
-                        self.texto(&t, canal);
-                    }
-                }
-                _ => {}
-            },
+            }
             _ => {}
         }
     }
@@ -609,6 +611,11 @@ fn rodar_programa(pedido: &Pedido, canal: &Channel<Evento>, andamento: &Andament
     }
     if pedido.motor == "claude" && valor_simples(&pedido.esforco) {
         cmd.env("CLAUDE_CODE_EFFORT_LEVEL", &pedido.esforco);
+    }
+    // O Gemini CLI escondido recusa pastas "não confiáveis" (não tem como
+    // perguntar). A pasta é a do projeto escolhido pelo Dan ou a pessoal dele.
+    if pedido.motor == "gemini" {
+        cmd.env("GEMINI_CLI_TRUST_WORKSPACE", "true");
     }
     if let Some(p) = pedido.pasta.as_deref().filter(|p| Path::new(p).is_dir()) {
         cmd.current_dir(p);
@@ -663,8 +670,14 @@ fn rodar_programa(pedido: &Pedido, canal: &Channel<Evento>, andamento: &Andament
         passo: Value::Null,
         avisou_sessao: false,
     };
+    // As últimas linhas ficam guardadas: se a resposta vier vazia, vão para o registro.
+    let mut ultimas: std::collections::VecDeque<String> = std::collections::VecDeque::new();
     for linha in BufReader::new(saida).lines().map_while(Result::ok) {
         leitor.linha(&linha, canal);
+        if ultimas.len() == 6 {
+            ultimas.pop_front();
+        }
+        ultimas.push_back(linha.chars().take(400).collect());
     }
     let codigo = filho.lock().ok().and_then(|mut f| f.wait().ok());
     apagar_temporario();
@@ -679,8 +692,12 @@ fn rodar_programa(pedido: &Pedido, canal: &Channel<Evento>, andamento: &Andament
     } else if leitor.erro.is_some() {
         leitor.erro.clone()
     } else if codigo.is_some_and(|c| !c.success()) && !leitor.escreveu_texto {
-        let fim: String = erros.trim().chars().rev().take(400).collect::<Vec<_>>().into_iter().rev().collect();
+        let limpo = sem_cores(&erros);
+        let fim: String = limpo.trim().chars().rev().take(400).collect::<Vec<_>>().into_iter().rev().collect();
         Some(if fim.is_empty() { format!("O {nome} terminou com erro.") } else { fim })
+    } else if !leitor.escreveu_texto {
+        log::warn!("{nome} terminou sem resposta. Últimas linhas: {}", ultimas.iter().cloned().collect::<Vec<_>>().join(" | "));
+        Some(format!("O {nome} terminou, mas a ilha não conseguiu ler a resposta. Mande o registro de erros (Ajustes › Sobre) para o Claude."))
     } else {
         None
     };
@@ -689,6 +706,28 @@ fn rodar_programa(pedido: &Pedido, canal: &Channel<Evento>, andamento: &Andament
     }
     let _ = canal.send(Evento::Fim { erro, custo: leitor.custo });
     Ok(())
+}
+
+/// Tira os códigos de cor do terminal (ex.: "\x1b[31m") das mensagens de erro.
+fn sem_cores(texto: &str) -> String {
+    let mut saida = String::with_capacity(texto.len());
+    let mut chars = texto.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                while let Some(&d) = chars.peek() {
+                    chars.next();
+                    if d.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        saida.push(c);
+    }
+    saida
 }
 
 /// Conversa com um motor. A resposta chega pelo canal, aos poucos.
@@ -838,6 +877,38 @@ pub fn abrir_no_terminal(motor: String, sessao: Option<String>, pasta: Option<St
 
 #[cfg(test)]
 mod testes {
+
+    #[test]
+    fn le_o_formato_do_antigravity_e_tira_cores() {
+        use std::sync::{Arc, Mutex};
+        let recebido = Arc::new(Mutex::new(String::new()));
+        let r = recebido.clone();
+        let canal: tauri::ipc::Channel<super::Evento> = tauri::ipc::Channel::new(move |corpo| {
+            if let tauri::ipc::InvokeResponseBody::Json(j) = corpo {
+                r.lock().unwrap().push_str(&j);
+            }
+            Ok(())
+        });
+        let mut l = super::Leitor {
+            motor: "antigravity".into(),
+            recebeu_parcial: false,
+            escreveu_texto: false,
+            erro: None,
+            custo: None,
+            passo: serde_json::Value::Null,
+            avisou_sessao: false,
+        };
+        l.linha(r#"{"event":"init","conversation_id":"abc","init":{"cwd":"C:/"}}"#, &canal);
+        l.linha(r#"{"event":"step_update","step_update":{"conversation_id":"abc","step_index":1,"state":"ACTIVE","step_type":"agent_response","text_delta":"Olá, "}}"#, &canal);
+        l.linha(r#"{"event":"step_update","step_update":{"conversation_id":"abc","step_index":1,"state":"DONE","step_type":"agent_response","text_delta":"Dan!"}}"#, &canal);
+        l.linha(r#"{"event":"result","result":{"conversation_id":"abc","status":"SUCCESS","response":"Olá, Dan!"}}"#, &canal);
+        let tudo = recebido.lock().unwrap().clone();
+        assert!(l.escreveu_texto && l.erro.is_none());
+        assert!(tudo.contains("Olá, ") && tudo.contains("Dan!") && tudo.contains("abc"), "{tudo}");
+        // A resposta final não repete o texto que já veio aos pedaços.
+        assert_eq!(tudo.matches("Dan!").count(), 1, "{tudo}");
+        assert_eq!(super::sem_cores("\u{1b}[31mGemini CLI\u{1b}[0m ok"), "Gemini CLI ok");
+    }
     use super::*;
 
     #[test]
