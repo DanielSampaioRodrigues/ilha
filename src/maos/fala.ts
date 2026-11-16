@@ -50,8 +50,13 @@ export function paraFala(texto: string): string {
 
 /** A fala em andamento (para desligar o "terminou" dela antes de cortar). */
 let atual: SpeechSynthesisUtterance | null = null;
-/** Áudio da voz natural tocando (e a vez dele: uma fala nova cancela a anterior). */
-let audio: HTMLAudioElement | null = null;
+/**
+ * Áudio da voz natural tocando (e a vez dele: uma fala nova cancela a anterior).
+ * Toca pelo Web Audio (decodifica o MP3 na memória): um <audio> com "blob:"
+ * é barrado pela regra de segurança da ilha (CSP).
+ */
+let somCtx: AudioContext | null = null;
+let audio: AudioBufferSourceNode | null = null;
 let vez = 0;
 /** Último erro da voz natural (para mostrar nos Ajustes). */
 export let erroVozNatural = "";
@@ -61,9 +66,11 @@ function cortar(): void {
   vez++;
   if (audio) {
     audio.onended = null;
-    audio.onerror = null;
-    audio.pause();
-    URL.revokeObjectURL(audio.src);
+    try {
+      audio.stop();
+    } catch {
+      // já tinha parado
+    }
     audio = null;
   }
   if (atual) {
@@ -83,19 +90,23 @@ async function falarComVozNatural(texto: string, aoTerminar?: () => void): Promi
   try {
     const mp3 = await falarNatural(texto, c.vozElevenlabs ?? "", c.modeloElevenlabs ?? "");
     if (minhaVez !== vez) return; // cortaram enquanto o áudio chegava
+    somCtx ??= new AudioContext();
+    if (somCtx.state === "suspended") await somCtx.resume();
+    if (somCtx.state !== "running") throw new Error("O Windows não deixou tocar o som agora.");
+    const som = await somCtx.decodeAudioData(mp3.slice(0));
+    if (minhaVez !== vez) return;
     erroVozNatural = "";
-    const tocar = new Audio(URL.createObjectURL(new Blob([mp3], { type: "audio/mpeg" })));
+    const tocar = somCtx.createBufferSource();
+    tocar.buffer = som;
+    tocar.connect(somCtx.destination);
     audio = tocar;
-    const terminou = () => {
+    tocar.onended = () => {
       if (audio !== tocar) return;
-      URL.revokeObjectURL(tocar.src);
       audio = null;
       document.body.classList.remove("falando");
       aoTerminar?.();
     };
-    tocar.onended = terminou;
-    tocar.onerror = terminou;
-    await tocar.play();
+    tocar.start();
   } catch (erro) {
     if (minhaVez !== vez) return;
     erroVozNatural = String(erro);
