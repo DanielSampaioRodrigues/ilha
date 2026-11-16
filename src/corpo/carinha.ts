@@ -331,13 +331,23 @@ export type PersonagemId =
   | "pinguim"
   | "coruja"
   | "tv"
-  | "olhao";
+  | "olhao"
+  | "diabinho"
+  | "peludo"
+  | "morcego"
+  | "polvo"
+  | "zumbi"
+  | "dragao";
 
 interface Personagem {
   nome: string;
   jeito: string;
   /** Corpo, orelhas, bigodes… (desenhados por baixo dos olhos). */
   pixels: Pixel[];
+  /** Por cima de tudo (ex.: presas e dentes por cima da boca). */
+  frente?: Pixel[];
+  /** Monstrinho (para agrupar na tela de escolha). */
+  monstro?: boolean;
   /** Bocas diferentes (ex.: o "w" do gato no lugar do sorriso). */
   bocas?: Partial<Record<keyof typeof BOCAS, readonly [readonly number[], readonly number[]]>>;
   /** Boca desenhada pelo próprio personagem (ex.: bico). */
@@ -540,6 +550,92 @@ export const PERSONAGENS: Record<PersonagemId, Personagem> = {
       grande: [[5, 6, 7, 8, 9, 10, 11, 12, 13], [6, 8, 10, 12]],
     },
   },
+
+  // ---------- Monstrinhos ----------
+  diabinho: {
+    nome: "Diabinho",
+    jeito: "Arteiro, mas do bem: apronta só com as suas tarefas.",
+    monstro: true,
+    corOlhos: "#FFD84D",
+    bochechas: false,
+    pixels: [
+      ...corpo([[1, 17, -2], [0, 18, -1], ...linhasCheias(-1, 19, 0, 9)], "#D93A3F"),
+      ...espelhar(pontos([[1, -4], [1, -3], [2, -3], [2, -2]], "#FFD84D")),
+    ],
+    frente: pontos([[8, 9], [10, 9]], "#F2F4F6"),
+  },
+  peludo: {
+    nome: "Peludo",
+    jeito: "Grandão e fofo. Assusta só no tamanho.",
+    monstro: true,
+    corOlhos: "#0B1A2A",
+    bochechas: false,
+    pixels: [
+      ...pontos([[1, -4], [4, -4], [7, -4], [10, -4], [13, -4], [16, -4]], "#4FB3FF"),
+      ...corpo([[0, 18, -3], [-1, 19, -2], ...linhasCheias(-2, 20, -1, 9)], "#4FB3FF"),
+      ...pontos([[-3, 0], [-3, 2], [-3, 4], [-3, 6], [-3, 8], [21, 1], [21, 3], [21, 5], [21, 7], [21, 9]], "#4FB3FF"),
+      ...pontos([[2, -2], [15, -1], [-1, 7], [19, 5], [8, -2]], "#2E7FC2"),
+    ],
+    bocas: { sorriso: [[5, 6, 7, 8, 9, 10, 11, 12, 13], [6, 7, 8, 9, 10, 11, 12]], grande: [[5, 6, 7, 8, 9, 10, 11, 12, 13], [5, 6, 7, 8, 9, 10, 11, 12, 13]] },
+    frente: pontos([[6, 8], [8, 8], [10, 8], [12, 8]], "#F2F4F6"),
+  },
+  morcego: {
+    nome: "Morcego",
+    jeito: "Fica acordado de noite e não perde um aviso.",
+    monstro: true,
+    corOlhos: "#FF5A8A",
+    bochechas: false,
+    pixels: [
+      ...espelhar(pontos([[1, -4], [1, -3], [2, -3], [1, -2], [2, -2], [3, -2]], "#5B3A8C")),
+      ...corpo([[0, 18, -1], ...linhasCheias(0, 18, 0, 9)], "#5B3A8C"),
+      ...espelhar(
+        pontos(
+          [[-1, 1], [-2, 2], [-1, 2], [-3, 3], [-2, 3], [-1, 3], [-3, 4], [-1, 4], [-3, 5], [-2, 5], [-1, 5], [-1, 6]],
+          "#3D2766",
+        ),
+      ),
+    ],
+    frente: pontos([[8, 9], [10, 9]], "#F2F4F6"),
+  },
+  polvo: {
+    nome: "Polvo",
+    jeito: "Oito braços para fazer oito coisas ao mesmo tempo.",
+    monstro: true,
+    corOlhos: "#3A0F24",
+    bochechas: false,
+    pixels: [
+      ...corpo([[4, 14, -4], [1, 17, -3], [0, 18, -2], ...linhasCheias(-1, 19, -1, 9)], "#FF8FB4"),
+      ...espelhar(pontos([[-2, 3], [-3, 4], [-3, 5], [-2, 6], [-2, 7], [-3, 8], [-3, 9]], "#FF8FB4")),
+      ...pontos([[3, -2], [15, -3], [1, 8], [17, 2]], "#FFC2D6"),
+    ],
+  },
+  zumbi: {
+    nome: "Zumbi",
+    jeito: "Lento, mas nunca desiste de uma tarefa.",
+    monstro: true,
+    corOlhos: "#22301C",
+    bochechas: false,
+    pixels: [
+      ...corpo([[2, 7, -4], [10, 15, -4], [1, 17, -3]], "#3B4A33"),
+      ...corpo(linhasCheias(-1, 19, -2, 9), "#7FA86A"),
+      ...corpo([[5, 13, -1]], "#3B4A33"),
+      ...pontos([[6, -2], [9, -2], [12, -2]], "#3B4A33"),
+    ],
+    bocas: { sorriso: [[7, 9, 11], [8, 10]] },
+  },
+  dragao: {
+    nome: "Dragãozinho",
+    jeito: "Pequeno, corajoso e solta faísca de ideias.",
+    monstro: true,
+    corOlhos: "#FFD84D",
+    bochechas: false,
+    pixels: [
+      ...pontos([[5, -4], [4, -3], [5, -3], [6, -3], [9, -4], [8, -3], [9, -3], [10, -3], [13, -4], [12, -3], [13, -3], [14, -3]], "#FFA51F"),
+      ...corpo([[0, 18, -2], ...linhasCheias(-1, 19, -1, 9)], "#2FBF9F"),
+      ...espelhar(pontos([[-2, 1], [-3, 2], [-2, 2]], "#2FBF9F")),
+    ],
+    frente: pontos([[8, 7], [10, 7]], "#0E4A3D"),
+  },
 };
 
 // ---------- A carinha ----------
@@ -691,6 +787,7 @@ export class Carinha {
       l8.forEach((x) => acender(x, 8, cor));
       l9.forEach((x) => acender(x, 9, cor));
     }
+    personagem.frente?.forEach(([x, y, c]) => acender(x, y, c));
     if (d.bochechas && personagem.bochechas !== false && ap.corBochechas !== "nenhuma") [0, 1, 17, 18].forEach((x) => acender(x, 8, ap.corBochechas));
     if (this.opcoes.comAcessorio) {
       // A animação pode trocar o acessório (ex.: fones numa chamada).

@@ -71,7 +71,8 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
   põe fones em chamada, desenha quando você está num programa de design. Desliga em
   Personagem › "Perceber o que estou fazendo".
 - **Personagem**: escolha quem mora na ilha (13: Robozinho, Gato, Urso, Sapo, Alien,
-  Fantasma, Coelho, Gelatina, Nuvem, Pinguim, Coruja, TV, Olhão), 21 expressões, cor dos olhos e das bochechas, acessórios, olhos que
+  Fantasma, Coelho, Gelatina, Nuvem, Pinguim, Coruja, TV, Olhão, mais 6 monstrinhos:
+  Diabinho, Peludo, Morcego, Polvo, Zumbi, Dragãozinho), 21 expressões, cor dos olhos e das bochechas, acessórios, olhos que
   seguem o mouse, mosquinha e cochilo quando parado.
 - **Central** (botão de painel na ilha aberta, ou menu do ícone › Abrir a Central): a ilha
   cresce do topo num painel grande (sem janela a mais na barra de tarefas). Fecha com

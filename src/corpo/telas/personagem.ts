@@ -44,6 +44,12 @@ function interruptor(id: string, titulo: string, texto: string, ligado: boolean)
 
 export function montarPersonagem(ctx: Contexto): HTMLElement {
   const c = ler().config;
+  const cartao = (id: PersonagemId) => `
+    <button type="button" class="cartao-personagem ${id === c.personagem ? "ativo" : ""}" data-acao="personagem" data-personagem="${id}" aria-pressed="${id === c.personagem}">
+      <span class="rosto-personagem" data-rosto="${id}"></span>
+      <span class="principal">${PERSONAGENS[id].nome}</span>
+      <span class="secundario">${PERSONAGENS[id].jeito}</span>
+    </button>`;
   const amostras = (lista: string[][], atual: string, grupo: string) =>
     lista
       .map(
@@ -71,14 +77,15 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
         <p class="titulo-secao">Quem mora na ilha</p>
         <div class="grade-personagens">
           ${(Object.keys(PERSONAGENS) as PersonagemId[])
-            .map(
-              (id) => `
-            <button type="button" class="cartao-personagem ${id === c.personagem ? "ativo" : ""}" data-acao="personagem" data-personagem="${id}" aria-pressed="${id === c.personagem}">
-              <span class="rosto-personagem" data-rosto="${id}"></span>
-              <span class="principal">${PERSONAGENS[id].nome}</span>
-              <span class="secundario">${PERSONAGENS[id].jeito}</span>
-            </button>`,
-            )
+            .filter((id) => !PERSONAGENS[id].monstro)
+            .map(cartao)
+            .join("")}
+        </div>
+        <p class="titulo-secao espaco-acima">Monstrinhos</p>
+        <div class="grade-personagens">
+          ${(Object.keys(PERSONAGENS) as PersonagemId[])
+            .filter((id) => PERSONAGENS[id].monstro)
+            .map(cartao)
             .join("")}
         </div>
       </section>
