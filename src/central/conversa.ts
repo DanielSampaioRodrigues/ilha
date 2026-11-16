@@ -301,8 +301,11 @@ export function montarConversa(): HTMLElement {
     const motor = nova.motor;
     const dica: Record<Motor, string> = {
       deepseek: "A DeepSeek responde rápido e lembra desta conversa. Não mexe em arquivos. O deepseek-flash também lê imagens.",
-      claude: "Ele trabalha na pasta do projeto (ou na sua pasta pessoal). Comandos no computador ficam bloqueados por enquanto; liberar com sua confirmação vem na fase 3.",
-      codex: "Ele trabalha na pasta do projeto (ou na sua pasta pessoal). Comandos no computador ficam bloqueados por enquanto; liberar com sua confirmação vem na fase 3.",
+      claude:
+        novoModo === "editar"
+          ? "Ele trabalha na pasta do projeto (ou na sua pasta pessoal). Edita arquivos sozinho; o resto que precisar de permissão (rodar comandos, por exemplo) a ilha pergunta para você antes, com Sim e Não."
+          : "Ele trabalha na pasta do projeto (ou na sua pasta pessoal) e só lê. Para ele mudar arquivos e pedir para rodar comandos, escolha “Pode editar arquivos”.",
+      codex: "Ele trabalha na pasta do projeto (ou na sua pasta pessoal). O Codex não tem um jeito oficial de pedir permissão a outro programa, então comandos fora da pasta ficam bloqueados.",
       antigravity:
         novoModo === "editar"
           ? "Atenção: com “Pode editar arquivos”, o Antigravity aprova tudo sozinho, inclusive rodar comandos no computador, sem perguntar. Precisa do agy instalado e com login feito uma vez no terminal."

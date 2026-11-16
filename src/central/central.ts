@@ -7,7 +7,11 @@ import "./central.css";
 import { emit, listen } from "@tauri-apps/api/event";
 import { aoMudarDeFora, carregar, ler, mudar } from "../dados/armazem";
 import { carregarConversas } from "../dados/conversas";
-import { atalhoAtual, esconderCentral, modoJanelaCentral, telaInicialCentral, type Midia } from "../maos/sistema";
+import { atalhoAtual, esconderCentral, modoJanelaCentral, responderPermissao, telaInicialCentral, type Midia } from "../maos/sistema";
+import { oQueQuer } from "../corpo/estados";
+import { conversas } from "../dados/conversas";
+import { escapar } from "../corpo/ui";
+import type { Pergunta } from "../corpo/contexto";
 import { focoSeguro } from "../maos/foco";
 import { aplicarCor } from "../corpo/tema";
 import { versaoAtual } from "../atualizacao";
@@ -70,6 +74,7 @@ export async function iniciarCentral(): Promise<void> {
       </nav>
       <main class="conteudo-central"></main>
     </div>
+    <div class="perguntas-central" aria-live="assertive"></div>
     </div>`;
   const conteudo = palco.querySelector<HTMLElement>(".conteudo-central")!;
   const marca = palco.querySelector<HTMLElement>(".marca-carinha")!;
@@ -237,6 +242,32 @@ export async function iniciarCentral(): Promise<void> {
       }, 150);
     });
     await listen("central:abrir", abrir);
+    // "Posso?" de uma IA: aparece aqui também (a ilha pequena pode estar coberta).
+    const caixaPerguntas = palco.querySelector<HTMLElement>(".perguntas-central")!;
+    await listen<Pergunta>("ilha:permissao", (e) => {
+      const p = e.payload;
+      const c = conversas().find((x) => x.id === p.conversa);
+      const cartao = document.createElement("div");
+      cartao.className = "pergunta-central";
+      cartao.dataset.id = p.id;
+      cartao.innerHTML = `
+        <div class="coluna">
+          <span class="principal">${escapar(c ? `${c.titulo || "Conversa"}: ` : "")}a IA quer ${escapar(oQueQuer(p.ferramenta))}</span>
+          <pre class="detalhe-pergunta">${escapar(p.detalhe)}</pre>
+        </div>
+        <div class="linha">
+          <button type="button" class="botao" data-resposta="nao">Não</button>
+          <button type="button" class="botao ciano" data-resposta="sim">Sim, pode</button>
+        </div>`;
+      cartao.querySelectorAll<HTMLButtonElement>("[data-resposta]").forEach((b) =>
+        b.addEventListener("click", () => {
+          responderPermissao(p.id, b.dataset.resposta === "sim").catch(() => {});
+          cartao.remove();
+        }),
+      );
+      caixaPerguntas.append(cartao);
+    });
+    await listen<string>("ilha:permissao-fim", (e) => caixaPerguntas.querySelector(`[data-id="${CSS.escape(e.payload)}"]`)?.remove());
     await listen<string>("central:tela", (e) => {
       ir(e.payload as Secao);
       if (e.payload === "conversa") comecarNova();

@@ -45,6 +45,14 @@ export interface Notificacao {
   botao?: { texto: string; fazer: () => void };
 }
 
+/** Uma IA pedindo permissão ("posso?"). */
+export interface Pergunta {
+  id: string;
+  conversa: string;
+  ferramenta: string;
+  detalhe: string;
+}
+
 export interface Trabalho {
   id: string;
   titulo: string;
@@ -86,6 +94,10 @@ export interface Contexto {
   /** A notificação mostrada no estado "pronta". */
   notificacao: Notificacao | null;
   foco: SessaoFoco | null;
+  /** Pedido de permissão esperando o Dan (estado "confirmacao"). */
+  pergunta?: Pergunta | null;
+  /** Responde o "posso?" (Sim ou Não). */
+  responderPergunta?(permitir: boolean): void;
   /** Uma IA trabalhando numa conversa da Central (para o estado "trabalhando"). */
   trabalho?: Trabalho | null;
   /** O robô está cochilando (mouse parado há muito tempo). */

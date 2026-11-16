@@ -476,7 +476,10 @@ fn rodar_programa(pedido: &Pedido, canal: &Channel<Evento>, andamento: &Andament
         args.extend(["--append-system-prompt".into(), pedido.sistema.clone()]);
     }
     // MCPs só desta conversa.
-    let aplicacao = Some(mcp::aplicar(&pedido.motor, &pedido.mcps, &pedido.mcps_da_ilha, &pedido.conversa_id)?);
+    // No modo "pode editar", o Claude Code pergunta ao Dan, pela ilha, o que
+    // precisar de permissão (rodar comandos etc.) em vez de recusar sozinho.
+    let perguntar = pedido.motor == "claude" && pedido.modo == "editar";
+    let aplicacao = Some(mcp::aplicar(&pedido.motor, &pedido.mcps, &pedido.mcps_da_ilha, &pedido.conversa_id, perguntar)?);
     if let Some(ap) = &aplicacao {
         if pedido.motor == "codex" {
             // Os "-c" precisam vir antes do "-" final.

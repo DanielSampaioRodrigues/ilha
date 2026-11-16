@@ -21,6 +21,29 @@ export interface Estado {
   montar(ctx: Contexto): HTMLElement;
 }
 
+/** O que a IA quer fazer, em português. */
+export function oQueQuer(ferramenta: string): string {
+  const nomes: Record<string, string> = {
+    Bash: "rodar um comando",
+    PowerShell: "rodar um comando",
+    Write: "criar um arquivo",
+    Edit: "mudar um arquivo",
+    MultiEdit: "mudar um arquivo",
+    NotebookEdit: "mudar um notebook",
+    WebFetch: "abrir uma página da internet",
+    WebSearch: "pesquisar na internet",
+    Read: "ler um arquivo",
+  };
+  if (nomes[ferramenta]) return nomes[ferramenta];
+  if (ferramenta.startsWith("mcp__")) return `usar ${ferramenta.split("__").slice(1).join(" › ")}`;
+  return `usar ${ferramenta}`;
+}
+
+function nomeDoMotorDa(ctx: Contexto, _conversa: string): string {
+  const nomes: Record<string, string> = { claude: "O Claude Code", codex: "O Codex", gemini: "O Gemini", antigravity: "O Antigravity" };
+  return nomes[ctx.trabalho?.motor ?? "claude"] ?? "A IA";
+}
+
 const EXEMPLO = {
   fala: "“abre o InDesign e a pasta do livro novo…”",
   tarefa: { nome: "Organizando Downloads", total: 12 },
@@ -325,6 +348,30 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
     raio: 26,
     compacto: false,
     montar: (ctx) => {
+      // Uma IA pede permissão ("posso?"). Sem pergunta: o exemplo de teste.
+      const p = ctx.pergunta;
+      if (p) {
+        const raiz = html(`
+          <div class="estado confirmacao">
+            <div class="linha">
+              <i data-carinha="alerta"></i>
+              <div class="coluna">
+                <span class="principal">${escapar(nomeDoMotorDa(ctx, p.conversa))} quer ${escapar(oQueQuer(p.ferramenta))}</span>
+                ${ctx.trabalho?.id === p.conversa ? `<span class="secundario">${escapar(ctx.trabalho.titulo)}</span>` : ""}
+              </div>
+            </div>
+            <pre class="detalhe-pergunta">${escapar(p.detalhe)}</pre>
+            <div class="linha fim">
+              <span class="secundario">Sem resposta em 10 min, fica “não”.</span>
+              <span class="espaco"></span>
+              <button type="button" class="botao" data-acao="negar">Não</button>
+              <button type="button" class="botao ciano" data-acao="permitir">Sim, pode</button>
+            </div>
+          </div>`);
+        aoClicar(raiz, "negar", () => ctx.responderPergunta?.(false));
+        aoClicar(raiz, "permitir", () => ctx.responderPergunta?.(true));
+        return raiz;
+      }
       const arquivos = EXEMPLO.apagar.map((nome) => `<li>${ICONES.arquivo}<span>${nome}</span></li>`).join("");
       const raiz = html(`
         <div class="estado confirmacao">

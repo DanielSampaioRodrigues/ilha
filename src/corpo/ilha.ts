@@ -4,12 +4,12 @@ import { caminho, OMBRO } from "./forma";
 import { mudarAtividade, type Expressao } from "./carinha";
 import { Mola, type Firmeza } from "./mola";
 import { ESTADOS, temSinalVerde } from "./estados";
-import type { Contexto, NomeEstado, NomeTela, Notificacao, SessaoFoco, Trabalho } from "./contexto";
+import type { Contexto, NomeEstado, NomeTela, Notificacao, Pergunta, SessaoFoco, Trabalho } from "./contexto";
 import { informarArea } from "../ponte";
 import type { Novidade } from "../atualizacao";
 import { ler, mudar, type ModoDiscreto } from "../dados/armazem";
 import { pendentes } from "../dados/datas";
-import { vigiarJanelas, type Midia, type Volume } from "../maos/sistema";
+import { responderPermissao, vigiarJanelas, type Midia, type Volume } from "../maos/sistema";
 import { tocarAlarme } from "./som";
 
 // Abrindo: a altura desce rápido e balança; a largura vem um pouco depois.
@@ -59,6 +59,8 @@ export class Ilha {
   private digitando = false;
   private categoria = "";
   private expressaoAtividade: Expressao = "normal";
+  /** Pedidos de permissão ("posso?") esperando resposta, na ordem. */
+  private perguntas: Pergunta[] = [];
   /** Quem cuida de procurar atualização (definido no main.ts). */
   aoProcurarAtualizacao: () => void = () => {};
   private novidade: Novidade | null = null;
@@ -129,6 +131,7 @@ export class Ilha {
   private estadoBase(): NomeEstado {
     const discreto =
       this.modoDiscreto === "sempre" || (this.modoDiscreto === "automatico" && this.janelaComAbas);
+    if (this.perguntas.length) return "confirmacao";
     if (discreto && !this.expandida) return "discreto";
     if (this.trabalho) return "trabalhando";
     if (this.foco || ler().timers.length) return "foco";
@@ -211,6 +214,25 @@ export class Ilha {
     } else if (this.emDescanso() && this.estadoBase() !== this.estado) {
       this.fechar();
     }
+  }
+
+  /** Uma IA pediu permissão: a ilha pergunta (passa na frente de tudo). */
+  perguntar(p: Pergunta): void {
+    this.perguntas.push(p);
+    if (this.perguntas.length === 1) this.mostrar("confirmacao");
+  }
+
+  /** A pergunta foi respondida em outro lugar (Central) ou o tempo acabou. */
+  esquecerPergunta(id: string): void {
+    const antes = this.perguntas.length;
+    this.perguntas = this.perguntas.filter((p) => p.id !== id);
+    if (antes !== this.perguntas.length && this.estado === "confirmacao") this.fechar();
+  }
+
+  private responderPergunta(permitir: boolean): void {
+    const p = this.perguntas.shift();
+    if (p) responderPermissao(p.id, permitir).catch(() => {});
+    this.fechar();
   }
 
   /** O Windows contou: digitando? qual tipo de programa na frente? */
@@ -481,6 +503,8 @@ export class Ilha {
       musica: this.musica,
       dormindo: this.dormindo,
       atividade: this.expressaoAtividade,
+      pergunta: this.perguntas[0] ?? null,
+      responderPergunta: (permitir) => this.responderPergunta(permitir),
       trabalho: this.trabalho,
       volume: this.volume,
       ir: (estado) => this.mostrar(estado),

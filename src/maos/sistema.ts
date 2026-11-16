@@ -284,6 +284,8 @@ export const ditado = () => {
 };
 /** Esconde a ilha grande (ela continua viva por trás, terminando conversas). */
 export const esconderCentral = () => pedir<void>("esconder_central");
+/** Responde o "posso?" de uma IA (Sim ou Não). */
+export const responderPermissao = (id: string, permitir: boolean) => pedir<void>("responder_permissao", { id, permitir });
 /** Liga/desliga a carinha perceber o que o Dan faz (digitação, programa na frente). */
 export const perceberAtividade = (ligar: boolean) => pedir<void>("perceber_atividade", { ligar });
 /** Central como janela comum (true) ou como ilha grande (false). */

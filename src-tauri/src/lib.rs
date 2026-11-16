@@ -14,6 +14,10 @@ use corpo::{atalho, avisos, janela};
 pub const JANELA: &str = "ilha";
 
 pub fn run() {
+    // Chamada pelo Claude Code para perguntar "posso?" (servidor MCP): não abre a ilha.
+    if corpo::permissao::servidor_mcp_se_pedido() {
+        return;
+    }
     // Chamada por outro programa (ex.: Claude Code)? Relança solta e sai.
     if avisos::soltar_se_chamada_por_outro_programa() {
         return;
@@ -54,6 +58,7 @@ pub fn run() {
         .manage(corpo::historico::Trava::default())
         .manage(corpo::central::TelaPendente::default())
         .manage(cerebro::motores::Andamento::default())
+        .manage(corpo::permissao::Esperando::default())
         .invoke_handler(tauri::generate_handler![
             janela::definir_area,
             atalho::definir_atalho,
@@ -84,6 +89,7 @@ pub fn run() {
             corpo::central::esconder_central,
             corpo::central::modo_central,
             corpo::atividade::perceber_atividade,
+            corpo::permissao::responder_permissao,
             corpo::central::tela_inicial_central,
             maos::volume::volume_atual,
             maos::volume::definir_volume,
@@ -108,6 +114,7 @@ pub fn run() {
             corpo::bandeja::criar(app)?;
             corpo::janela_ativa::iniciar(app.clone());
             corpo::atividade::iniciar(app.clone());
+            corpo::permissao::iniciar(app.clone());
             corpo::tela_cheia::vigiar(app.clone());
             maos::volume::vigiar(app.clone());
             maos::pc::vigiar(app.clone());

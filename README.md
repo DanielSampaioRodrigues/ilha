@@ -51,6 +51,9 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
   "timer 10 min pizza", "me lembra em 20 min de ligar", "foco", "pausa a música",
   "abre o spotify", "copia meu pix", "que horas são". **"Guarda que…"** salva na
   **Memória**, que vai junto para todas as IAs (tela Memória, ícone de cérebro).
+- **"Posso?"**: com o Claude Code em "pode editar arquivos", quando ele quer rodar um
+  comando (ou algo que precisa de permissão), a ilha mostra o pedido com **Não** e
+  **Sim, pode**. Sem resposta em 10 minutos, fica "não".
 - **A carinha percebe o que você faz**: digita junto, dança com música, assiste vídeo,
   põe fones em chamada, desenha quando você está num programa de design. Desliga em
   Personagem › "Perceber o que estou fazendo".

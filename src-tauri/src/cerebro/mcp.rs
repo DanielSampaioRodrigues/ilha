@@ -63,11 +63,12 @@ fn casa() -> Option<PathBuf> {
 
 /// Monta o que cada programa precisa para somar os servidores escolhidos.
 /// `da_ilha`: nomes de todos os servidores cadastrados na ilha (escolhidos ou não).
-pub fn aplicar(motor: &str, servidores: &[ServidorMcp], da_ilha: &[String], id: &str) -> Result<Aplicacao, String> {
+/// `perguntar`: (só Claude Code) liga o "posso?" da ilha para o que precisar de permissão.
+pub fn aplicar(motor: &str, servidores: &[ServidorMcp], da_ilha: &[String], id: &str, perguntar: bool) -> Result<Aplicacao, String> {
     let servidores: Vec<ServidorMcp> = servidores.iter().filter(|s| nome_valido(&s.nome)).cloned().collect();
     let mut ap = Aplicacao { ambiente: ambiente(&servidores), ..Default::default() };
     match motor {
-        "claude" if !servidores.is_empty() => {
+        "claude" if !servidores.is_empty() || perguntar => {
             let mut lista = Map::new();
             for s in &servidores {
                 let env: Map<String, Value> = s.segredos.iter().map(|n| (n.clone(), json!(format!("${{{n}}}")))).collect();
@@ -82,9 +83,19 @@ pub fn aplicar(motor: &str, servidores: &[ServidorMcp], da_ilha: &[String], id: 
                 };
                 lista.insert(s.nome.clone(), valor);
             }
+            if perguntar {
+                if let Some(mut ilha) = crate::corpo::permissao::configuracao_mcp(id) {
+                    // Espera a resposta do Dan por até 15 min.
+                    ilha["timeout"] = json!(900_000);
+                    lista.insert(crate::corpo::permissao::SERVIDOR.to_string(), ilha);
+                }
+            }
             let arquivo = std::env::temp_dir().join(format!("ilha-mcp-{id}.json"));
             std::fs::write(&arquivo, json!({ "mcpServers": lista }).to_string()).map_err(|e| e.to_string())?;
             ap.argumentos = vec!["--mcp-config".into(), arquivo.to_string_lossy().into()];
+            if perguntar {
+                ap.argumentos.extend(["--permission-prompt-tool".into(), crate::corpo::permissao::nome_completo()]);
+            }
             ap.temporario = Some(arquivo);
         }
         "codex" => {
@@ -195,7 +206,8 @@ mod testes {
 
     #[test]
     fn claude_usa_arquivo() {
-        let ap = aplicar("claude", &[pw()], &[], "teste").unwrap();
+        let ap = aplicar("claude", &[pw()], &[], "teste", true).unwrap();
+        assert!(ap.argumentos.windows(2).any(|w| w[0] == "--permission-prompt-tool" && w[1] == "mcp__ilha__aprovar"));
         assert_eq!(ap.argumentos[0], "--mcp-config");
         let texto = std::fs::read_to_string(ap.temporario.as_ref().unwrap()).unwrap();
         assert!(texto.contains("@playwright/mcp@latest"));
@@ -204,8 +216,8 @@ mod testes {
 
     #[test]
     fn codex_cria_servidor_por_c() {
-        let ap = aplicar("codex", &[pw()], &[], "t").unwrap();
-        assert!(aplicar("claude", &[], &[], "t").unwrap().argumentos.is_empty());
+        let ap = aplicar("codex", &[pw()], &[], "t", false).unwrap();
+        assert!(aplicar("claude", &[], &[], "t", false).unwrap().argumentos.is_empty());
         assert!(ap.argumentos.contains(&"mcp_servers.playwright.command=\"npx\"".to_string()));
         assert!(ap.argumentos.contains(&"mcp_servers.playwright.args=[\"-y\",\"@playwright/mcp@latest\"]".to_string()));
     }

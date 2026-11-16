@@ -53,6 +53,8 @@ async function iniciar(): Promise<void> {
     if (ler().config.olhosSeguemMouse) olharTodas(o.x, o.y);
   });
   ouvir<boolean>("ilha:ocioso", (parado) => ilha.ocioso(parado));
+  ouvir<import("./corpo/contexto").Pergunta>("ilha:permissao", (p) => ilha.perguntar(p));
+  ouvir<string>("ilha:permissao-fim", (id) => ilha.esquecerPergunta(id));
   ouvir<{ digitando: boolean; categoria: string }>("ilha:atividade", (a) => ilha.atividade(a.digitando, a.categoria));
   // Madrugada etc.: confere a hora de tempos em tempos.
   window.setInterval(() => ilha.atualizarAtividade(), 60_000);
@@ -246,6 +248,7 @@ function montarTeste(ilha: Ilha): void {
     ["mouse ↓", () => ilha.mouse(true)],
     ["mouse ↑", () => ilha.mouse(false)],
     ["confirmação", () => ilha.mostrar("confirmacao")],
+    ["posso?", () => ilha.perguntar({ id: "t1", conversa: "x", ferramenta: "Bash", detalhe: "npm install && npm run build" })],
     ...(["inicio", "personagem", "traducoes", "tarefas", "habitos", "timers", "textos", "pc", "ajustes"] as NomeTela[]).map(
       (t): [string, () => void] => [`tela ${t}`, () => ilha.abrir(t)],
     ),
