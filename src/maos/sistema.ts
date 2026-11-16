@@ -284,6 +284,9 @@ export const ditado = () => {
 };
 /** Esconde a ilha grande (ela continua viva por trás, terminando conversas). */
 export const esconderCentral = () => pedir<void>("esconder_central");
+/** Escuta uma frase pelo microfone (reconhecimento de fala do Windows). */
+export const ouvir = () => pedir<string>("ouvir", undefined, "que horas são");
+export const pararDeOuvir = () => pedir<void>("parar_de_ouvir");
 /** Responde o "posso?" de uma IA (Sim ou Não). */
 export const responderPermissao = (id: string, permitir: boolean) => pedir<void>("responder_permissao", { id, permitir });
 /** Liga/desliga a carinha perceber o que o Dan faz (digitação, programa na frente). */

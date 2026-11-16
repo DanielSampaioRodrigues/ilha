@@ -1829,3 +1829,16 @@ body.escolhendo #palco {
   overflow-wrap: anywhere;
   user-select: text;
 }
+
+.rapida-ouvindo {
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--vermelho) 14%, transparent);
+}
+
+.rapida-erro-voz {
+  margin: 0;
+  color: var(--laranja);
+  font-size: 12.5px;
+}

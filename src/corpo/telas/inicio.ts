@@ -13,6 +13,7 @@ import {
   type Midia,
 } from "../../maos/sistema";
 import { ordenar } from "./tarefas";
+import { abrirOuvindo } from "./conversa";
 import type { Contexto } from "../contexto";
 import { seloDa } from "../selos";
 import { ICONES } from "../icones";
@@ -149,7 +150,7 @@ export function montarInicio(ctx: Contexto): HTMLElement {
         <button type="button" class="redondo" aria-label="Traduzir a tela" title="Traduzir a tela (Win+Alt+T)" data-acao="traduzir">${ICONES.traduzir}</button>
         <button type="button" class="redondo" aria-label="Abrir a Central" title="Abrir a Central (ilha grande)" data-acao="central">${ICONES.central}</button>
         <button type="button" class="redondo" aria-label="Conversar" title="Conversar aqui na ilha" data-acao="digitar">${ICONES.teclado}</button>
-        <button type="button" class="redondo grande vermelho" aria-label="Falar" data-acao="em-breve">${ICONES.microfone}</button>
+        <button type="button" class="redondo grande vermelho" aria-label="Falar" title="Falar com a IA" data-acao="falar">${ICONES.microfone}</button>
       </header>
       ${atualizacao}
       ${precisa}
@@ -203,7 +204,10 @@ export function montarInicio(ctx: Contexto): HTMLElement {
   const recado = (texto: string, ms?: number) => recadoTemporario(subtitulo, texto, ms);
   if (ctx.mensagem) recado(ctx.mensagem, 5000);
 
-  aoClicar(raiz, "em-breve", () => recado("Falar com a voz chega na fase 3. Por enquanto, use o teclado ao lado."));
+  aoClicar(raiz, "falar", () => {
+    abrirOuvindo();
+    ctx.irPara("conversa");
+  });
   aoClicar(raiz, "tela", (b) => ctx.irPara(b.dataset.tela as never));
   aoClicar(raiz, "paguei", (b) => {
     mudar((d) => {

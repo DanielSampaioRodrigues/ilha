@@ -1,6 +1,7 @@
 // Ajustes: nome, cor, atalho, iniciar com o Windows, avisos dos programas de IA.
 // Tudo que liga/desliga usa o mesmo interruptor: à direita, verde/cor = ligado.
 import { ler, mudar, type ModoDiscreto } from "../../dados/armazem";
+import { aoCarregarVozes, falar, vozesEmPortugues } from "../../maos/fala";
 import {
   abrirPrograma,
   abrirRegistros,
@@ -68,7 +69,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       <section class="secao">
         <p class="titulo-secao">Você</p>
         <div class="item">
-          <div class="coluna"><span class="principal">Nome do robô</span><span class="secundario">Quando a voz chegar, é só falar esse nome para ele atender.</span></div>
+          <div class="coluna"><span class="principal">Nome do robô</span><span class="secundario">Como ele se apresenta. Depois: chamar pelo nome para ele atender.</span></div>
           <input class="entrada curta2" name="nomeRobo" maxlength="20" value="${escapar(dados.config.nomeRobo)}" aria-label="Nome do robô">
         </div>
         <div class="item">
@@ -78,6 +79,19 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         <div class="item">
           <div class="coluna"><span class="principal">Cor de destaque</span><span class="secundario">Botões e marcações. Os olhos do robô ficam com os personagens.</span></div>
           <div class="linha amostras">${cores}</div>
+        </div>
+      </section>
+
+      <section class="secao">
+        <p class="titulo-secao">Voz</p>
+        <div class="item">
+          <div class="coluna"><span class="principal">Ler a resposta em voz alta</span><span class="secundario">Quando você pergunta falando (microfone vermelho).</span></div>
+          <button type="button" class="chave" role="switch" aria-checked="${dados.config.falarRespostas}" aria-label="Ler a resposta em voz alta" data-acao="falar-respostas"><span></span></button>
+        </div>
+        <div class="item">
+          <div class="coluna"><span class="principal">Voz</span><span class="secundario">As do Windows. As “Natural” soam melhor (Configurações › Hora e idioma › Fala › Adicionar vozes).</span></div>
+          <select class="entrada curta2 escolha-voz" aria-label="Voz"><option value="">Automática</option></select>
+          <button type="button" class="botao" data-acao="testar-voz">Ouvir</button>
         </div>
       </section>
 
@@ -182,6 +196,24 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     aplicarCor(cor);
     raiz.querySelectorAll(".amostra").forEach((a) => a.classList.toggle("ativa", a === b));
   });
+
+  // Voz
+  aoClicar(raiz, "falar-respostas", (b) => {
+    const ligado = !ler().config.falarRespostas;
+    mudar((d) => (d.config.falarRespostas = ligado));
+    b.setAttribute("aria-checked", String(ligado));
+  });
+  const escolhaVoz = raiz.querySelector<HTMLSelectElement>(".escolha-voz")!;
+  aoCarregarVozes(() => {
+    const atual = ler().config.voz;
+    escolhaVoz.innerHTML =
+      '<option value="">Automática</option>' +
+      vozesEmPortugues()
+        .map((v) => `<option value="${escapar(v.voiceURI)}" ${v.voiceURI === atual ? "selected" : ""}>${escapar(v.name.replace(/^Microsoft /, ""))}</option>`)
+        .join("");
+  });
+  escolhaVoz.addEventListener("change", () => mudar((d) => (d.config.voz = escolhaVoz.value)));
+  aoClicar(raiz, "testar-voz", () => falar(`Oi, ${ler().config.nome}! Eu sou ${ler().config.nomeRobo}. É assim que eu falo.`));
 
   // Modo discreto
   const explica = raiz.querySelector<HTMLElement>(".explica-discreto")!;

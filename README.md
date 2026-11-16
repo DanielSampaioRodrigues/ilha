@@ -51,6 +51,10 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
   "timer 10 min pizza", "me lembra em 20 min de ligar", "foco", "pausa a música",
   "abre o spotify", "copia meu pix", "que horas são". **"Guarda que…"** salva na
   **Memória**, que vai junto para todas as IAs (tela Memória, ícone de cérebro).
+- **Falar com a IA**: aperte o **microfone vermelho** na ilha aberta e fale; ela
+  responde e lê a resposta em voz alta (escolha a voz em Ajustes › Voz). Usa o
+  reconhecimento de fala do Windows: se aparecer erro, ligue "Reconhecimento de fala
+  online" em Configurações › Privacidade e segurança › Fala.
 - **"Posso?"**: com o Claude Code em "pode editar arquivos", quando ele quer rodar um
   comando (ou algo que precisa de permissão), a ilha mostra o pedido com **Não** e
   **Sim, pode**. Sem resposta em 10 minutos, fica "não".

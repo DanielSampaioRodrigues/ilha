@@ -6,7 +6,8 @@ import { emit } from "@tauri-apps/api/event";
 import { ler, mudar, novoId } from "../../dados/armazem";
 import type { Conversa } from "../../dados/conversas";
 import { responder } from "../../dados/pedido";
-import { abrirCentral, ditado, motoresDisponiveis, NOMES_MOTORES, pararConversa, type Motor } from "../../maos/sistema";
+import { abrirCentral, motoresDisponiveis, NOMES_MOTORES, ouvir, pararConversa, pararDeOuvir, type Motor } from "../../maos/sistema";
+import { calar, falar } from "../../maos/fala";
 import { textoRico } from "../../central/texto-rico";
 import { tentarComando } from "../comandos";
 import type { Contexto } from "../contexto";
@@ -19,6 +20,16 @@ const MOTORES: Motor[] = ["deepseek", "claude", "codex", "antigravity", "gemini"
 let atual: Conversa | null = null;
 let rodando = false;
 let rascunho = "";
+/** Ouvindo o microfone agora. */
+let ouvindo = false;
+/** O microfone vermelho da ilha pediu para já abrir ouvindo. */
+let ouvirAoAbrir = false;
+let erroVoz = "";
+
+/** Abre a conversa já ouvindo (microfone vermelho da ilha). */
+export function abrirOuvindo(): void {
+  ouvirAoAbrir = true;
+}
 let aoMudar: () => void = () => {};
 let disponiveis: Partial<Record<Motor, boolean>> = {};
 motoresDisponiveis()
@@ -57,14 +68,19 @@ function nomeDeQuem(): string {
   return NOMES_MOTORES[valor as Motor] ?? "DeepSeek";
 }
 
-async function enviar(texto: string, ctx: Contexto): Promise<void> {
+async function enviar(texto: string, ctx: Contexto, porVoz = false): Promise<void> {
+  calar();
   const c = (atual ??= nova());
+  const responderEmVoz = (t: string) => {
+    if (porVoz && ler().config.falarRespostas) falar(t);
+  };
   // Primeiro: dá para resolver sem IA?
   const local = await tentarComando(texto, ctx).catch((e) => `Não deu: ${e}`);
   if (local !== null) {
     c.mensagens.push({ papel: "voce", texto, quando: Date.now() }, { papel: "robo", texto: local, quando: Date.now(), local: true });
     if (!c.titulo) c.titulo = texto.slice(0, 60);
     aoMudar();
+    responderEmVoz(local);
     return;
   }
   if (disponiveis[c.motor] === false) {
@@ -87,6 +103,7 @@ async function enviar(texto: string, ctx: Contexto): Promise<void> {
   });
   rodando = false;
   aoMudar();
+  if (!resposta.erro) responderEmVoz(resposta.texto);
   emit("ilha:trabalho-fim", {
     id: c.id,
     titulo: c.titulo,
@@ -117,8 +134,14 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
         <button type="button" class="botao" data-acao="central" title="Levar esta conversa para a Central">Abrir na Central</button>
       </div>
       <div class="rapida-mensagens" aria-live="polite"></div>
+      <div class="linha rapida-ouvindo" hidden>
+        <span class="ponto gravando"></span><span class="principal">Ouvindo… pode falar</span>
+        <span class="espaco"></span>
+        <button type="button" class="botao" data-acao="parar-ouvir">Parar</button>
+      </div>
+      <p class="erro-msg rapida-erro-voz" hidden></p>
       <form class="linha rapida-compositor">
-        <button type="button" class="redondo" aria-label="Ditado" title="Ditado: fale e o Windows escreve (Win + H)" data-acao="ditado">${ICONES.microfone}</button>
+        <button type="button" class="redondo vermelho" aria-label="Falar" title="Falar: eu ouço, respondo e leio a resposta" data-acao="falar">${ICONES.microfone}</button>
         <textarea class="entrada" rows="1" placeholder="Pergunte ou peça: “volume 30”, “timer 10 min”…" aria-label="Mensagem">${escapar(rascunho)}</textarea>
         <button type="submit" class="botao ciano enviar-rapida">Enviar</button>
       </form>
@@ -149,6 +172,11 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     botaoEnviar.classList.toggle("ciano", !rodando);
     raiz.querySelector<HTMLButtonElement>('[data-acao="central"]')!.disabled = rodando || !atual?.mensagens.length;
     seletor.disabled = rodando;
+    raiz.querySelector<HTMLElement>(".rapida-ouvindo")!.hidden = !ouvindo;
+    const erro = raiz.querySelector<HTMLElement>(".rapida-erro-voz")!;
+    erro.hidden = !erroVoz;
+    erro.textContent = erroVoz;
+    raiz.querySelector<HTMLButtonElement>('[data-acao="falar"]')!.disabled = ouvindo || rodando;
   };
   aoMudar = desenhar;
   desenhar();
@@ -200,10 +228,32 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     ctx.fechar();
     abrirCentral("conversa", [], c).catch(() => {});
   });
-  aoClicar(raiz, "ditado", () => {
-    campo.focus();
-    window.setTimeout(() => ditado().catch(() => {}), 80);
+  // Falar: ouve uma frase, manda, e lê a resposta em voz alta.
+  const escutar = async () => {
+    if (ouvindo || rodando) return;
+    calar();
+    ouvindo = true;
+    erroVoz = "";
+    desenhar();
+    try {
+      const texto = (await ouvir()).trim();
+      ouvindo = false;
+      if (texto) await enviar(texto, ctx, true);
+      else erroVoz = "Não ouvi nada. Aperte o microfone e fale de novo.";
+    } catch (e) {
+      ouvindo = false;
+      erroVoz = String(e);
+    }
+    desenhar();
+  };
+  aoClicar(raiz, "falar", () => void escutar());
+  aoClicar(raiz, "parar-ouvir", () => {
+    pararDeOuvir().catch(() => {});
   });
+  if (ouvirAoAbrir) {
+    ouvirAoAbrir = false;
+    window.setTimeout(() => void escutar(), 150);
+  }
   window.setTimeout(() => {
     ajustar();
     campo.focus();

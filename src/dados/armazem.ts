@@ -128,6 +128,10 @@ export interface Config {
   usarMemoria: boolean;
   /** A carinha reage ao que o Dan faz (digitando, música, vídeo…). */
   perceberAtividade: boolean;
+  /** Ler a resposta em voz alta quando o Dan falou a pergunta. */
+  falarRespostas: boolean;
+  /** Voz escolhida para falar ("" = a melhor em português que houver). */
+  voz: string;
   /** Lembrar de fazer uma pausa a cada X minutos (0 = não lembrar). */
   pausaACada: number;
   /** Já trocou os sites padrão pelos programas instalados com o mesmo nome. */
@@ -259,6 +263,8 @@ function padrao(): Dados {
       conversaRapida: "motor:deepseek",
       usarMemoria: true,
       perceberAtividade: true,
+      falarRespostas: true,
+      voz: "",
       pausaACada: 0,
       appsConferidos: false,
       atalho: null,

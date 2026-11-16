@@ -90,6 +90,8 @@ pub fn run() {
             corpo::central::modo_central,
             corpo::atividade::perceber_atividade,
             corpo::permissao::responder_permissao,
+            maos::voz::ouvir,
+            maos::voz::parar_de_ouvir,
             corpo::central::tela_inicial_central,
             maos::volume::volume_atual,
             maos::volume::definir_volume,
