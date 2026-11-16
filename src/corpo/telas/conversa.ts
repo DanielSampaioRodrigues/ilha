@@ -7,7 +7,8 @@ import { ler, mudar, novoId } from "../../dados/armazem";
 import type { Conversa } from "../../dados/conversas";
 import { responder } from "../../dados/pedido";
 import { abrirCentral, motoresDisponiveis, NOMES_MOTORES, ouvir, pararConversa, pararDeOuvir, type Motor } from "../../maos/sistema";
-import { calar, falar } from "../../maos/fala";
+import { bip, calar, falar } from "../../maos/fala";
+import { ouvir as aoEvento } from "../../ponte";
 import { textoRico } from "../../central/texto-rico";
 import { tentarComando } from "../comandos";
 import type { Contexto } from "../contexto";
@@ -22,6 +23,16 @@ let rodando = false;
 let rascunho = "";
 /** Ouvindo o microfone agora. */
 let ouvindo = false;
+/** O microfone já abriu de verdade (antes disso, o que se fala se perde). */
+let microfoneAberto = false;
+let aoAbrirMicrofone: () => void = () => {};
+aoEvento("ilha:microfone-aberto", () => {
+  // Só a janela que pediu para ouvir mostra e apita.
+  if (!ouvindo) return;
+  microfoneAberto = true;
+  bip();
+  aoAbrirMicrofone();
+});
 /** O microfone vermelho da ilha pediu para já abrir ouvindo. */
 let ouvirAoAbrir = false;
 let erroVoz = "";
@@ -157,7 +168,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
       </div>
       <div class="rapida-mensagens" aria-live="polite"></div>
       <div class="linha rapida-ouvindo" hidden>
-        <span class="ponto gravando"></span><span class="principal">Ouvindo… pode falar</span>
+        <span class="ponto gravando"></span><span class="principal texto-ouvindo">Abrindo o microfone… espere o bip</span>
         <span class="espaco"></span>
         <button type="button" class="botao" data-acao="parar-ouvir">Parar</button>
       </div>
@@ -195,6 +206,8 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     raiz.querySelector<HTMLButtonElement>('[data-acao="central"]')!.disabled = rodando || !atual?.mensagens.length;
     seletor.disabled = rodando;
     raiz.querySelector<HTMLElement>(".rapida-ouvindo")!.hidden = !ouvindo;
+    raiz.querySelector<HTMLElement>(".texto-ouvindo")!.textContent = microfoneAberto ? "Pode falar!" : "Abrindo o microfone… espere o bip";
+    raiz.querySelector<HTMLElement>(".rapida-ouvindo .ponto")!.classList.toggle("esperando", !microfoneAberto);
     document.body.classList.toggle("ouvindo-voz", ouvindo);
     const erro = raiz.querySelector<HTMLElement>(".rapida-erro-voz")!;
     erro.hidden = !erroVoz;
@@ -256,6 +269,8 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     if (ouvindo || rodando) return;
     calar();
     ouvindo = true;
+    microfoneAberto = false;
+    aoAbrirMicrofone = () => raiz.isConnected && desenhar();
     erroVoz = "";
     desenhar();
     try {

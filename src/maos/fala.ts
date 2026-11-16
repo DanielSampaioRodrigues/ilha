@@ -171,3 +171,25 @@ export function calar(): void {
 }
 
 export const falando = () => !!audio || (typeof speechSynthesis !== "undefined" && speechSynthesis.speaking);
+
+/** Bip curto: "pode falar" (o microfone abriu). */
+export function bip(): void {
+  try {
+    somCtx ??= new AudioContext();
+    const ctx = somCtx;
+    void ctx.resume();
+    const osc = ctx.createOscillator();
+    const volume = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(1320, ctx.currentTime + 0.08);
+    volume.gain.setValueAtTime(0.0001, ctx.currentTime);
+    volume.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+    volume.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+    osc.connect(volume).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.24);
+  } catch {
+    /* sem som, sem problema */
+  }
+}

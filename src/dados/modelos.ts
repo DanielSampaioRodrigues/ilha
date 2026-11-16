@@ -7,9 +7,12 @@
 //   (a ilha passa pela variável CLAUDE_CODE_EFFORT_LEVEL).
 // - Codex: não tem apelido "mais novo"; os nomes são os da família atual.
 //   Raciocínio: model_reasoning_effort.
-// - Gemini CLI: apelidos auto/pro/flash/flash-lite. Desde 18/06/2026 só
-//   funciona com chave paga da API do Gemini (não com o login do Google AI Pro).
-// - Antigravity CLI: a lista vem do próprio programa ("agy models").
+// - Gemini CLI: nomes da configuração oficial (geminicli.com, nov/2026).
+//   Desde 18/06/2026 só funciona com chave paga da API do Gemini. O Gemini 4
+//   não está no Gemini CLI (o Google manda usar o Antigravity para ele).
+// - Antigravity CLI: a lista vem do próprio programa ("agy models"), que só
+//   mostra o que a conta pode usar. A ilha junta as variações de esforço
+//   (ex.: "-high") num modelo só e tira os que o Google está desligando.
 // - DeepSeek: "deepseek-chat"/"deepseek-reasoner" foram desligados em
 //   24/07/2026; os atuais vêm da API. Pensa antes de responder por padrão.
 import type { Motor } from "../maos/sistema";
@@ -41,10 +44,10 @@ export const MODELOS: Record<Motor, Opcao[]> = {
   ],
   gemini: [
     PADRAO,
-    { valor: "auto", nome: "Automático" },
-    { valor: "pro", nome: "Pro (o mais capaz)" },
-    { valor: "flash", nome: "Flash (rápido)" },
-    { valor: "flash-lite", nome: "Flash-Lite (o mais leve)" },
+    { valor: "auto", nome: "Automático (ele escolhe)" },
+    { valor: "gemini-3.1-pro-preview", nome: "Gemini 3.1 Pro (o mais capaz)" },
+    { valor: "gemini-3.8-flash", nome: "Gemini 3.8 Flash (rápido)" },
+    { valor: "gemini-3.5-flash-lite", nome: "Gemini 3.5 Flash-Lite (o mais leve)" },
   ],
   antigravity: [PADRAO],
   deepseek: [
@@ -73,20 +76,19 @@ export const ESFORCOS: Record<Motor, Opcao[]> = {
   ],
   // O Gemini CLI não tem opção de raciocínio na linha de comando.
   gemini: [PADRAO],
+  // Níveis da documentação do Antigravity ("Extra" é "xhigh"; só o Gemini 4 Hydrogen tem).
   antigravity: [
     PADRAO,
     { valor: "low", nome: "Baixo (rápido)" },
     { valor: "medium", nome: "Médio" },
     { valor: "high", nome: "Alto" },
-    { valor: "xhigh", nome: "Muito alto" },
-    { valor: "max", nome: "Máximo" },
+    { valor: "xhigh", nome: "Extra (só no Gemini 4 Hydrogen)" },
   ],
+  // Na conversa, a DeepSeek mostra duas escolhas: pensar ou não, e quanto.
   deepseek: [
-    { valor: "", nome: "Padrão (pensa antes)" },
+    { valor: "", nome: "Pensa antes · alto" },
+    { valor: "max", nome: "Pensa antes · máximo" },
     { valor: "none", nome: "Sem pensar (mais rápido)" },
-    { valor: "low", nome: "Baixo" },
-    { valor: "high", nome: "Alto" },
-    { valor: "max", nome: "Máximo" },
   ],
 };
 
@@ -94,7 +96,47 @@ export const ESFORCOS: Record<Motor, Opcao[]> = {
 const extras: Partial<Record<Motor, string[]>> = {};
 
 export function guardarModelosExtras(motor: Motor, lista: string[]): void {
-  extras[motor] = lista;
+  extras[motor] = motor === "antigravity" ? limparAntigravity(lista) : lista;
+}
+
+/** Modelos que o Google tira do Antigravity em 18/11/2026. */
+const SAINDO = /^(claude-(sonnet|opus)-4[.-]6|gpt-oss-120b)/i;
+const ESFORCO_NO_NOME = /-(low|medium|high|xhigh|extra|max|thinking)$/i;
+
+/**
+ * "agy models" lista o mesmo modelo várias vezes, um por nível de esforço
+ * (ex.: gemini-3.8-flash-low, -high…). O nível já tem a escolha dele
+ * ("Raciocínio"), então aqui fica um por modelo.
+ */
+export function limparAntigravity(lista: string[]): string[] {
+  const unicos = [...new Set(lista)].filter((m) => !SAINDO.test(m));
+  const grupos = new Map<string, string[]>();
+  for (const m of unicos) {
+    const base = m.replace(ESFORCO_NO_NOME, "");
+    grupos.set(base, [...(grupos.get(base) ?? []), m]);
+  }
+  return [...grupos].map(([base, variacoes]) =>
+    variacoes.includes(base) ? base : (variacoes.find((v) => /-high$/i.test(v)) ?? variacoes[0]),
+  );
+}
+
+/** Nome bonito para um modelo do Antigravity (ex.: "claude-opus-5-5" → "Claude Opus 5.5"). */
+export function nomeBonito(slug: string): string {
+  const partes = slug.replace(ESFORCO_NO_NOME, "").split("-");
+  const saida: string[] = [];
+  for (const p of partes) {
+    const anterior = saida[saida.length - 1];
+    if (/^\d+(\.\d+)?$/.test(p) && anterior && /^\d+(\.\d+)?$/.test(anterior)) saida[saida.length - 1] = `${anterior}.${p}`;
+    else saida.push(/^(gpt|oss)$/i.test(p) ? p.toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1));
+  }
+  const nome = saida.join(" ");
+  const jeito: Record<string, string> = {
+    carbon: " (o mais capaz · Ultra)",
+    argon: " (muito capaz · Pro)",
+    hydrogen: " (rápido)",
+  };
+  const chave = Object.keys(jeito).find((k) => slug.toLowerCase().includes(`gemini-4-${k}`));
+  return nome + (chave ? jeito[chave] : "");
 }
 
 /** Lista para mostrar: a da documentação + o que o programa informou + o atual. */
@@ -103,7 +145,7 @@ export function modelosDe(motor: Motor, atual = ""): Opcao[] {
   for (const m of [...(extras[motor] ?? []), atual]) {
     // "deepseek-flash" já é o padrão ("").
     if (motor === "deepseek" && m === "deepseek-flash") continue;
-    if (m && !lista.some((o) => o.valor === m)) lista.push({ valor: m, nome: m });
+    if (m && !lista.some((o) => o.valor === m)) lista.push({ valor: m, nome: motor === "antigravity" ? nomeBonito(m) : m });
   }
   return lista;
 }

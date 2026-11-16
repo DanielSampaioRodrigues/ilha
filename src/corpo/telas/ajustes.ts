@@ -22,6 +22,7 @@ import {
   type SituacaoAviso, atenderPeloNome, conferirVoz, consertarVoz, estadoChamado, vozesNaturais, type EstadoChamado, type EstadoVoz } from "../../maos/sistema";
 import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
+import { procurar, type Novidade } from "../../atualizacao";
 import { aoClicar, cabecalho, escapar, html, recadoTemporario } from "../ui";
 
 const TECLAS = [
@@ -223,8 +224,8 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       <section class="secao">
         <p class="titulo-secao">Sobre</p>
         <div class="item">
-          <div class="coluna"><span class="principal">Ilha versão ${escapar(ctx.versao)}</span><span class="secundario">Procura versões novas sozinha a cada 6 horas.</span></div>
-          <button type="button" class="botao" data-acao="procurar">Procurar agora</button>
+          <div class="coluna"><span class="principal">Ilha versão ${escapar(ctx.versao)}</span><span class="secundario recado-atualizacao">Procura versões novas sozinha a cada 6 horas.</span></div>
+          <button type="button" class="botao botao-atualizacao" data-acao="procurar">Procurar agora</button>
         </div>
         <div class="item">
           <div class="coluna"><span class="principal">Registro de erros</span><span class="secundario">Se algo der errado, mande esse arquivo para o Claude.</span></div>
@@ -643,7 +644,42 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     abrirPrograma("https://elevenlabs.io/app/settings/api-keys").catch(() => {});
   });
 
-  aoClicar(raiz, "procurar", () => ctx.procurarAtualizacao());
+  // Procura e atualiza aqui mesmo (na Central, a ilha pequena fica escondida atrás).
+  {
+    const botao = raiz.querySelector<HTMLButtonElement>(".botao-atualizacao")!;
+    const recado = raiz.querySelector<HTMLElement>(".recado-atualizacao")!;
+    let achada: Novidade | null = null;
+    botao.addEventListener("click", async () => {
+      botao.disabled = true;
+      if (achada) {
+        const novidade = achada;
+        recado.textContent = "Baixando a versão nova… a ilha fecha e reabre sozinha.";
+        try {
+          await novidade.instalar((f) => (recado.textContent = `Baixando ${Math.round(f * 100)}%… a ilha fecha e reabre sozinha.`));
+        } catch {
+          recado.textContent = "Não consegui instalar agora. Tente de novo daqui a pouco.";
+          botao.disabled = false;
+        }
+        return;
+      }
+      botao.textContent = "Procurando…";
+      try {
+        achada = await procurar();
+        if (achada) {
+          recado.textContent = `Saiu a versão ${achada.versao}.`;
+          botao.textContent = "Atualizar agora";
+          botao.classList.add("ciano");
+        } else {
+          recado.textContent = `Você já tem a versão mais nova (${ctx.versao}).`;
+          botao.textContent = "Procurar agora";
+        }
+      } catch {
+        recado.textContent = "Não consegui procurar agora. Confira a internet e tente de novo.";
+        botao.textContent = "Procurar agora";
+      }
+      botao.disabled = false;
+    });
+  }
   aoClicar(raiz, "registros", () => {
     abrirRegistros().catch(() => {});
   });

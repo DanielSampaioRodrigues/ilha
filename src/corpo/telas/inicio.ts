@@ -224,7 +224,8 @@ export function montarInicio(ctx: Contexto): HTMLElement {
   aoClicar(raiz, "digitar", () => ctx.irPara("conversa"));
   aoClicar(raiz, "central", () => {
     ctx.fechar();
-    abrirCentral("conversa").catch(() => {});
+    // Sem tela: a Central volta onde o Dan deixou.
+    abrirCentral().catch(() => {});
   });
 
   aoClicar(raiz, "traduzir", () => {

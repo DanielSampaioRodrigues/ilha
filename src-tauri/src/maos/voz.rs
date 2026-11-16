@@ -16,7 +16,7 @@ static ATUAL: Mutex<Option<Operacao>> = Mutex::new(None);
 
 /// Escuta uma frase (até ~15 s) e devolve o texto. Vazio = não ouviu nada.
 #[tauri::command]
-pub async fn ouvir() -> Result<String, String> {
+pub async fn ouvir(app: tauri::AppHandle) -> Result<String, String> {
     use std::sync::atomic::Ordering;
     PARAR.store(false, Ordering::Relaxed);
     // A escuta do nome solta o microfone enquanto isso.
@@ -27,7 +27,12 @@ pub async fn ouvir() -> Result<String, String> {
         while super::chamado::ATIVO.load(Ordering::Relaxed) && comeco.elapsed() < std::time::Duration::from_secs(3) {
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
-        sistema::ouvir()
+        // Avisa a tela na hora em que o microfone abre de verdade ("pode falar" + bip):
+        // antes disso, o que o Dan fala se perde.
+        sistema::ouvir(move || {
+            use tauri::Emitter;
+            let _ = app.emit("ilha:microfone-aberto", ());
+        })
     })
     .await
     .map_err(|e| e.to_string());
@@ -75,7 +80,7 @@ mod sistema {
             .or_else(|_| SpeechRecognizer::new())
     }
 
-    pub fn ouvir() -> Result<String, String> {
+    pub fn ouvir(aberto: impl FnOnce()) -> Result<String, String> {
         unsafe {
             let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
         }
@@ -89,7 +94,7 @@ mod sistema {
         }
         if let Ok(t) = rec.Timeouts() {
             // Tempos em unidades de 100 ns.
-            let _ = t.SetInitialSilenceTimeout(TimeSpan { Duration: 6 * 10_000_000 });
+            let _ = t.SetInitialSilenceTimeout(TimeSpan { Duration: 8 * 10_000_000 });
             let _ = t.SetEndSilenceTimeout(TimeSpan { Duration: 12 * 1_000_000 });
             let _ = t.SetBabbleTimeout(TimeSpan { Duration: 15 * 10_000_000 });
         }
@@ -98,6 +103,7 @@ mod sistema {
             return Ok(String::new());
         }
         let operacao = rec.RecognizeAsync().map_err(explicar)?;
+        aberto();
         if let Ok(mut a) = ATUAL.lock() {
             *a = Some(operacao.clone());
         }
@@ -137,7 +143,7 @@ mod sistema {
 
 #[cfg(not(windows))]
 mod sistema {
-    pub fn ouvir() -> Result<String, String> {
+    pub fn ouvir(_aberto: impl FnOnce()) -> Result<String, String> {
         Err("Ouvir só funciona no Windows.".into())
     }
 

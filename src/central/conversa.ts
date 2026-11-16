@@ -21,6 +21,7 @@ import {
   escolherArquivos,
   listarModelos,
   motoresDisponiveis,
+  instalarMotor,
   NOMES_MOTORES,
   pararConversa,
   type Motor,
@@ -67,7 +68,22 @@ const FERRAMENTAS: Record<string, string> = {
 
 /** Conversas rodando agora (id → hora em que começou). */
 const rodando = new Map<string, number>();
-let atualId: string | null = null;
+/** Guarda e lê um lembrete desta tela (some se o navegador não deixar). */
+function lembrar(chave: string, valor: string): void {
+  try {
+    localStorage.setItem(chave, valor);
+  } catch {
+    /* sem problema */
+  }
+}
+function lembrado(chave: string): string | null {
+  try {
+    return localStorage.getItem(chave);
+  } catch {
+    return null;
+  }
+}
+let atualId: string | null = lembrado("ilha-central-conversa") || null;
 let filtro: Motor | "todas" = "todas";
 let disponiveis: Record<Motor, boolean> = { deepseek: true, claude: true, codex: true, gemini: true, antigravity: true };
 const buscouModelos = new Set<Motor>();
@@ -83,6 +99,32 @@ export function anexar(caminhos: string[]): void {
   for (const c of caminhos) if (!anexosPendentes.includes(c)) anexosPendentes.push(c);
   aoMudarAnexos();
 }
+/** Programas que a ilha sabe instalar (pelo instalador oficial de cada um). */
+const INSTALAVEIS: Motor[] = ["claude", "codex"];
+let instalando: Motor | null = null;
+let confirmandoInstalar = false;
+let recadoInstalar = "";
+
+function caixaInstalar(m: Motor): string {
+  const sobre: Partial<Record<Motor, string>> = {
+    claude:
+      "O Claude Code não está instalado neste computador. Ele usa a sua assinatura da Claude (Pro ou Max), sem chave e sem custo extra. A instalação é a oficial da Anthropic e não precisa de administrador.",
+    codex:
+      "O Codex não está instalado neste computador. Ele usa a sua assinatura do ChatGPT (Plus ou Pro), sem chave e sem custo extra. A instalação é a oficial da OpenAI.",
+  };
+  return `
+    <div class="caixa-instalar">
+      <p>${sobre[m] ?? ""}</p>
+      ${
+        confirmandoInstalar
+          ? `<p class="principal">Posso instalar o ${NOMES_MOTORES[m]}? Vai abrir uma janela do PowerShell mostrando a instalação.</p>
+             <div class="linha"><button type="button" class="botao" data-acao="instalar-nao">Agora não</button><button type="button" class="botao ciano" data-acao="instalar-sim">Sim, pode instalar</button></div>`
+          : `<div class="linha"><button type="button" class="botao ciano" data-acao="instalar">Instalar ${NOMES_MOTORES[m]}</button><button type="button" class="botao" data-acao="procurar-motores">Já instalei, procurar de novo</button><button type="button" class="botao" data-acao="instalar-nao">Fechar</button></div>`
+      }
+      ${recadoInstalar ? `<p class="secundario">${escapar(recadoInstalar)}</p>` : ""}
+    </div>`;
+}
+
 // Escolhas para a próxima conversa nova.
 let novoProjeto: string | null = null;
 let novoModo: "conversar" | "editar" = "conversar";
@@ -129,7 +171,20 @@ function campoEscolhas(e: Escolhas, d: Dados): string {
   const temFerramentas = d.mcps.length + d.skills.length > 0;
   return `
     <label class="campo-inline">Modelo<select class="entrada" data-campo="modelo">${opcoes(modelosDe(e.motor, e.modelo), e.modelo)}</select></label>
-    ${esforcos.length > 1 ? `<label class="campo-inline">Raciocínio<select class="entrada" data-campo="esforco">${opcoes(esforcos, e.esforco)}</select></label>` : ""}
+    ${
+      e.motor === "deepseek"
+        ? `<label class="campo-inline">Pensar antes de responder<select class="entrada" data-campo="pensar">
+            <option value="sim" ${e.esforco !== "none" ? "selected" : ""}>Sim</option>
+            <option value="nao" ${e.esforco === "none" ? "selected" : ""}>Não (mais rápido)</option>
+          </select></label>
+          <label class="campo-inline campo-quanto" ${e.esforco === "none" ? "hidden" : ""}>Quanto pensar<select class="entrada" data-campo="esforco">
+            <option value="">Alto (padrão)</option>
+            <option value="max" ${e.esforco === "max" ? "selected" : ""}>Máximo</option>
+          </select></label>`
+        : esforcos.length > 1
+          ? `<label class="campo-inline">Raciocínio<select class="entrada" data-campo="esforco">${opcoes(esforcos, e.esforco)}</select></label>`
+          : ""
+    }
     ${
       temFerramentas
         ? `<details class="escolha-ferramentas">
@@ -152,6 +207,14 @@ function ligarEscolhas(raiz: HTMLElement, e: Escolhas, aoMudar: (redesenhar: boo
   });
   raiz.querySelector<HTMLSelectElement>('[data-campo="esforco"]')?.addEventListener("change", (ev) => {
     e.esforco = (ev.target as HTMLSelectElement).value;
+    aoMudar(false);
+  });
+  // DeepSeek: "pensar ou não" e "quanto pensar" são duas escolhas (guardadas juntas).
+  raiz.querySelector<HTMLSelectElement>('[data-campo="pensar"]')?.addEventListener("change", (ev) => {
+    const pensa = (ev.target as HTMLSelectElement).value === "sim";
+    const quanto = raiz.querySelector<HTMLElement>(".campo-quanto");
+    if (quanto) quanto.hidden = !pensa;
+    e.esforco = pensa ? (raiz.querySelector<HTMLSelectElement>('.campo-quanto select')?.value ?? "") : "none";
     aoMudar(false);
   });
   raiz.querySelectorAll<HTMLInputElement>("[data-grupo]").forEach((caixa) =>
@@ -310,7 +373,7 @@ export function montarConversa(): HTMLElement {
         novoModo === "editar"
           ? "Atenção: com “Pode editar arquivos”, o Antigravity aprova tudo sozinho, inclusive rodar comandos no computador, sem perguntar. Precisa do agy instalado e com login feito uma vez no terminal."
           : "Precisa do Antigravity CLI (agy) instalado e com login feito uma vez no terminal. Em “Só conversar e ler”, ele recusa sozinho o que precisaria da sua aprovação.",
-      gemini: "Atenção: desde junho de 2026 o Gemini CLI só funciona com chave paga da API do Gemini. Com a assinatura Google AI Pro, use o Antigravity.",
+      gemini: "Atenção: desde junho de 2026 o Gemini CLI só funciona com chave paga da API do Gemini. Com a assinatura Google AI Pro, use o Antigravity (é lá que estão os modelos Gemini 4).",
     };
     painel.innerHTML = `
       <div class="comeco">
@@ -332,10 +395,10 @@ export function montarConversa(): HTMLElement {
         <div class="motores">
           ${MOTORES.map(
             (m) => `
-            <button type="button" class="cartao-motor ${m === motor ? "ativo" : ""}" data-acao="motor" data-motor="${m}" ${disponiveis[m] ? "" : "disabled"}>
+            <button type="button" class="cartao-motor ${m === motor ? "ativo" : ""} ${!disponiveis[m] && INSTALAVEIS.includes(m) ? "faltando" : ""} ${m === instalando ? "ativo" : ""}" data-acao="${!disponiveis[m] && INSTALAVEIS.includes(m) ? "como-instalar" : "motor"}" data-motor="${m}" ${disponiveis[m] || INSTALAVEIS.includes(m) ? "" : "disabled"}>
               ${selo(SELO[m], 22)}
               <span class="principal">${NOMES_MOTORES[m]}</span>
-              <span class="secundario">${disponiveis[m] ? DESCRICOES[m] : m === "deepseek" ? "Falta a chave (Ajustes › Chaves de IA)" : "Não encontrei instalado"}</span>
+              <span class="secundario">${disponiveis[m] ? DESCRICOES[m] : m === "deepseek" ? "Falta a chave (Ajustes › Chaves de IA)" : INSTALAVEIS.includes(m) ? "Não está instalado · clique para instalar" : "Não encontrei instalado"}</span>
             </button>`,
           ).join("")}
         </div>
@@ -357,6 +420,7 @@ export function montarConversa(): HTMLElement {
           }
         </div>
         <p class="secundario dica-nova">${dica[motor]}</p>
+        ${instalando ? caixaInstalar(instalando) : ""}
       </div>`;
     const refazer = () => {
       desenharNova();
@@ -385,6 +449,46 @@ export function montarConversa(): HTMLElement {
     aoClicar(painel, "modo", (b) => {
       novoModo = b.dataset.modo as "conversar" | "editar";
       refazer();
+    });
+    // Claude Code e Codex que faltam: explica, pergunta e instala.
+    aoClicar(painel, "como-instalar", (b) => {
+      instalando = b.dataset.motor as Motor;
+      confirmandoInstalar = false;
+      refazer();
+    });
+    aoClicar(painel, "instalar", () => {
+      confirmandoInstalar = true;
+      refazer();
+    });
+    aoClicar(painel, "instalar-nao", () => {
+      instalando = null;
+      confirmandoInstalar = false;
+      refazer();
+    });
+    aoClicar(painel, "instalar-sim", () => {
+      const m = instalando;
+      if (!m) return;
+      confirmandoInstalar = false;
+      recadoInstalar = "Abri uma janela azul do PowerShell: acompanhe por lá. No fim ela pede para você entrar com a sua conta.";
+      instalarMotor(m)
+        .catch((e) => (recadoInstalar = String(e)))
+        .finally(refazer);
+      refazer();
+    });
+    aoClicar(painel, "procurar-motores", () => {
+      recadoInstalar = "Procurando…";
+      refazer();
+      motoresDisponiveis()
+        .then((l) => {
+          l.forEach((x) => (disponiveis[x.motor] = x.encontrado));
+          if (instalando && disponiveis[instalando]) {
+            nova.motor = instalando;
+            instalando = null;
+            recadoInstalar = "";
+          } else recadoInstalar = "Ainda não encontrei. Se a janela do PowerShell ainda estiver trabalhando, espere ela terminar.";
+        })
+        .catch(() => (recadoInstalar = "Não consegui procurar agora."))
+        .finally(() => painel.isConnected && refazer());
     });
     painel.querySelector<HTMLSelectElement>('[data-campo="projeto"]')!.addEventListener("change", (e) => {
       novoProjeto = (e.target as HTMLSelectElement).value || null;
@@ -544,6 +648,8 @@ export function montarConversa(): HTMLElement {
   const desenharTudo = () => {
     desenharLista();
     const c = conversas().find((x) => x.id === atualId);
+    // Guarda a conversa aberta: a Central volta nela da próxima vez.
+    lembrar("ilha-central-conversa", c ? c.id : "");
     mensagensEl = null;
     if (c) desenharConversa(c);
     else {

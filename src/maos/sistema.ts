@@ -284,6 +284,16 @@ export const ditado = () => {
 };
 /** Esconde a ilha grande (ela continua viva por trás, terminando conversas). */
 export const esconderCentral = () => pedir<void>("esconder_central");
+/** A janela da frente do Windows: se é da ilha, ou uma "intrusa" (terminal que abriu sozinho). */
+export interface Frente {
+  id: number;
+  nossa: boolean;
+  intrusa: boolean;
+  programa: string;
+  anterior_existe: boolean;
+}
+export const janelaDaFrente = (anterior?: number) =>
+  pedir<Frente>("janela_da_frente", { anterior: anterior ?? null }, { id: 0, nossa: true, intrusa: false, programa: "", anterior_existe: false });
 /** Escuta uma frase pelo microfone (reconhecimento de fala do Windows). */
 export const ouvir = () => pedir<string>("ouvir", undefined, "que horas são");
 export const pararDeOuvir = () => pedir<void>("parar_de_ouvir");
@@ -362,6 +372,8 @@ export async function escolherArquivos(): Promise<string[]> {
 }
 
 export const pararConversa = (conversaId: string) => pedir<void>("parar_conversa", { conversaId });
+/** Instala o Claude Code ou o Codex (janela do PowerShell visível). Só depois de o Dan confirmar. */
+export const instalarMotor = (motor: Motor) => pedir<void>("instalar_motor", { motor });
 export const abrirNoTerminal = (motor: Motor, sessao: string | null, pasta: string | null) =>
   pedir<void>("abrir_no_terminal", { motor, sessao, pasta });
 

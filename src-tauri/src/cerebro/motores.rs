@@ -100,14 +100,31 @@ fn nome_do_programa(motor: &str) -> Option<&'static str> {
 }
 
 /// Procura o programa no PATH e nas pastas onde os instaladores costumam pôr.
+/// O PATH também é lido direto do Windows: se o Dan instalou um programa
+/// depois de a ilha abrir, o PATH que a ilha recebeu ao ligar está velho.
 pub fn executavel(nome: &str) -> Option<PathBuf> {
     let mut pastas: Vec<PathBuf> = std::env::var_os("PATH")
         .map(|p| std::env::split_paths(&p).collect())
         .unwrap_or_default();
-    if let Some(casa) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")) {
-        let casa = PathBuf::from(casa);
+    pastas.extend(path_do_windows());
+    let var = |v: &str| std::env::var_os(v).map(PathBuf::from);
+    if let Some(casa) = var("USERPROFILE").or_else(|| var("HOME")) {
         pastas.push(casa.join(".local").join("bin"));
         pastas.push(casa.join("AppData").join("Roaming").join("npm"));
+        pastas.push(casa.join(".bun").join("bin"));
+        pastas.push(casa.join(".volta").join("bin"));
+        pastas.push(casa.join("scoop").join("shims"));
+        pastas.push(casa.join(".codex").join("bin"));
+    }
+    if let Some(local) = var("LOCALAPPDATA") {
+        pastas.push(local.join("Microsoft").join("WinGet").join("Links"));
+        pastas.push(local.join("pnpm"));
+        pastas.push(local.join("Programs").join(nome));
+        pastas.push(local.join("Programs").join(nome).join("bin"));
+    }
+    // O Claude para computador traz o Claude Code junto (uma pasta por versão).
+    if let Some(dados) = var("APPDATA") {
+        pastas.extend(versoes_em(&dados.join("Claude").join("claude-code")));
     }
     let extensoes: &[&str] = if cfg!(windows) { &["exe", "cmd", "bat"] } else { &[""] };
     for pasta in pastas {
@@ -119,6 +136,93 @@ pub fn executavel(nome: &str) -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// Subpastas (uma por versão), da mais nova para a mais velha.
+fn versoes_em(pasta: &Path) -> Vec<PathBuf> {
+    let mut lista: Vec<PathBuf> = std::fs::read_dir(pasta)
+        .map(|l| l.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect())
+        .unwrap_or_default();
+    let chave = |p: &PathBuf| -> Vec<u64> {
+        p.file_name()
+            .map(|n| n.to_string_lossy().split(['.', '-']).map(|x| x.parse().unwrap_or(0)).collect())
+            .unwrap_or_default()
+    };
+    lista.sort_by_key(|p| std::cmp::Reverse(chave(p)));
+    lista
+}
+
+/// O PATH guardado no Windows agora (do usuário e do computador).
+#[cfg(windows)]
+fn path_do_windows() -> Vec<PathBuf> {
+    use windows::core::HSTRING;
+    use windows::Win32::System::Registry::{
+        RegGetValueW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_NOEXPAND, RRF_RT_REG_EXPAND_SZ, RRF_RT_REG_SZ,
+    };
+    fn ler(raiz: HKEY, chave: &str) -> String {
+        let mut buf = vec![0u16; 16 * 1024];
+        let mut tamanho = (buf.len() * 2) as u32;
+        let ok = unsafe {
+            RegGetValueW(
+                raiz,
+                &HSTRING::from(chave),
+                &HSTRING::from("Path"),
+                RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ | RRF_NOEXPAND,
+                None,
+                Some(buf.as_mut_ptr().cast()),
+                Some(&mut tamanho),
+            )
+        };
+        if ok.is_err() {
+            return String::new();
+        }
+        let n = (tamanho as usize / 2).saturating_sub(1).min(buf.len());
+        String::from_utf16_lossy(&buf[..n])
+    }
+    let usuario = ler(HKEY_CURRENT_USER, "Environment");
+    let pc = ler(HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment");
+    format!("{usuario};{pc}")
+        .split(';')
+        .map(expandir)
+        .filter(|p| !p.trim().is_empty())
+        .map(PathBuf::from)
+        .collect()
+}
+
+#[cfg(not(windows))]
+fn path_do_windows() -> Vec<PathBuf> {
+    Vec::new()
+}
+
+/// Troca %NOME% pelo valor da variável (ex.: %USERPROFILE%).
+#[cfg_attr(not(windows), allow(dead_code))]
+fn expandir(texto: &str) -> String {
+    let mut saida = String::new();
+    let mut resto = texto;
+    while let Some(inicio) = resto.find('%') {
+        saida.push_str(&resto[..inicio]);
+        let depois = &resto[inicio + 1..];
+        match depois.find('%') {
+            Some(fim) => {
+                let nome = &depois[..fim];
+                match std::env::var(nome) {
+                    Ok(v) => saida.push_str(&v),
+                    Err(_) => {
+                        saida.push('%');
+                        saida.push_str(nome);
+                        saida.push('%');
+                    }
+                }
+                resto = &depois[fim + 1..];
+            }
+            None => {
+                saida.push_str(&resto[inicio..]);
+                resto = "";
+            }
+        }
+    }
+    saida.push_str(resto);
+    saida
 }
 
 /// Programas instalados pelo npm são um ".cmd" que só chama o Node com um
@@ -665,6 +769,37 @@ pub fn parar_conversa(conversa_id: String, andamento: State<'_, Andamento>) {
         Some(Parada::Sinal(s)) => s.store(true, Ordering::Relaxed),
         None => {}
     }
+}
+
+/// Instala o Claude Code ou o Codex pelo instalador oficial de cada um, numa
+/// janela do PowerShell que o Dan vê (com o andamento). No fim, abre o
+/// programa para o Dan entrar com a conta dele. A ilha só chama isto depois
+/// de o Dan confirmar.
+#[tauri::command]
+pub fn instalar_motor(motor: String) -> Result<(), String> {
+    // Depois de instalar, o PATH desta janela está velho: lê de novo do Windows.
+    let recarregar = "$env:Path = [Environment]::GetEnvironmentVariable('Path','User') + ';' + [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + \"$env:USERPROFILE\\.local\\bin\"";
+    let roteiro = match motor.as_str() {
+        "claude" => format!(
+            "Write-Host 'Instalando o Claude Code...' -ForegroundColor Cyan; irm https://claude.ai/install.ps1 | iex; {recarregar}; \
+             Write-Host ''; Write-Host 'Pronto! Agora entre com a sua conta da Claude (escolha a assinatura). Depois pode fechar esta janela.' -ForegroundColor Green; claude"
+        ),
+        "codex" => format!(
+            "Write-Host 'Instalando o Codex...' -ForegroundColor Cyan; \
+             try {{ irm https://chatgpt.com/codex/install.ps1 | iex }} catch {{ if (Get-Command npm -ErrorAction SilentlyContinue) {{ npm install -g @openai/codex }} else {{ Write-Host 'Nao consegui instalar. Mande uma foto desta janela para o Claude.' -ForegroundColor Red }} }}; {recarregar}; \
+             Write-Host ''; Write-Host 'Pronto! Agora escolha Sign in with ChatGPT para usar a sua assinatura. Depois pode fechar esta janela.' -ForegroundColor Green; codex login"
+        ),
+        _ => return Err("A ilha não sabe instalar esse.".into()),
+    };
+    let mut c = Command::new("powershell.exe");
+    c.args(["-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &roteiro]);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+        c.creation_flags(CREATE_NEW_CONSOLE);
+    }
+    c.spawn().map(|_| ()).map_err(|e| format!("Não consegui abrir o PowerShell: {e}"))
 }
 
 /// Abre a sessão no terminal, para continuar lá (Windows Terminal, se houver).

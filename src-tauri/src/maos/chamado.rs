@@ -158,7 +158,8 @@ mod sistema {
             }
             let mut atual: Option<(SpeechRecognizer, String)> = None;
             loop {
-                std::thread::sleep(Duration::from_millis(400));
+                // Rápido: quando o Dan chama, o microfone tem de passar logo para o "ouvir".
+                std::thread::sleep(Duration::from_millis(120));
                 let nome = NOME.lock().map(|n| n.clone()).unwrap_or_default();
                 let livre = || OCUPADO.load(Ordering::Relaxed) == 0;
                 let querer = LIGADO.load(Ordering::Relaxed) && livre() && !nome.trim().is_empty();
@@ -195,14 +196,14 @@ mod sistema {
                                 Err(e) => {
                                     log::warn!("Chamar pelo nome: não consegui começar a ouvir: {}", e.message());
                                     guardar(&ULTIMO_ERRO, Some(format!("Não consegui começar a ouvir: {}", explicar(&e))));
-                                    std::thread::sleep(Duration::from_secs(20));
+                                    std::thread::sleep(Duration::from_secs(5));
                                 }
                             }
                         }
                         Err(e) => {
                             log::warn!("Chamar pelo nome: {}", e.message());
                             guardar(&ULTIMO_ERRO, Some(explicar(&e)));
-                            std::thread::sleep(Duration::from_secs(20));
+                            std::thread::sleep(Duration::from_secs(5));
                         }
                     }
                 }

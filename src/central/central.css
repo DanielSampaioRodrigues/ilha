@@ -587,6 +587,41 @@ body.navegador.modo-central {
   cursor: default;
 }
 
+/* Programa que falta: dá para clicar e instalar. */
+.cartao-motor.faltando {
+  border-style: dashed;
+}
+
+.cartao-motor.faltando:not(.ativo) {
+  opacity: 0.7;
+}
+
+.caixa-instalar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--ciano) 40%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--ciano) 6%, #15171b);
+}
+
+.caixa-instalar p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.caixa-instalar .principal {
+  white-space: normal;
+  overflow: visible;
+}
+
+.caixa-instalar .linha {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .opcoes-nova {
   flex-wrap: wrap;
   gap: 12px;

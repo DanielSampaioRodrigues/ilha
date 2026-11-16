@@ -7,7 +7,7 @@ import "./central.css";
 import { emit, listen } from "@tauri-apps/api/event";
 import { aoMudarDeFora, carregar, ler, mudar } from "../dados/armazem";
 import { carregarConversas } from "../dados/conversas";
-import { atalhoAtual, esconderCentral, modoJanelaCentral, responderPermissao, telaInicialCentral, type Midia } from "../maos/sistema";
+import { atalhoAtual, esconderCentral, janelaDaFrente, modoJanelaCentral, responderPermissao, telaInicialCentral, type Midia } from "../maos/sistema";
 import { oQueQuer } from "../corpo/estados";
 import { conversas } from "../dados/conversas";
 import { escapar } from "../corpo/ui";
@@ -164,6 +164,12 @@ export async function iniciarCentral(): Promise<void> {
 
   const ir = (s: Secao) => {
     secao = MENU.some(([id]) => id === s) ? s : "conversa";
+    // A Central volta nesta tela da próxima vez.
+    try {
+      localStorage.setItem("ilha-central-secao", secao);
+    } catch {
+      /* sem problema */
+    }
     mostrar();
   };
 
@@ -237,11 +243,43 @@ export async function iniciarCentral(): Promise<void> {
       e.preventDefault();
       esconderCentral().catch(() => {});
     });
-    await getCurrentWindow().onFocusChanged(({ payload: comFoco }) => {
+    const esta = getCurrentWindow();
+    // Uma janela "intrusa" (terminal que um programa abriu sozinho) pegou o
+    // foco: a Central espera ela sumir e pega o foco de volta. Se o Dan foi
+    // para outra janela de verdade (ou a intrusa ficou aberta), aí fecha.
+    let vigia = 0;
+    const vigiarIntrusa = (intrusa: number) => {
+      window.clearInterval(vigia);
+      const inicio = Date.now();
+      vigia = window.setInterval(async () => {
+        if (document.hasFocus() || presa) return window.clearInterval(vigia);
+        const f = await janelaDaFrente(intrusa).catch(() => null);
+        if (!f || document.hasFocus()) return window.clearInterval(vigia);
+        if (f.id === intrusa && f.anterior_existe) {
+          if (Date.now() - inicio > 6000) {
+            window.clearInterval(vigia);
+            fechar();
+          }
+          return;
+        }
+        window.clearInterval(vigia);
+        // A intrusa sumiu (o Windows passa o foco para qualquer janela) ou veio outra intrusa: volta.
+        if (!f.anterior_existe || f.intrusa || f.id === 0) esta.setFocus().catch(() => {});
+        else fechar();
+      }, 250);
+    };
+    await esta.onFocusChanged(async ({ payload: comFoco }) => {
       if (comFoco || presa || janela) return;
+      // Pergunta na hora: o terminal intruso pode piscar e sumir bem rápido.
+      const agora = await janelaDaFrente().catch(() => null);
+      if (agora?.intrusa) return vigiarIntrusa(agora.id);
       // Um instante de folga: janelas do Windows abertas daqui roubam o foco.
-      window.setTimeout(() => {
-        if (!presa && !focoSeguro() && !document.hasFocus()) fechar();
+      window.setTimeout(async () => {
+        if (presa || focoSeguro() || document.hasFocus()) return;
+        const f = await janelaDaFrente().catch(() => null);
+        if (document.hasFocus()) return;
+        if (f?.intrusa) vigiarIntrusa(f.id);
+        else fechar();
       }, 150);
     });
     await listen("central:abrir", abrir);
@@ -297,7 +335,13 @@ export async function iniciarCentral(): Promise<void> {
     });
   }
   const pedido = await telaInicialCentral().catch(() => ({ tela: null, anexos: [] as string[], conversa: null }));
-  const inicial = pedido.tela ?? new URLSearchParams(location.search).get("secao");
+  let lembrada: string | null = null;
+  try {
+    lembrada = localStorage.getItem("ilha-central-secao");
+  } catch {
+    /* sem problema */
+  }
+  const inicial = pedido.tela ?? new URLSearchParams(location.search).get("secao") ?? lembrada;
   ir((inicial as Secao) ?? "conversa");
   if (pedido.anexos.length) anexar(pedido.anexos);
   if (pedido.conversa) importarConversa(pedido.conversa as Conversa);

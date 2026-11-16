@@ -312,6 +312,11 @@ button {
   animation: pulsar 1.2s ease-in-out infinite;
 }
 
+/* Microfone ainda abrindo: ponto amarelo (espere o bip). */
+.gravando.esperando {
+  background: #f5c542;
+}
+
 @keyframes pulsar {
   50% {
     opacity: 0.35;
