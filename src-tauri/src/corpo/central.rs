@@ -48,8 +48,10 @@ pub fn abrir_com(app: &AppHandle, tela: Option<String>, anexos: Vec<String>) {
     }
 }
 
+/// Precisa ser "async": no Windows, criar janela dentro de um comando comum
+/// trava o programa (a janela fica branca e nem fecha).
 #[tauri::command]
-pub fn abrir_central(app: AppHandle, tela: Option<String>, anexos: Option<Vec<String>>) {
+pub async fn abrir_central(app: AppHandle, tela: Option<String>, anexos: Option<Vec<String>>) {
     abrir_com(&app, tela, anexos.unwrap_or_default());
 }
 

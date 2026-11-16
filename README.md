@@ -71,6 +71,8 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
   atravessar o que não é preto; `corpo/bandeja.rs` é o ícone do relógio;
   `corpo/atalho.rs` o atalho global; `corpo/avisos.rs` o `--aviso`; `maos/` abre
   programas, lê a música do Windows e liga o gancho do Claude Code.
+- Comando do Tauri que cria janela precisa ser `async`: no Windows, criar janela
+  num comando comum trava tudo (janela branca que não fecha).
 - Checar o código só-Windows daqui: `cargo check --target x86_64-pc-windows-gnu`
   (precisa de `gcc-mingw-w64-x86-64`).
 - `src/atualizacao.ts` — botão Atualizar (plugin updater do Tauri). As versões são

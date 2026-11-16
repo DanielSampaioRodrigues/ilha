@@ -252,6 +252,12 @@ fn argumentos(motor: &str, sessao: Option<&str>, editar: bool, modelo: &str, esf
         "antigravity" => {
             // A pergunta vai pela entrada, em JSON (único jeito documentado de usar stdin).
             let mut a = s(&["--input-format", "stream-json", "--output-format", "stream-json"]);
+            // Rodando escondido, ninguém responde às perguntas de permissão, e o
+            // Antigravity recusa tudo. Com "pode editar", o Dan autorizou (16/11/2026)
+            // ele aprovar sozinho — inclusive comandos. A tela avisa isso.
+            if editar {
+                a.push("--dangerously-skip-permissions".into());
+            }
             if let Some(m) = modelo {
                 a.extend(s(&["--model", m]));
             }
@@ -732,6 +738,8 @@ mod testes {
         let a = argumentos("antigravity", Some("c9"), false, "gemini-3.8-flash-medium", "max");
         assert!(a.windows(2).any(|w| w == ["--conversation", "c9"]));
         assert!(a.windows(2).any(|w| w == ["--effort", "max"]));
+        assert!(!a.iter().any(|x| x.contains("dangerously")));
+        assert!(argumentos("antigravity", None, true, "", "").contains(&"--dangerously-skip-permissions".to_string()));
         // Nada estranho vira argumento.
         let r = argumentos("claude", None, false, "opus --dangerously-skip-permissions", "");
         assert!(!r.iter().any(|x| x.contains("dangerously")));

@@ -38,8 +38,8 @@ const DESCRICOES: Record<Motor, string> = {
   antigravity: "Pesado · usa sua conta Google",
   gemini: "Pesado · só com chave paga da API",
 };
-/** Motores que podem editar arquivos pela ilha (o Antigravity recusa sozinho). */
-const EDITAM: Motor[] = ["claude", "codex", "gemini"];
+/** Motores que podem editar arquivos pela ilha. */
+const EDITAM: Motor[] = ["claude", "codex", "gemini", "antigravity"];
 /** Motores que recebem os MCPs da ilha. */
 const USAM_MCP: Motor[] = ["claude", "codex", "gemini"];
 
@@ -392,7 +392,10 @@ export function montarConversa(): HTMLElement {
       deepseek: "A DeepSeek responde rápido e lembra desta conversa. Não mexe em arquivos. O deepseek-flash também lê imagens.",
       claude: "Ele trabalha na pasta do projeto (ou na sua pasta pessoal). Comandos no computador ficam bloqueados por enquanto; liberar com sua confirmação vem na fase 3.",
       codex: "Ele trabalha na pasta do projeto (ou na sua pasta pessoal). Comandos no computador ficam bloqueados por enquanto; liberar com sua confirmação vem na fase 3.",
-      antigravity: "Precisa do Antigravity CLI (agy) instalado e com login feito uma vez no terminal. Pela ilha ele conversa e lê; o que precisaria da sua aprovação é recusado.",
+      antigravity:
+        novoModo === "editar"
+          ? "Atenção: com “Pode editar arquivos”, o Antigravity aprova tudo sozinho, inclusive rodar comandos no computador, sem perguntar. Precisa do agy instalado e com login feito uma vez no terminal."
+          : "Precisa do Antigravity CLI (agy) instalado e com login feito uma vez no terminal. Em “Só conversar e ler”, ele recusa sozinho o que precisaria da sua aprovação.",
       gemini: "Atenção: desde junho de 2026 o Gemini CLI só funciona com chave paga da API do Gemini. Com a assinatura Google AI Pro, use o Antigravity.",
     };
     painel.innerHTML = `

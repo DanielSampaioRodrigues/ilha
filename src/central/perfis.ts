@@ -62,7 +62,7 @@ export function montarPerfis(redesenhar: () => void): HTMLElement {
           <label class="campo">Modelo<select name="modelo" class="entrada">${opcoes(modelosDe(motor, atual?.modelo), atual?.modelo ?? "")}</select></label>
           <label class="campo">Raciocínio<select name="esforco" class="entrada">${opcoes(esforcosDe(motor, atual?.esforco), atual?.esforco ?? "")}</select></label>
           ${
-            motor === "deepseek" || motor === "antigravity"
+            motor === "deepseek"
               ? ""
               : `<label class="campo">Pode mexer em arquivos?<select name="modo" class="entrada">
                   <option value="conversar" ${atual?.modo !== "editar" ? "selected" : ""}>Não, só conversar e ler</option>
@@ -76,6 +76,7 @@ export function montarPerfis(redesenhar: () => void): HTMLElement {
           <fieldset class="caixa-marcas"><legend class="titulo-secao">Skills ligadas</legend>${marcas(d.skills, atual?.skills ?? [], "skills")}</fieldset>
         </div>
         ${motor === "deepseek" || motor === "antigravity" ? `<p class="secundario">${NOMES_MOTORES[motor]} usa as skills como instruções; MCPs da ilha funcionam com Claude Code, Codex e Gemini CLI.</p>` : ""}
+        ${motor === "antigravity" ? '<p class="secundario">Com “Sim, pode editar”, o Antigravity aprova tudo sozinho, inclusive rodar comandos no computador.</p>' : ""}
         ${motor === "gemini" ? '<p class="secundario">Atenção: desde junho de 2026 o Gemini CLI só funciona com chave paga da API do Gemini. Com a assinatura Google AI Pro, use o Antigravity.</p>' : ""}
         <div class="linha fim"><span class="espaco"></span>${atual ? '<button type="button" class="botao" data-acao="cancelar">Cancelar</button>' : ""}<button type="submit" class="botao ciano">Salvar perfil</button></div>
       </form>
