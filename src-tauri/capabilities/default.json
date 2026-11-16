@@ -5,7 +5,8 @@
   "windows": [
     "ilha",
     "traducao",
-    "central"
+    "central",
+    "passeio"
   ],
   "permissions": [
     "core:default",

@@ -1,7 +1,7 @@
 // Personagem: aparência do robô (cor dos olhos, bochechas, acessório) e jeito
 // de ser (olhos seguem o mouse, brincadeiras, cochilo). Com prévia ao vivo.
 import { ler, mudar, type Config } from "../../dados/armazem";
-import { perceberAtividade } from "../../maos/sistema";
+import { passear, perceberAtividade } from "../../maos/sistema";
 import {
   Carinha,
   NOMES_ACESSORIOS,
@@ -140,6 +140,8 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
         ${interruptor("olhosSeguemMouse", "Olhos seguem o mouse", "Ele olha para o lado onde está o mouse.", c.olhosSeguemMouse)}
         ${interruptor("brincadeiras", "Brincadeiras quando parado", "De vez em quando passa uma mosquinha e ele acompanha com os olhos.", c.brincadeiras)}
         ${interruptor("cochilar", "Cochilar", "Com o mouse parado por 5 minutos, ele dorme; mexeu, acorda.", c.cochilar)}
+        ${interruptor("passeios", "Sair para passear", "De vez em quando ele sai da ilha, anda pela tela, brinca e volta (o clique passa por ele, não atrapalha).", c.passeios)}
+        <div class="item"><div class="coluna"><span class="principal">Passear agora</span><span class="secundario">Ou peça na conversa: “vai passear”.</span></div><button type="button" class="botao" data-acao="passear">Passear</button></div>
         ${interruptor("perceberAtividade", "Perceber o que estou fazendo", "Digitando, ele digita junto; com música, dança; em vídeo, assiste; em chamada, põe fones. Só conta as teclas (não lê quais são) e olha o nome do programa na frente. Nada é guardado.", c.perceberAtividade)}
       </section>
     </div>`);
@@ -188,12 +190,16 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
       else c.corBochechas = b.dataset.cor!;
     }),
   );
+  aoClicar(raiz, "passear", () => {
+    ctx.fechar();
+    passear().catch(() => {});
+  });
   aoClicar(raiz, "personagem", (b) => salvar((c) => (c.personagem = b.dataset.personagem as PersonagemId)));
   aoClicar(raiz, "acessorio", (b) => salvar((c) => (c.acessorio = b.dataset.acessorio as Acessorio)));
   aoClicar(raiz, "cabeca", (b) => salvar((c) => (c.cabecaAberta = b.dataset.valor as Config["cabecaAberta"])));
   aoClicar(raiz, "alternar", (b) =>
     salvar((c) => {
-      const chave = b.dataset.opcao as "olhosSeguemMouse" | "brincadeiras" | "cochilar" | "perceberAtividade";
+      const chave = b.dataset.opcao as "olhosSeguemMouse" | "brincadeiras" | "cochilar" | "perceberAtividade" | "passeios";
       c[chave] = !c[chave];
       if (chave === "perceberAtividade") perceberAtividade(c[chave]).catch(() => {});
     }),

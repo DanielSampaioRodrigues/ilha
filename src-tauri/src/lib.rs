@@ -91,6 +91,8 @@ pub fn run() {
             corpo::central::modo_central,
             corpo::atividade::perceber_atividade,
             corpo::permissao::responder_permissao,
+            corpo::passeio::passear,
+            corpo::passeio::fim_passeio,
             maos::voz::ouvir,
             maos::voz::parar_de_ouvir,
             maos::chamado::atender_pelo_nome,

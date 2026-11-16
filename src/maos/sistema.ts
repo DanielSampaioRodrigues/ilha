@@ -317,6 +317,9 @@ export const skillsDoClaude = () =>
     { nome: "revisor", descricao: "Revisa textos", instrucoes: "Revise com cuidado." },
   ]);
 
+/** O personagem sai da ilha e passeia pela tela. */
+export const passear = () => pedir<void>("passear");
+
 /** Responde o "posso?" de uma IA (Sim ou Não). */
 export const responderPermissao = (id: string, permitir: boolean) => pedir<void>("responder_permissao", { id, permitir });
 /** Liga/desliga a carinha perceber o que o Dan faz (digitação, programa na frente). */

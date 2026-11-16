@@ -54,6 +54,9 @@ async function iniciar(): Promise<void> {
     if (ler().config.olhosSeguemMouse) olharTodas(o.x, o.y);
   });
   ouvir<boolean>("ilha:ocioso", (parado) => ilha.ocioso(parado));
+  // Passeio: enquanto o personagem está fora, a ilha fica sem carinha.
+  ouvir<boolean>("ilha:passeio", (fora) => ilha.passeando(fora));
+  ilha.agendarPasseios();
   ouvir<import("./corpo/contexto").Pergunta>("ilha:permissao", (p) => ilha.perguntar(p));
   ouvir<string>("ilha:permissao-fim", (id) => ilha.esquecerPergunta(id));
   ouvir<{ digitando: boolean; categoria: string }>("ilha:atividade", (a) => ilha.atividade(a.digitando, a.categoria));
@@ -259,6 +262,7 @@ function montarTeste(ilha: Ilha): void {
     ["mouse ↓", () => ilha.mouse(true)],
     ["mouse ↑", () => ilha.mouse(false)],
     ["confirmação", () => ilha.mostrar("confirmacao")],
+    ["passear", () => window.open("/?modo=passeio", "_blank")],
     ["posso?", () => ilha.perguntar({ id: "t1", conversa: "x", ferramenta: "Bash", detalhe: "npm install && npm run build" })],
     ...(["inicio", "personagem", "traducoes", "tarefas", "habitos", "timers", "textos", "pc", "ajustes"] as NomeTela[]).map(
       (t): [string, () => void] => [`tela ${t}`, () => ilha.abrir(t)],
@@ -289,4 +293,5 @@ const janela = dentroDoApp
   : (new URLSearchParams(location.search).get("modo") ?? "ilha");
 if (janela === "traducao") (await import("./traducao")).iniciarTraducao();
 else if (janela === "central") (await import("./central/central")).iniciarCentral();
+else if (janela === "passeio") (await import("./passeio")).iniciarPasseio();
 else iniciar();

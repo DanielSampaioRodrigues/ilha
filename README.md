@@ -70,6 +70,8 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
 - **A carinha percebe o que você faz**: digita junto, dança com música, assiste vídeo,
   põe fones em chamada, desenha quando você está num programa de design. Desliga em
   Personagem › "Perceber o que estou fazendo".
+- **Passeio**: de vez em quando o personagem sai da ilha, anda pela tela, brinca e volta
+  (o clique passa por ele). Peça na conversa: "vai passear".
 - **Personagem**: escolha quem mora na ilha (13: Robozinho, Gato, Urso, Sapo, Alien,
   Fantasma, Coelho, Gelatina, Nuvem, Pinguim, Coruja, TV, Olhão, mais 6 monstrinhos:
   Diabinho, Peludo, Morcego, Polvo, Zumbi, Dragãozinho), 21 expressões, cor dos olhos e das bochechas, acessórios, olhos que

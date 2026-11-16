@@ -4,6 +4,7 @@ pub mod atividade;
 pub mod avisos;
 pub mod bandeja;
 pub mod central;
+pub mod passeio;
 pub mod permissao;
 pub mod historico;
 pub mod janela;

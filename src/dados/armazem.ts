@@ -138,6 +138,8 @@ export interface Config {
   atenderPeloNome: boolean;
   /** Depois de responder em voz alta, volta a ouvir (conversa contínua). */
   conversaContinua: boolean;
+  /** O personagem sai para passear sozinho de vez em quando. */
+  passeios: boolean;
   /** Calendário da Apple (iCloud): e-mail do Apple ID e calendário escolhido. */
   icloudEmail: string;
   icloudCalendario: string;
@@ -282,6 +284,7 @@ function padrao(): Dados {
       voz: "",
       atenderPeloNome: false,
       conversaContinua: false,
+      passeios: true,
       icloudEmail: "",
       icloudCalendario: "",
       icloudNomeCalendario: "",

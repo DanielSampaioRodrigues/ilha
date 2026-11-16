@@ -9,7 +9,7 @@ import { informarArea } from "../ponte";
 import type { Novidade } from "../atualizacao";
 import { ler, mudar, type ModoDiscreto } from "../dados/armazem";
 import { pendentes } from "../dados/datas";
-import { responderPermissao, vigiarJanelas, type Midia, type Volume } from "../maos/sistema";
+import { passear, responderPermissao, vigiarJanelas, type Midia, type Volume } from "../maos/sistema";
 import { tocarAlarme } from "./som";
 
 // Abrindo: a altura desce rápido e balança; a largura vem um pouco depois.
@@ -214,6 +214,33 @@ export class Ilha {
     } else if (this.emDescanso() && this.estadoBase() !== this.estado) {
       this.fechar();
     }
+  }
+
+  /** O personagem saiu para passear (ou voltou). */
+  passeando(fora: boolean): void {
+    document.body.classList.toggle("carinha-fora", fora);
+    if (!fora && this.estado === "repouso") {
+      mudarAtividade("feliz");
+      window.setTimeout(() => mudarAtividade(this.expressaoAtividade), 1800);
+    }
+  }
+
+  /** De vez em quando (40 a 80 min), se nada estiver acontecendo, sai para passear. */
+  agendarPasseios(): void {
+    const proximo = () => (40 + Math.random() * 40) * 60_000;
+    const tentar = () => {
+      const c = ler().config;
+      const sossegado =
+        c.passeios &&
+        c.brincadeiras &&
+        this.estado === "repouso" &&
+        !this.digitando &&
+        !this.dormindo &&
+        !["chamada", "video"].includes(this.categoria);
+      if (sossegado) passear().catch(() => {});
+      window.setTimeout(tentar, proximo());
+    };
+    window.setTimeout(tentar, proximo());
   }
 
   /** Uma IA pediu permissão: a ilha pergunta (passa na frente de tudo). */

@@ -9,6 +9,7 @@ import {
   definirVolume,
   listarProgramas,
   midiaComando,
+  passear,
   traduzirTela,
   volumeAtual,
 } from "../maos/sistema";
@@ -154,6 +155,13 @@ export async function tentarComando(texto: string, ctx: Contexto): Promise<strin
       return `Abrindo ${programa.nome}.`;
     }
     // Não achou: deixa a IA responder.
+  }
+
+  // Passear.
+  if (/^(vai |va )?(passear|dar uma volta|da uma volta|passeia)$/.test(t)) {
+    ctx.fechar();
+    await passear();
+    return "Fui dar uma volta! Já volto. 🚶";
   }
 
   // Hora e data.
