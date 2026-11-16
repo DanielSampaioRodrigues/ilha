@@ -2105,6 +2105,7 @@ body.modo-passeio #palco {
   position: absolute;
   left: 0;
   top: 0;
+  cursor: grab;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2201,6 +2202,12 @@ body.modo-passeio #palco {
 /* A carinha saiu para passear: a ilha fica vazia até ela voltar. */
 body.carinha-fora .estado.repouso > .carinha {
   visibility: hidden;
+}
+
+/* Dá para pegar o personagem na ilha e arrastar para fora. */
+.estado.repouso > .carinha {
+  cursor: grab;
+  touch-action: none;
 }
 
 /* ---------- Copiados ---------- */

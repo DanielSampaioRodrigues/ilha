@@ -572,14 +572,29 @@ function feitoComIA(id: string, nome: string, jeito: string, extra: { material?:
           programando,
           foco: programando,
           desenhando: [{ entrada: sentarNaMesa, quadros: ["escritorio-desenhando"], ms: 1000 }, "deitado-desenhando"],
-          chamada: [{ entrada: sentarNaMesa, quadros: ["escritorio-chamada"], ms: 1000 }, { entrada: sentarNaPoltrona, quadros: ["sala-chamada"], ms: 1000 }, "deitado-chamada"],
+          chamada: [{ entrada: sentarNaMesa, quadros: ["escritorio-chamada"], ms: 1000 }, "deitado-chamada"],
+          // A sala é para ver TV.
           assistindo: [
             { entrada: sentarNaPoltrona, quadros: [...Array(5).fill("sala-pipoca"), "sala-rindo", "sala-rindo"], ms: 700 },
             "deitado-pipoca",
           ],
-          lendo: [{ entrada: sentarNaPoltrona, quadros: ["sala-lendo"], ms: 1000 }, "deitado-lendo"],
-          musica: [{ entrada: sentarNaPoltrona, quadros: ["sala-musica"], ms: 1000 }, "deitado-musica"],
-          dormindo: ["deitado-dormindo", "sala-cochilo", "escritorio-cochilo"],
+          // Ler: no pufe do cantinho de leitura (ou deitado).
+          lendo: [{ entrada: ["leitura-chegando"], quadros: ["leitura-lendo"], ms: 1000 }, "deitado-lendo"],
+          // Música: põe o disco, dança e curte de olhos fechados.
+          musica: [
+            { entrada: ["musica-chegando"], quadros: ["musica-dancando", "musica-dancando", "musica-dancando", "musica-curtindo", "musica-curtindo"], ms: 900 },
+            "deitado-musica",
+          ],
+          sonolento: { quadros: ["quarto-bocejando"], ms: 1000 },
+          // Dormir: na cama; se já estava num cantinho, cochila ali mesmo.
+          dormindo: [
+            { entrada: ["quarto-bocejando", "quarto-deitando"], quadros: ["quarto-dormindo"], ms: 1000 },
+            { entrada: ["quarto-bocejando", "quarto-deitando"], quadros: ["quarto-dormindo"], ms: 1000 },
+            "sala-cochilo",
+            "escritorio-cochilo",
+            "leitura-cochilo",
+            "deitado-dormindo",
+          ],
           acenando: { entrada: sentarNaPoltrona.slice(0, 1), quadros: ["sala-acenando"], ms: 1000 },
         };
       })(),
@@ -883,7 +898,7 @@ export type Cena = string | { entrada?: string[]; quadros: string[]; ms: number 
 type CenaAnimada = Exclude<Cena, string>;
 
 /** "sala-pipoca" → "sala": em que cenário a pose está. */
-const cenario = (pose: string) => (/^(deitado|sala|escritorio)-/.exec(pose)?.[1] ?? "");
+const cenario = (pose: string) => (/^(deitado|sala|escritorio|leitura|musica|quarto)-/.exec(pose)?.[1] ?? "");
 
 export interface OpcoesCarinha {
   /** Sempre o corpo inteiro (passeio, cartões de escolha), mesmo no modo viseira. */
@@ -950,8 +965,10 @@ export class Carinha {
     if (animImagem) {
       const entrada = animImagem.entrada ?? [];
       // Já estava nesse cenário (ex.: de digitando para programando): não levanta e senta de novo.
+      // Se já estava num quadro da entrada (ex.: bocejando), continua dali.
+      const ondeEsta = entrada.indexOf(this.poseVisivel);
       const jaEstava = entrada.length > 0 && cenario(this.poseVisivel) === cenario(entrada[0]);
-      this.quadro = jaEstava ? entrada.length : 0;
+      this.quadro = ondeEsta >= 0 ? ondeEsta + 1 : jaEstava ? entrada.length : 0;
       const tique = () => {
         this.animacao = window.setTimeout(() => {
           if (!this.elemento.isConnected) {

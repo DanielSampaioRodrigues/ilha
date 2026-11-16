@@ -43,3 +43,109 @@ pub async fn fim_passeio(app: AppHandle) {
         let _ = j.close();
     }
 }
+
+// ---------- Pegar o personagem com o mouse ----------
+//
+// Clicou no personagem (na ilha ou passeando) e arrastou: daqui em diante é
+// o Rust que acompanha o mouse enquanto o botão estiver apertado — funciona
+// mesmo fora das janelas. A janela do passeio recebe "passeio:arrastar" a
+// cada quadro e "passeio:soltar" quando o botão é solto.
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use std::time::Duration;
+
+static ARRASTANDO: AtomicBool = AtomicBool::new(false);
+
+/// Como a janela do passeio deve começar (ela demora um pouco para abrir).
+#[derive(Clone, Copy, serde::Serialize)]
+pub struct Comeco {
+    pub modo: &'static str,
+    pub x: f64,
+    pub y: f64,
+}
+
+static COMECO: Mutex<Option<Comeco>> = Mutex::new(None);
+
+#[derive(Clone, Copy, serde::Serialize)]
+struct Ponto {
+    x: f64,
+    y: f64,
+}
+
+/// O Dan pegou o personagem: abre o passeio (se preciso) e segue o mouse.
+#[tauri::command]
+pub async fn pegar_personagem(app: AppHandle) -> Result<(), String> {
+    if ARRASTANDO.swap(true, Ordering::SeqCst) {
+        return Ok(());
+    }
+    let ja_passeando = app.get_webview_window(JANELA_PASSEIO).is_some();
+    if !ja_passeando {
+        if let Ok(mut c) = COMECO.lock() {
+            *c = Some(Comeco { modo: "segurando", x: 0.0, y: 0.0 });
+        }
+        if let Err(e) = passear(app.clone()).await {
+            ARRASTANDO.store(false, Ordering::SeqCst);
+            return Err(e);
+        }
+    }
+    std::thread::spawn(move || seguir_mouse(app));
+    Ok(())
+}
+
+/// A janela do passeio pergunta, ao abrir, se começa normal ou na mão do Dan.
+#[tauri::command]
+pub fn comeco_do_passeio() -> Comeco {
+    COMECO
+        .lock()
+        .ok()
+        .and_then(|mut c| c.take())
+        .unwrap_or(Comeco { modo: "normal", x: 0.0, y: 0.0 })
+}
+
+fn seguir_mouse(app: AppHandle) {
+    let comeco = std::time::Instant::now();
+    loop {
+        std::thread::sleep(Duration::from_millis(16));
+        let Some(j) = app.get_webview_window(JANELA_PASSEIO) else {
+            // A janela ainda está abrindo (ou fechou): espera um pouco, depois desiste.
+            if comeco.elapsed() > Duration::from_secs(5) || !botao_apertado() {
+                ARRASTANDO.store(false, Ordering::SeqCst);
+                return;
+            }
+            continue;
+        };
+        let (Ok(cursor), Ok(posicao), Ok(escala)) = (j.cursor_position(), j.outer_position(), j.scale_factor()) else {
+            continue;
+        };
+        let ponto = Ponto {
+            x: (cursor.x - posicao.x as f64) / escala,
+            y: (cursor.y - posicao.y as f64) / escala,
+        };
+        let solto = !botao_apertado();
+        if let Ok(mut c) = COMECO.lock() {
+            // Se a janela ainda não leu como começar, guarda onde ele está.
+            if let Some(atual) = c.as_mut() {
+                *atual = Comeco { modo: if solto { "solto" } else { "segurando" }, x: ponto.x, y: ponto.y };
+            }
+        }
+        if solto {
+            ARRASTANDO.store(false, Ordering::SeqCst);
+            let _ = app.emit("passeio:soltar", ponto);
+            return;
+        }
+        let _ = app.emit("passeio:arrastar", ponto);
+    }
+}
+
+#[cfg(windows)]
+fn botao_apertado() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
+    // O bit mais alto ligado = o botão está apertado agora.
+    unsafe { (GetAsyncKeyState(VK_LBUTTON.0 as i32) as u16) & 0x8000 != 0 }
+}
+
+#[cfg(not(windows))]
+fn botao_apertado() -> bool {
+    false
+}

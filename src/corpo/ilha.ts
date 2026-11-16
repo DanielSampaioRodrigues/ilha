@@ -9,7 +9,7 @@ import { informarArea } from "../ponte";
 import type { Novidade } from "../atualizacao";
 import { ler, mudar, type ModoDiscreto } from "../dados/armazem";
 import { pendentes } from "../dados/datas";
-import { passear, responderPermissao, vigiarJanelas, type Midia, type Volume } from "../maos/sistema";
+import { passear, pegarPersonagem, responderPermissao, vigiarJanelas, type Midia, type Volume } from "../maos/sistema";
 import { tocarAlarme } from "./som";
 
 // Molas no estilo das animações da Apple: definidas pelo "tempo de resposta"
@@ -108,9 +108,29 @@ export class Ilha {
     palco.append(this.svg, this.camada, this.medidor);
 
     // Clicar numa ilha compacta (repouso, aviso, tarefa pronta) abre a ilha inteira.
+    let acabouDeArrastar = false;
     const aoClicar = () => {
+      if (acabouDeArrastar) return;
       if (ESTADOS[this.estado].compacto) this.abrir();
     };
+
+    // Apertar no personagem e arrastar: ele sai da ilha pendurado no mouse.
+    let arraste: { x: number; y: number; id: number } | null = null;
+    this.camada.addEventListener("pointerdown", (e) => {
+      const carinha = (e.target as Element).closest?.(".estado.repouso > .carinha");
+      if (!carinha || document.body.classList.contains("carinha-fora")) return;
+      arraste = { x: e.screenX, y: e.screenY, id: e.pointerId };
+    });
+    window.addEventListener("pointermove", (e) => {
+      if (!arraste || e.pointerId !== arraste.id) return;
+      if (Math.hypot(e.screenX - arraste.x, e.screenY - arraste.y) < 8) return;
+      arraste = null;
+      acabouDeArrastar = true;
+      window.setTimeout(() => (acabouDeArrastar = false), 400);
+      document.body.classList.add("carinha-fora");
+      pegarPersonagem().catch(() => document.body.classList.remove("carinha-fora"));
+    });
+    window.addEventListener("pointerup", () => (arraste = null));
     this.forma.addEventListener("click", aoClicar);
     this.camada.addEventListener("click", aoClicar);
     window.addEventListener("resize", () => this.redesenhar());

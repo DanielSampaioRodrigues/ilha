@@ -94,6 +94,8 @@ pub fn run() {
             corpo::permissao::responder_permissao,
             corpo::passeio::passear,
             corpo::passeio::fim_passeio,
+            corpo::passeio::pegar_personagem,
+            corpo::passeio::comeco_do_passeio,
             maos::voz::ouvir,
             maos::voz::parar_de_ouvir,
             maos::chamado::atender_pelo_nome,

@@ -2,14 +2,39 @@
 // alguma coisa (brinca de bola, encontra um amigo, cresce, dança, tira um
 // cochilo) e volta para a ilha. Roda numa janela transparente que não pega
 // o clique. Cada passeio sorteia o que acontece.
+//
+// O Dan pode pegar o personagem com o mouse (arrastando da ilha ou clicando
+// nele enquanto passeia): ele fica pendurado no mouse e, ao soltar, cai com
+// gravidade (jogado com força, vai quicando). Depois segue o passeio.
 import "./estilo.css";
 import { invoke } from "@tauri-apps/api/core";
+import { cursorPosition, getCurrentWindow } from "@tauri-apps/api/window";
 import { carregar, ler } from "./dados/armazem";
-import { dentroDoApp } from "./ponte";
+import { dentroDoApp, ouvir } from "./ponte";
 import { Carinha, PERSONAGENS, type Expressao, type PersonagemId } from "./corpo/carinha";
 
 const TAMANHO = 5; // pixels de cada "pixel" do personagem
-const espera = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+/** O Dan pegou o personagem: o que estava acontecendo para na hora. */
+class Interrompido extends Error {}
+/** Muda cada vez que o Dan pega o personagem; quem é de uma "geração" antiga para. */
+let geracao = 0;
+let pego = false;
+const espera = (ms: number) => {
+  const g = geracao;
+  return new Promise<void>((ok, falha) => window.setTimeout(() => (g !== geracao ? falha(new Interrompido()) : ok()), ms));
+};
+/** Um passo de animação por quadro, até "fazer" devolver true (ou o Dan pegar o personagem). */
+function quadros(fazer: (agora: number) => boolean): Promise<void> {
+  const g = geracao;
+  return new Promise<void>((ok, falha) => {
+    const passo = (agora: number) => {
+      if (g !== geracao) return falha(new Interrompido());
+      if (fazer(agora)) ok();
+      else requestAnimationFrame(passo);
+    };
+    requestAnimationFrame(passo);
+  });
+}
 const sorteio = <T,>(lista: T[]) => lista[Math.floor(Math.random() * lista.length)];
 
 /** Um bichinho na tela: carinha + pezinhos, que anda, pula e muda de cara. */
@@ -28,9 +53,9 @@ class Bicho {
     // Personagem 3D (feito com IA): anda solto, sem a cápsula e os pezinhos.
     if (PERSONAGENS[personagem ?? ler().config.personagem]?.imagens) this.el.classList.add("bicho-3d");
     this.carinha = new Carinha("normal", {
+      corpoInteiro: true,
       tamanho,
       comAcessorio: true,
-      corpoInteiro: true,
       aparencia: personagem ? { personagem, acessorio: "nenhum" } : undefined,
     });
     // Corpinho: uma mini-ilha preta com a carinha, e os pezinhos embaixo.
@@ -77,16 +102,17 @@ class Bicho {
     this.el.classList.add("andando");
     const tempo = (Math.abs(distancia) / velocidade) * 1000;
     const comeco = performance.now();
-    await new Promise<void>((pronto) => {
-      const passo = (agora: number) => {
+    try {
+      await quadros((agora) => {
         const t = Math.min(1, (agora - comeco) / tempo);
         const balanco = Math.abs(Math.sin(t * tempo * 0.012)) * -4;
-        this.el.style.transform = `translate(${inicio + distancia * t}px, ${this.y + balanco}px) scale(${this.escala})`;
-        if (t < 1) requestAnimationFrame(passo);
-        else pronto();
-      };
-      requestAnimationFrame(passo);
-    });
+        this.x = inicio + distancia * t;
+        this.el.style.transform = `translate(${this.x}px, ${this.y + balanco}px) scale(${this.escala})`;
+        return t >= 1;
+      });
+    } finally {
+      this.el.classList.remove("andando");
+    }
     this.x = destino;
     this.el.classList.remove("andando");
     this.cara("normal");
@@ -97,16 +123,15 @@ class Bicho {
   async pular(x: number, y: number, ms = 700, altura = 80, escalaFinal = this.escala): Promise<void> {
     const [x0, y0, e0] = [this.x, this.y, this.escala];
     const comeco = performance.now();
-    await new Promise<void>((pronto) => {
-      const passo = (agora: number) => {
-        const t = Math.min(1, (agora - comeco) / ms);
-        const arco = -4 * altura * t * (1 - t);
-        const e = e0 + (escalaFinal - e0) * t;
-        this.el.style.transform = `translate(${x0 + (x - x0) * t}px, ${y0 + (y - y0) * t + arco}px) scale(${e})`;
-        if (t < 1) requestAnimationFrame(passo);
-        else pronto();
-      };
-      requestAnimationFrame(passo);
+    await quadros((agora) => {
+      const t = Math.min(1, (agora - comeco) / ms);
+      const arco = -4 * altura * t * (1 - t);
+      const e = e0 + (escalaFinal - e0) * t;
+      this.x = x0 + (x - x0) * t;
+      this.y = y0 + (y - y0) * t + arco;
+      this.escala = e;
+      this.el.style.transform = `translate(${this.x}px, ${this.y}px) scale(${e})`;
+      return t >= 1;
     });
     this.colocar(x, y, escalaFinal);
   }
@@ -120,6 +145,45 @@ class Bicho {
 
   sumir(): void {
     this.el.remove();
+  }
+
+  /** Pendurado no mouse: segura pela cabeça e balança conforme o movimento. */
+  segurar(x: number, y: number, inclinacao: number): void {
+    this.el.style.transformOrigin = "50% 6%";
+    this.escala = 1;
+    this.x = x - this.largura / 2;
+    this.y = y - this.altura * 0.06;
+    this.el.style.transform = `translate(${this.x}px, ${this.y}px) rotate(${inclinacao.toFixed(1)}deg)`;
+  }
+
+  /** Cai com gravidade a partir de onde está; jogado com força, quica nas bordas e no chão. */
+  async cair(vx: number, vy: number, chao: number, largura: number): Promise<void> {
+    this.el.style.transformOrigin = "";
+    this.cara("surpreso");
+    let { x, y } = this;
+    let quique = 0;
+    await quadros(() => {
+      vy += 1.1;
+      x += vx;
+      y += vy;
+      if (x < 0) [x, vx] = [0, -vx * 0.6];
+      if (x > largura - this.largura) [x, vx] = [largura - this.largura, -vx * 0.6];
+      if (y < -this.altura) [y, vy] = [-this.altura, Math.abs(vy) * 0.5];
+      if (y >= chao) {
+        y = chao;
+        if (Math.abs(vy) < 4 || quique > 4) return true;
+        vy = -vy * 0.45;
+        vx *= 0.75;
+        quique++;
+        this.cara(quique > 1 ? "rindo" : "surpreso");
+      }
+      this.x = x;
+      this.y = y;
+      this.el.style.transform = `translate(${x}px, ${y}px) rotate(${(vx * 1.6).toFixed(1)}deg)`;
+      return false;
+    });
+    this.colocar(x, chao, 1);
+    await this.amassar();
   }
 }
 
@@ -242,6 +306,11 @@ async function acenar(bicho: Bicho): Promise<void> {
   await espera(900);
 }
 
+/** Deixa só o personagem principal no palco (some a bola, o amigo, os brilhos…). */
+function limparPalco(palco: HTMLElement, bicho: Bicho): void {
+  for (const filho of [...palco.children]) if (filho !== bicho.el) filho.remove();
+}
+
 export async function iniciarPasseio(): Promise<void> {
   document.body.classList.add("modo-passeio");
   await carregar();
@@ -254,16 +323,6 @@ export async function iniciarPasseio(): Promise<void> {
   const chao = altura - bicho.altura - 6;
   const meio = largura / 2 - bicho.largura / 2;
 
-  // 1. Sai da ilha (pequenininho) e cai até o chão.
-  bicho.colocar(meio, 4, 0.35);
-  bicho.cara("surpreso");
-  await espera(250);
-  await bicho.pular(meio + (Math.random() - 0.5) * 300, chao, 1100, 120, 1);
-  await bicho.amassar();
-  bicho.cara("feliz");
-  await espera(500);
-
-  // 2. Passeia e faz duas coisas sorteadas.
   const coisas = [
     () => brincarDeBola(palco, bicho, chao, largura),
     () => encontrarAmigo(palco, bicho, chao, largura),
@@ -272,18 +331,130 @@ export async function iniciarPasseio(): Promise<void> {
     () => cochilar(palco, bicho),
     () => acenar(bicho),
   ];
-  for (let i = 0; i < 3; i++) {
-    await bicho.andar(Math.max(30, Math.min(largura - bicho.largura - 30, Math.random() * largura)), 75);
-    await espera(400);
-    const escolhida = coisas.splice(Math.floor(Math.random() * coisas.length), 1)[0];
-    await escolhida();
+  const fazerCoisas = async (quantas: number) => {
+    const sorteio = [...coisas];
+    for (let i = 0; i < quantas; i++) {
+      await bicho.andar(Math.max(30, Math.min(largura - bicho.largura - 30, Math.random() * largura)), 75);
+      await espera(400);
+      await sorteio.splice(Math.floor(Math.random() * sorteio.length), 1)[0]();
+    }
+  };
+  const voltar = async () => {
+    // Volta para a ilha: anda até o meio e pula para dentro.
+    await bicho.andar(meio, 110);
+    bicho.cara("pulando");
+    await espera(300);
+    await bicho.pular(meio, 4, 900, 140, 0.35);
+    bicho.sumir();
+    if (dentroDoApp) await invoke("fim_passeio").catch(() => {});
+  };
+  /** Roda uma sequência; se o Dan pegar o personagem no meio, ela simplesmente para. */
+  const rodar = async (sequencia: () => Promise<void>) => {
+    try {
+      await sequencia();
+      await voltar();
+    } catch (e) {
+      if (!(e instanceof Interrompido)) throw e;
+    }
+  };
+
+  // ---------- Na mão do Dan ----------
+  const rastro: { x: number; y: number; t: number }[] = [];
+  let inclinacao = 0;
+  const pegar = (x: number, y: number) => {
+    if (!pego) {
+      pego = true;
+      geracao++;
+      limparPalco(palco, bicho);
+      bicho.cara("surpreso");
+      window.setTimeout(() => pego && bicho.cara("pulando"), 500);
+    }
+    rastro.push({ x, y, t: performance.now() });
+    if (rastro.length > 5) rastro.shift();
+    // Balança para o lado contrário do movimento, como pendurado.
+    const dx = rastro.length > 1 ? rastro[rastro.length - 1].x - rastro[rastro.length - 2].x : 0;
+    inclinacao += (Math.max(-30, Math.min(30, -dx * 2.2)) - inclinacao) * 0.35;
+    bicho.segurar(x, y, inclinacao);
+  };
+  const soltar = (x: number, y: number) => {
+    if (!pego) return;
+    pegar(x, y);
+    pego = false;
+    // Velocidade dos últimos movimentos (px por quadro): dá para jogá-lo.
+    const [a, b] = [rastro[0], rastro[rastro.length - 1]];
+    const quadrosPassados = Math.max(1, (b.t - a.t) / 16);
+    const limite = (v: number) => Math.max(-38, Math.min(38, v));
+    const vx = limite((b.x - a.x) / quadrosPassados);
+    const vy = limite((b.y - a.y) / quadrosPassados);
+    rastro.length = 0;
+    inclinacao = 0;
+    void rodar(async () => {
+      await bicho.cair(vx, vy, chao, largura);
+      bicho.cara("confuso");
+      await espera(600);
+      bicho.cara("feliz");
+      await espera(500);
+      await fazerCoisas(1);
+    });
+  };
+  ligarMaos(bicho, pegar, soltar);
+
+  const comeco = dentroDoApp
+    ? await invoke<{ modo: string; x: number; y: number }>("comeco_do_passeio").catch(() => ({ modo: "normal", x: 0, y: 0 }))
+    : { modo: new URLSearchParams(location.search).get("comeco") ?? "normal", x: largura / 2, y: altura / 3 };
+  if (comeco.modo === "segurando" || comeco.modo === "solto") {
+    // Saiu da ilha na mão do Dan.
+    pegar(comeco.x, comeco.y);
+    if (comeco.modo === "solto") soltar(comeco.x, comeco.y);
+    return;
   }
 
-  // 3. Volta para a ilha: anda até o meio e pula para dentro.
-  await bicho.andar(meio, 110);
-  bicho.cara("pulando");
-  await espera(300);
-  await bicho.pular(meio, 4, 900, 140, 0.35);
-  bicho.sumir();
-  if (dentroDoApp) await invoke("fim_passeio").catch(() => {});
+  void rodar(async () => {
+    // 1. Sai da ilha (pequenininho) e cai até o chão.
+    bicho.colocar(meio, 4, 0.35);
+    bicho.cara("surpreso");
+    await espera(250);
+    await bicho.pular(meio + (Math.random() - 0.5) * 300, chao, 1100, 120, 1);
+    await bicho.amassar();
+    bicho.cara("feliz");
+    await espera(500);
+    // 2. Passeia e faz três coisas sorteadas.
+    await fazerCoisas(3);
+  });
+}
+
+/**
+ * Deixa o Dan pegar o personagem: a janela do passeio deixa o clique passar,
+ * menos quando o mouse está em cima dele. Ao clicar, o Rust passa a seguir o
+ * mouse (mesmo fora da janela) e manda "arrastar" e "soltar".
+ */
+function ligarMaos(bicho: Bicho, pegar: (x: number, y: number) => void, soltar: (x: number, y: number) => void): void {
+  ouvir<{ x: number; y: number }>("passeio:arrastar", ({ x, y }) => pegar(x, y));
+  ouvir<{ x: number; y: number }>("passeio:soltar", ({ x, y }) => soltar(x, y));
+  // Fora do app (testes no navegador): dá para simular pelo console.
+  Object.assign(window, { passeioTeste: { pegar, soltar } });
+  if (!dentroDoApp) return;
+  const janela = getCurrentWindow();
+  void (async () => {
+    const [posicao, escala] = await Promise.all([janela.outerPosition(), janela.scaleFactor()]);
+    let atravessando = true;
+    window.setInterval(async () => {
+      if (pego || !bicho.el.isConnected) return;
+      const c = await cursorPosition().catch(() => null);
+      if (!c) return;
+      const x = (c.x - posicao.x) / escala;
+      const y = (c.y - posicao.y) / escala;
+      const r = bicho.el.getBoundingClientRect();
+      const emCima = x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+      if (emCima === atravessando) {
+        atravessando = !emCima;
+        await janela.setIgnoreCursorEvents(atravessando).catch(() => {});
+      }
+    }, 60);
+    bicho.el.addEventListener("pointerdown", () => {
+      atravessando = true;
+      void janela.setIgnoreCursorEvents(true).catch(() => {});
+      void invoke("pegar_personagem").catch(() => {});
+    });
+  })();
 }

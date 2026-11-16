@@ -344,6 +344,8 @@ export const copiadosLigar = (ligar: boolean) => pedir<void>("copiados_ligar", {
 
 /** O personagem sai da ilha e passeia pela tela. */
 export const passear = () => pedir<void>("passear");
+/** O Dan pegou o personagem com o mouse: ele sai da ilha pendurado no mouse. */
+export const pegarPersonagem = () => pedir<void>("pegar_personagem");
 
 /** Responde o "posso?" de uma IA (Sim ou Não). */
 export const responderPermissao = (id: string, permitir: boolean) => pedir<void>("responder_permissao", { id, permitir });
