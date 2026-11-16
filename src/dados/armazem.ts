@@ -102,7 +102,7 @@ export interface Config {
   corBochechas: string;
   acessorio: "nenhum" | "chapeu" | "coroa" | "laco" | "oculos" | "fones" | "antena";
   /** Qual personagem (robô, gato, urso…). */
-  personagem: "robo" | "gato" | "urso" | "sapo" | "alien" | "fantasma" | "coelho";
+  personagem: import("../corpo/carinha").PersonagemId;
   /** Na ilha aberta: a cabeça do robô vermelho ou a carinha de pixel grande. */
   cabecaAberta: "robo" | "carinha";
   olhosSeguemMouse: boolean;

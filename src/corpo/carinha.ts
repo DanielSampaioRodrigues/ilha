@@ -318,14 +318,53 @@ function quadros(expressao: Expressao): { quadros: Desenho[]; ms: number } | nul
 // Cada personagem é a mesma carinha (olhos e boca das 21 expressões) com o
 // que é dele em volta: orelhas, bigodes, antenas… Desenhos próprios da ilha.
 
-export type PersonagemId = "robo" | "gato" | "urso" | "sapo" | "alien" | "fantasma" | "coelho";
+export type PersonagemId =
+  | "robo"
+  | "gato"
+  | "urso"
+  | "sapo"
+  | "alien"
+  | "fantasma"
+  | "coelho"
+  | "gelatina"
+  | "nuvem"
+  | "pinguim"
+  | "coruja"
+  | "tv"
+  | "olhao";
 
 interface Personagem {
   nome: string;
   jeito: string;
+  /** Corpo, orelhas, bigodes… (desenhados por baixo dos olhos). */
   pixels: Pixel[];
   /** Bocas diferentes (ex.: o "w" do gato no lugar do sorriso). */
   bocas?: Partial<Record<keyof typeof BOCAS, readonly [readonly number[], readonly number[]]>>;
+  /** Boca desenhada pelo próprio personagem (ex.: bico). */
+  boca?: (boca: keyof typeof BOCAS) => Pixel[];
+  /** Olhos de cor própria (ex.: escuros num corpo colorido). */
+  corOlhos?: string;
+  /** Um olho só, no meio. */
+  umOlho?: boolean;
+  bochechas?: boolean;
+}
+
+/** Retângulos cheios: [x de, x até, y] por linha. */
+function corpo(linhas: [number, number, number][], cor: string): Pixel[] {
+  return linhas.flatMap(([de, ate, y]) => Array.from({ length: ate - de + 1 }, (_, i) => [de + i, y, cor] as Pixel));
+}
+
+const linhasCheias = (de: number, ate: number, y0: number, y1: number): [number, number, number][] =>
+  Array.from({ length: y1 - y0 + 1 }, (_, i) => [de, ate, y0 + i] as [number, number, number]);
+
+/** Bico: fechado ou aberto conforme a boca da expressão. */
+function bico(cor: string): (b: keyof typeof BOCAS) => Pixel[] {
+  return (b) =>
+    b === "nenhuma"
+      ? []
+      : ["aberta", "grande", "susto"].includes(b)
+        ? pontos([[8, 7], [9, 7], [10, 7], [8, 9], [9, 9], [10, 9]], cor)
+        : pontos([[8, 7], [9, 7], [10, 7], [9, 8]], cor);
 }
 
 /** Espelha pixels da esquerda para a direita da carinha (19 de largura). */
@@ -415,6 +454,91 @@ export const PERSONAGENS: Record<PersonagemId, Personagem> = {
       [10, 9, BRANCO],
     ],
     bocas: { sorriso: [[8, 10], []] },
+  },
+  gelatina: {
+    nome: "Gelatina",
+    jeito: "Molenga e grudenta: não larga você por nada.",
+    corOlhos: "#0B2A17",
+    pixels: [
+      ...corpo([[4, 14, -3], [1, 17, -2], [-1, 19, -1], ...linhasCheias(-2, 20, 0, 9)], "#5BE38F"),
+      ...pontos([[1, -1], [0, 0], [0, 1]], "#C8FFD9"),
+    ],
+  },
+  nuvem: {
+    nome: "Nuvem",
+    jeito: "Leve, tranquila e sempre por cima de tudo.",
+    corOlhos: "#1A2230",
+    pixels: corpo(
+      [
+        [3, 6, -4],
+        [11, 15, -4],
+        [1, 17, -3],
+        [0, 18, -2],
+        [-2, 20, -1],
+        ...linhasCheias(-3, 21, 0, 7),
+        [-2, 20, 8],
+        [-1, 4, 9],
+        [7, 11, 9],
+        [14, 19, 9],
+      ],
+      "#E9ECEF",
+    ),
+  },
+  pinguim: {
+    nome: "Pinguim",
+    jeito: "Elegante e organizado, de smoking o dia todo.",
+    corOlhos: "#11161C",
+    pixels: [
+      ...corpo([[2, 16, -4], [0, 18, -3], [-1, 19, -2], [-2, 20, -1], ...linhasCheias(-2, 20, 0, 9)], "#3A4552"),
+      ...corpo([[2, 16, -1], ...linhasCheias(0, 18, 0, 9)], "#F2F4F6"),
+    ],
+    boca: bico("#FFA51F"),
+  },
+  coruja: {
+    nome: "Coruja",
+    jeito: "Sábia e acordada até tarde com você.",
+    bochechas: false,
+    pixels: [
+      ...espelhar(pontos([[0, -3], [1, -3], [1, -2]], "#C68A5A")),
+      ...espelhar(
+        pontos(
+          [
+            [1, -1], [2, -1], [3, -1], [4, -1], [5, -1],
+            [0, 0], [6, 0], [-1, 1], [7, 1], [-1, 2], [7, 2], [-1, 3], [7, 3], [-1, 4], [7, 4], [-1, 5], [7, 5],
+            [0, 6], [6, 6], [1, 7], [2, 7], [4, 7], [5, 7],
+          ],
+          "#FFA51F",
+        ),
+      ),
+    ],
+    boca: bico("#FFD84D"),
+  },
+  tv: {
+    nome: "TV",
+    jeito: "Retrô: sempre tem um canal novo de ideias.",
+    pixels: [
+      ...corpo(linhasCheias(-1, 19, -1, 9), "#122028"),
+      ...corpo([[-2, 20, -2]], "#9AA3AD"),
+      ...pontos(Array.from({ length: 12 }, (_, y) => [-2, y - 2] as Ponto), "#9AA3AD"),
+      ...pontos(Array.from({ length: 12 }, (_, y) => [20, y - 2] as Ponto), "#9AA3AD"),
+      ...pontos([[7, -3], [6, -4], [11, -3], [12, -4]], "#9AA3AD"),
+      [21, 2, "#FFA51F"],
+      [21, 5, "#FF5A8A"],
+    ],
+  },
+  olhao: {
+    nome: "Olhão",
+    jeito: "Monstrinho de um olho só: não perde nenhum detalhe.",
+    umOlho: true,
+    corOlhos: "#F2F4F6",
+    pixels: [
+      ...espelhar(pontos([[3, -2], [2, -3], [2, -4]], "#D9C2FF")),
+      ...corpo([[2, 16, -1], [0, 18, 0], ...linhasCheias(-1, 19, 1, 9)], "#7A4FD6"),
+    ],
+    bocas: {
+      sorriso: [[5, 13], [6, 7, 8, 9, 10, 11, 12]],
+      grande: [[5, 6, 7, 8, 9, 10, 11, 12, 13], [6, 8, 10, 12]],
+    },
   },
 };
 
@@ -543,21 +667,31 @@ export class Carinha {
 
   private pintar(d: Desenho): void {
     const ap = this.aparencia();
-    const personagem = PERSONAGENS[ap.personagem] ?? PERSONAGENS.robo;
+    // O personagem só aparece "de corpo inteiro" (com acessório); nos outros
+    // lugares fica a carinha simples.
+    const personagem = this.opcoes.comAcessorio ? (PERSONAGENS[ap.personagem] ?? PERSONAGENS.robo) : PERSONAGENS.robo;
     this.enquadrar(!!this.opcoes.comAcessorio && (ap.acessorio !== "nenhum" || !!d.acessorio || personagem.pixels.length > 0));
-    const cor = d.cor ?? ap.corOlhos;
+    const cor = d.cor ?? personagem.corOlhos ?? ap.corOlhos;
     const pixels: string[] = [];
     const [mx, my] = d.deslocar ?? [0, 0];
     const acender = (x: number, y: number, c: string) =>
       pixels.push(`<rect x="${x + mx}" y="${y + my}" width="1" height="1" fill="${c || cor}"/>`);
     // O que é do personagem (orelhas, bigodes…) vem primeiro, por baixo.
-    if (this.opcoes.comAcessorio) personagem.pixels.forEach(([x, y, c]) => acender(x, y, c));
-    d.esquerdo.forEach(([x, y]) => acender(x, y, cor));
-    d.direito.forEach(([x, y]) => acender(x + 12, y, cor));
-    const [l8, l9] = personagem.bocas?.[d.boca] ?? BOCAS[d.boca];
-    l8.forEach((x) => acender(x, 8, cor));
-    l9.forEach((x) => acender(x, 9, cor));
-    if (d.bochechas && ap.corBochechas !== "nenhuma") [0, 1, 17, 18].forEach((x) => acender(x, 8, ap.corBochechas));
+    personagem.pixels.forEach(([x, y, c]) => acender(x, y, c));
+    if (personagem.umOlho) {
+      d.esquerdo.forEach(([x, y]) => acender(x + 6, y, cor));
+    } else {
+      d.esquerdo.forEach(([x, y]) => acender(x, y, cor));
+      d.direito.forEach(([x, y]) => acender(x + 12, y, cor));
+    }
+    if (personagem.boca) {
+      personagem.boca(d.boca).forEach(([x, y, c]) => acender(x, y, c));
+    } else {
+      const [l8, l9] = personagem.bocas?.[d.boca] ?? BOCAS[d.boca];
+      l8.forEach((x) => acender(x, 8, cor));
+      l9.forEach((x) => acender(x, 9, cor));
+    }
+    if (d.bochechas && personagem.bochechas !== false && ap.corBochechas !== "nenhuma") [0, 1, 17, 18].forEach((x) => acender(x, 8, ap.corBochechas));
     if (this.opcoes.comAcessorio) {
       // A animação pode trocar o acessório (ex.: fones numa chamada).
       const acessorio = d.acessorio ?? (ap.acessorio !== "nenhum" ? ap.acessorio : null);
