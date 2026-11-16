@@ -74,7 +74,8 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
   (o clique passa por ele). Peça na conversa: "vai passear".
 - **Personagem**: escolha quem mora na ilha (13: Robozinho, Gato, Urso, Sapo, Alien,
   Fantasma, Coelho, Gelatina, Nuvem, Pinguim, Coruja, TV, Olhão, mais 6 monstrinhos:
-  Diabinho, Peludo, Morcego, Polvo, Zumbi, Dragãozinho), 21 expressões, cor dos olhos e das bochechas, acessórios, olhos que
+  Diabinho, Peludo, Morcego, Polvo, Zumbi, Dragãozinho, e 6 em estilo moderno: Bolha,
+  Punk, Anime, Gotinha, Cubo, Astronauta), 21 expressões, cor dos olhos e das bochechas, acessórios, olhos que
   seguem o mouse, mosquinha e cochilo quando parado.
 - **Central** (botão de painel na ilha aberta, ou menu do ícone › Abrir a Central): a ilha
   cresce do topo num painel grande (sem janela a mais na barra de tarefas). Fecha com

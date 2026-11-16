@@ -7,6 +7,7 @@
 // personagem; os olhos podem seguir o mouse e piscam/olham para os lados.
 
 import { ler } from "../dados/armazem";
+import { PERSONAGENS_VETOR, pintarVetor, type OlhoSemantico } from "./vetor";
 
 export type Expressao =
   | "normal"
@@ -394,7 +395,13 @@ export type PersonagemId =
   | "morcego"
   | "polvo"
   | "zumbi"
-  | "dragao";
+  | "dragao"
+  | "bolha"
+  | "punk"
+  | "anime"
+  | "gota"
+  | "cubo"
+  | "astronauta";
 
 interface Personagem {
   nome: string;
@@ -405,6 +412,8 @@ interface Personagem {
   frente?: Pixel[];
   /** Monstrinho (para agrupar na tela de escolha). */
   monstro?: boolean;
+  /** Desenhado em vetor (curvas, sombras), não em pixels. */
+  vetor?: boolean;
   /** Bocas diferentes (ex.: o "w" do gato no lugar do sorriso). */
   bocas?: Partial<Record<keyof typeof BOCAS, readonly [readonly number[], readonly number[]]>>;
   /** Boca desenhada pelo próprio personagem (ex.: bico). */
@@ -693,7 +702,29 @@ export const PERSONAGENS: Record<PersonagemId, Personagem> = {
     ],
     frente: pontos([[8, 7], [10, 7]], "#0E4A3D"),
   },
+
+  // ---------- Estilo moderno (vetor) ----------
+  ...(Object.fromEntries(
+    Object.entries(PERSONAGENS_VETOR).map(([id, v]) => [id, { nome: v.nome, jeito: v.jeito, pixels: [], vetor: true }]),
+  ) as unknown as Record<"bolha" | "punk" | "anime" | "gota" | "cubo" | "astronauta", Personagem>),
 };
+
+/** Traduz um olho de pixels para o que ele "quer dizer" (para os personagens em vetor). */
+function semantico(olho: Olho): OlhoSemantico {
+  if (olho === FECHADO) return { tipo: "fechado" };
+  if (olho === FELIZ) return { tipo: "feliz" };
+  if (olho === PISCANDO || olho === MEIO_FECHADO) return { tipo: "pisca" };
+  if (olho === CORACAO) return { tipo: "coracao" };
+  if (olho === ARREGALADO) return { tipo: "arregalado" };
+  if (olho === FOCO) return { tipo: "foco" };
+  // Olho aberto: para onde a pupila foi (o contorno é igual em volta).
+  const contorno = new Set(CONTORNO.map(([x, y]) => `${x},${y}`));
+  const pupila = olho.filter(([x, y]) => !contorno.has(`${x},${y}`));
+  if (!pupila.length) return { tipo: "aberto", dx: 0, dy: 0 };
+  const mx = pupila.reduce((a, [x]) => a + x, 0) / pupila.length;
+  const my = pupila.reduce((a, [, y]) => a + y, 0) / pupila.length;
+  return { tipo: "aberto", dx: Math.max(-1, Math.min(1, mx - 3.1)), dy: Math.max(-1, Math.min(1, my - 3.1)) };
+}
 
 // ---------- A carinha ----------
 
@@ -755,7 +786,7 @@ export class Carinha {
   /** Expressões animadas trocam de quadro sozinhas. */
   private animar(): void {
     window.clearInterval(this.animacao);
-    estiloOlhos = this.aparencia().estiloOlhos ?? "redondos";
+    estiloOlhos = this.estiloDosOlhos();
     const anim = quadros(this.expressao);
     if (!anim) return;
     this.quadro = 0;
@@ -772,6 +803,12 @@ export class Carinha {
   }
   private foiMostrada = false;
   private readonly criada = performance.now();
+
+  /** Personagens em vetor desenham os olhos do jeito deles (a partir do redondo). */
+  private estiloDosOlhos(): EstiloOlhos {
+    const ap = this.aparencia();
+    return this.opcoes.comAcessorio && PERSONAGENS[ap.personagem]?.vetor ? "redondos" : (ap.estiloOlhos ?? "redondos");
+  }
 
   private aparencia(): Aparencia {
     return { ...aparenciaSalva(), ...this.opcoes.aparencia };
@@ -798,7 +835,7 @@ export class Carinha {
   }
 
   private desenharOlhos(olho: Olho): void {
-    estiloOlhos = this.aparencia().estiloOlhos ?? "redondos";
+    estiloOlhos = this.estiloDosOlhos();
     const anim = quadros(this.expressao);
     const atual = anim ? anim.quadros[this.quadro % anim.quadros.length] : desenho(this.expressao, this.olhar);
     const d = { ...atual, esquerdo: olho, direito: olho };
@@ -806,7 +843,7 @@ export class Carinha {
   }
 
   private desenhar(): void {
-    estiloOlhos = this.aparencia().estiloOlhos ?? "redondos";
+    estiloOlhos = this.estiloDosOlhos();
     const anim = quadros(this.expressao);
     this.pintar(anim ? anim.quadros[this.quadro % anim.quadros.length] : desenho(this.expressao, this.olhar));
   }
@@ -827,6 +864,30 @@ export class Carinha {
     // O personagem só aparece "de corpo inteiro" (com acessório); nos outros
     // lugares fica a carinha simples.
     const personagem = this.opcoes.comAcessorio ? (PERSONAGENS[ap.personagem] ?? PERSONAGENS.robo) : PERSONAGENS.robo;
+    if (personagem.vetor) {
+      this.enquadrar(true);
+      this.elemento.setAttribute("shape-rendering", "geometricPrecision");
+      const corV = d.cor ?? ap.corOlhos;
+      const quadrado = (x: number, y: number, c: string) => `<rect x="${x}" y="${y}" width="1" height="1" rx=".3" fill="${c || corV}"/>`;
+      const acessorio = d.acessorio ?? (ap.acessorio !== "nenhum" ? ap.acessorio : null);
+      const extras = [
+        ...(acessorio ? ACESSORIOS[acessorio] : []).map(([x, y, c]) => quadrado(x, y, c)),
+        ...(d.extras ?? []).map(([x, y, c]) => quadrado(x, y, c)),
+      ].join("");
+      this.elemento.innerHTML = pintarVetor(
+        PERSONAGENS_VETOR[ap.personagem],
+        [semantico(d.esquerdo), semantico(d.direito)],
+        d.boca,
+        d.bochechas,
+        corV,
+        ap.corBochechas,
+        extras,
+        d.deslocar ?? [0, 0],
+      );
+      this.elemento.style.setProperty("--brilho", "transparent");
+      return;
+    }
+    this.elemento.setAttribute("shape-rendering", "crispEdges");
     this.enquadrar(!!this.opcoes.comAcessorio && (ap.acessorio !== "nenhum" || !!d.acessorio || personagem.pixels.length > 0));
     const cor = d.cor ?? personagem.corOlhos ?? ap.corOlhos;
     const pixels: string[] = [];
