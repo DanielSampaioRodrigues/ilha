@@ -16,6 +16,7 @@ import {
   listarProgramas,
   perceberAtividade,
   atenderPeloNome,
+  copiadosLigar,
   midiaAtual,
   PROGRAMAS_COM_ABAS,
   type Volume,
@@ -57,12 +58,14 @@ async function iniciar(): Promise<void> {
   // Passeio: enquanto o personagem está fora, a ilha fica sem carinha.
   ouvir<boolean>("ilha:passeio", (fora) => ilha.passeando(fora));
   ilha.agendarPasseios();
+  ilha.agendarRotinas();
   ouvir<import("./corpo/contexto").Pergunta>("ilha:permissao", (p) => ilha.perguntar(p));
   ouvir<string>("ilha:permissao-fim", (id) => ilha.esquecerPergunta(id));
   ouvir<{ digitando: boolean; categoria: string }>("ilha:atividade", (a) => ilha.atividade(a.digitando, a.categoria));
   // Madrugada etc.: confere a hora de tempos em tempos.
   window.setInterval(() => ilha.atualizarAtividade(), 60_000);
   perceberAtividade(ler().config.perceberAtividade).catch(() => {});
+  if (!ler().config.copiadosLigado) copiadosLigar(false).catch(() => {});
   if (ler().config.atenderPeloNome) atenderPeloNome(true, ler().config.nomeRobo).catch(() => {});
   // Calendário da Apple: manda o que mudou (se estiver conectado).
   import("./dados/calendario").then((m) => m.sincronizarSempre());

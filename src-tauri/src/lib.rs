@@ -59,6 +59,7 @@ pub fn run() {
         .manage(corpo::central::TelaPendente::default())
         .manage(cerebro::motores::Andamento::default())
         .manage(corpo::permissao::Esperando::default())
+        .manage(maos::copiados::Copiados::default())
         .invoke_handler(tauri::generate_handler![
             janela::definir_area,
             atalho::definir_atalho,
@@ -96,6 +97,11 @@ pub fn run() {
             maos::voz::ouvir,
             maos::voz::parar_de_ouvir,
             maos::chamado::atender_pelo_nome,
+            maos::copiados::copiados_listar,
+            maos::copiados::copiados_fixar,
+            maos::copiados::copiados_apagar,
+            maos::copiados::copiados_limpar,
+            maos::copiados::copiados_ligar,
             maos::calendario::icloud_conectar,
             maos::calendario::icloud_calendarios,
             maos::calendario::icloud_desconectar,
@@ -126,6 +132,7 @@ pub fn run() {
             corpo::janela_ativa::iniciar(app.clone());
             corpo::atividade::iniciar(app.clone());
             corpo::permissao::iniciar(app.clone());
+            maos::copiados::iniciar(app.clone());
             corpo::tela_cheia::vigiar(app.clone());
             maos::volume::vigiar(app.clone());
             maos::pc::vigiar(app.clone());

@@ -47,6 +47,11 @@ export async function tentarComando(texto: string, ctx: Contexto): Promise<strin
   const t = normalizar(texto);
   const d = ler();
 
+  // Rotinas: a frase de uma rotina roda todos os passos dela.
+  const { rotinaDaFrase, rodarRotina } = await import("./rotinas");
+  const rotina = rotinaDaFrase(texto, d);
+  if (rotina) return rodarRotina(rotina, ctx);
+
   // Lembrete com tempo: "me lembra em 10 min de tirar a pizza".
   let m = t.match(new RegExp(`^(?:me )?(?:avisa|lembra|lembre)(?: me)? (?:em|daqui a?) (\\d+(?:[.,]\\d+)?) ?${UNIDADE}(?: (?:de|para|pra|que) (.+))?$`));
   if (m) {

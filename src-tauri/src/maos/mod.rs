@@ -2,6 +2,7 @@
 pub mod chamado;
 pub mod calendario;
 pub mod cofre;
+pub mod copiados;
 pub mod ditado;
 pub mod integracoes;
 pub mod midia;

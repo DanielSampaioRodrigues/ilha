@@ -2157,3 +2157,107 @@ body.modo-passeio #palco {
 body.carinha-fora .estado.repouso > .carinha {
   visibility: hidden;
 }
+
+/* ---------- Copiados ---------- */
+
+.busca-copiados {
+  flex: 1;
+}
+
+.texto-copiado {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.texto-copiado .principal {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+
+.copiado.fixo {
+  box-shadow: inset 2px 0 0 var(--ciano);
+}
+
+.redondo.ativo-fixo {
+  color: var(--ciano);
+}
+
+/* ---------- Rotinas ---------- */
+
+.dias-rotina {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-self: flex-end;
+}
+
+.passos-rotina {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.passo-rotina {
+  gap: 6px;
+}
+
+.passo-rotina select {
+  flex: none;
+  width: 190px;
+  height: 34px;
+}
+
+.passo-rotina input {
+  flex: 1;
+  min-width: 0;
+}
+
+.numero-passo {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--vidro-forte);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.modelos-rotina {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.saida-rotina {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--vidro);
+  font-size: 13px;
+  line-height: 1.5;
+  user-select: text;
+}
+
+.form-rotina {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-rotina > .linha {
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}

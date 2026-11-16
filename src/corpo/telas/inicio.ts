@@ -191,6 +191,10 @@ export function montarInicio(ctx: Contexto): HTMLElement {
             ["textos", ICONES.textos, "Textos"],
             ["traducoes", ICONES.traduzir, "Traduções"],
             ["personagem", ICONES.personagem, "Personagem"],
+            ["copiados", ICONES.copiar, "Copiados"],
+            ["rotinas", ICONES.raio, "Rotinas"],
+            ["memoria", ICONES.memoria, "Memória"],
+            ["calendario", ICONES.calendario, "Calendário"],
             ["pc", ICONES.pc, "Meu PC"],
             ["ajustes", ICONES.ajustes, "Ajustes"],
           ] as const

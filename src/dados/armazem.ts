@@ -140,6 +140,8 @@ export interface Config {
   conversaContinua: boolean;
   /** O personagem sai para passear sozinho de vez em quando. */
   passeios: boolean;
+  /** Guardar o histórico do que é copiado (Ctrl+C). */
+  copiadosLigado: boolean;
   /** Calendário da Apple (iCloud): e-mail do Apple ID e calendário escolhido. */
   icloudEmail: string;
   icloudCalendario: string;
@@ -220,7 +222,31 @@ export interface Dados {
   perfis: Perfil[];
   /** Coisas que o Dan pediu para a ilha lembrar (vão para todas as IAs). */
   memorias: Memoria[];
+  /** Rotinas: vários passos com uma frase, um botão ou num horário. */
+  rotinas: Rotina[];
   config: Config;
+}
+
+export interface PassoRotina {
+  /** resumo do dia, abrir programa/site, comando da ilha, falar, perguntar à IA, esperar. */
+  tipo: "resumo" | "abrir" | "comando" | "falar" | "perguntar" | "esperar";
+  valor: string;
+}
+
+export interface Rotina {
+  id: string;
+  nome: string;
+  /** Frases que disparam (ex.: "bom dia"). */
+  frases: string[];
+  /** "HH:MM" para rodar sozinha, ou "" para só quando pedir. */
+  horario: string;
+  /** Dias da semana (0 = domingo); vazio = todos. */
+  dias: number[];
+  /** Ler o resultado em voz alta. */
+  falar: boolean;
+  passos: PassoRotina[];
+  /** Último dia em que rodou sozinha (AAAA-MM-DD). */
+  ultimaVez?: string;
 }
 
 export interface Memoria {
@@ -260,6 +286,7 @@ function padrao(): Dados {
     skills: [],
     perfis: [],
     memorias: [],
+    rotinas: [],
     config: {
       nome: "Dan",
       corOlhos: "#3FE6EE",
@@ -285,6 +312,7 @@ function padrao(): Dados {
       atenderPeloNome: false,
       conversaContinua: false,
       passeios: true,
+      copiadosLigado: true,
       icloudEmail: "",
       icloudCalendario: "",
       icloudNomeCalendario: "",

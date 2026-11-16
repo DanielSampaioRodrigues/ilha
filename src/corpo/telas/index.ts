@@ -17,6 +17,8 @@ import { montarPersonagem } from "./personagem";
 import { montarConversaRapida } from "./conversa";
 import { montarMemoria } from "./memoria";
 import { montarCalendario } from "./calendario";
+import { montarCopiados } from "./copiados";
+import { montarRotinas } from "./rotinas";
 
 export const TELAS: Record<NomeTela, { montar(ctx: Contexto): HTMLElement }> = {
   inicio: { montar: montarInicio },
@@ -37,4 +39,6 @@ export const TELAS: Record<NomeTela, { montar(ctx: Contexto): HTMLElement }> = {
   conversa: { montar: montarConversaRapida },
   memoria: { montar: montarMemoria },
   calendario: { montar: montarCalendario },
+  copiados: { montar: montarCopiados },
+  rotinas: { montar: montarRotinas },
 };

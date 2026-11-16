@@ -317,6 +317,26 @@ export const skillsDoClaude = () =>
     { nome: "revisor", descricao: "Revisa textos", instrucoes: "Revise com cuidado." },
   ]);
 
+// ---------- Copiados (histórico do Ctrl+C) ----------
+
+export interface Copiado {
+  id: string;
+  texto: string;
+  quando: number;
+  fixo: boolean;
+  programa: string;
+}
+export const copiadosListar = () =>
+  pedir<Copiado[]>("copiados_listar", undefined, [
+    { id: "1", texto: "chave-pix@exemplo.com", quando: Date.now() - 60_000, fixo: true, programa: "chrome.exe" },
+    { id: "2", texto: "Rua das Flores, 123 — Centro", quando: Date.now() - 3_600_000, fixo: false, programa: "winword.exe" },
+    { id: "3", texto: "npm run tauri build", quando: Date.now() - 86_400_000, fixo: false, programa: "code.exe" },
+  ]);
+export const copiadosFixar = (id: string) => pedir<void>("copiados_fixar", { id });
+export const copiadosApagar = (id: string) => pedir<void>("copiados_apagar", { id });
+export const copiadosLimpar = () => pedir<void>("copiados_limpar");
+export const copiadosLigar = (ligar: boolean) => pedir<void>("copiados_ligar", { ligar });
+
 /** O personagem sai da ilha e passeia pela tela. */
 export const passear = () => pedir<void>("passear");
 

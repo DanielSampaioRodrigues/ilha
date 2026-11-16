@@ -243,6 +243,24 @@ export class Ilha {
     window.setTimeout(tentar, proximo());
   }
 
+  /** Rotinas com horário: confere a cada 30 s e roda as da hora. */
+  agendarRotinas(): void {
+    const conferir = async () => {
+      const { rotinasDaHora, rodarRotina } = await import("./rotinas");
+      const { paraISO } = await import("../dados/datas");
+      for (const r of rotinasDaHora()) {
+        // Marca antes de rodar, para não rodar duas vezes.
+        mudar((d) => {
+          const x = d.rotinas.find((y) => y.id === r.id);
+          if (x) x.ultimaVez = paraISO(new Date());
+        });
+        const texto = await rodarRotina(r, this.contexto());
+        this.notificar({ titulo: `Rotina: ${r.nome}`, detalhe: texto.slice(0, 160), expressao: "feliz" });
+      }
+    };
+    window.setInterval(() => void conferir(), 30_000);
+  }
+
   /** Uma IA pediu permissão: a ilha pergunta (passa na frente de tudo). */
   perguntar(p: Pergunta): void {
     this.perguntas.push(p);
