@@ -20,9 +20,13 @@ class Bicho {
   y = 0;
   escala = 1;
 
-  constructor(palco: HTMLElement, personagem?: PersonagemId, tamanho = TAMANHO) {
+  constructor(palco: HTMLElement, personagem?: PersonagemId, tamanhoPedido = TAMANHO) {
+    // Os 3D (feitos com IA) andam um pouco maiores, para os detalhes aparecerem.
+    const tamanho = PERSONAGENS[personagem ?? ler().config.personagem]?.imagens ? tamanhoPedido + 2 : tamanhoPedido;
     this.el = document.createElement("div");
     this.el.className = "bicho";
+    // Personagem 3D (feito com IA): anda solto, sem a cápsula e os pezinhos.
+    if (PERSONAGENS[personagem ?? ler().config.personagem]?.imagens) this.el.classList.add("bicho-3d");
     this.carinha = new Carinha("normal", {
       tamanho,
       comAcessorio: true,
@@ -67,7 +71,7 @@ class Bicho {
     const inicio = this.x;
     const distancia = destino - inicio;
     if (Math.abs(distancia) < 2) return;
-    this.cara("normal");
+    this.cara("andando");
     this.olhar(Math.sign(distancia));
     this.el.classList.add("andando");
     const tempo = (Math.abs(distancia) / velocidade) * 1000;
@@ -84,6 +88,7 @@ class Bicho {
     });
     this.x = destino;
     this.el.classList.remove("andando");
+    this.cara("normal");
     this.olhar(0);
   }
 
@@ -148,7 +153,7 @@ async function brincarDeBola(palco: HTMLElement, bicho: Bicho, chao: number, lar
   await espera(700);
   await bicho.andar(xBola - (xBola > bicho.x ? bicho.largura : -26), 120);
   // Chuta: a bola rola para longe.
-  bicho.cara("rindo");
+  bicho.cara("pulando");
   const lado = xBola > bicho.x ? 1 : -1;
   const destino = Math.min(largura - 30, Math.max(10, xBola + lado * 300));
   b.style.transition = "transform 1.4s cubic-bezier(0.2, 0.7, 0.3, 1)";
@@ -231,7 +236,7 @@ async function cochilar(palco: HTMLElement, bicho: Bicho): Promise<void> {
 }
 
 async function acenar(bicho: Bicho): Promise<void> {
-  bicho.cara("piscadinha");
+  bicho.cara("acenando");
   await bicho.pular(bicho.x, bicho.y, 380, 26);
   await espera(900);
 }
@@ -275,7 +280,7 @@ export async function iniciarPasseio(): Promise<void> {
 
   // 3. Volta para a ilha: anda até o meio e pula para dentro.
   await bicho.andar(meio, 110);
-  bicho.cara("feliz");
+  bicho.cara("pulando");
   await espera(300);
   await bicho.pular(meio, 4, 900, 140, 0.35);
   bicho.sumir();

@@ -31,7 +31,11 @@ export type Expressao =
   | "lendo"
   | "chamada"
   | "assistindo"
-  | "sonolento";
+  | "sonolento"
+  // Usadas no passeio.
+  | "andando"
+  | "acenando"
+  | "pulando";
 
 export const NOMES_EXPRESSOES: Record<Expressao, string> = {
   normal: "Repouso",
@@ -55,10 +59,13 @@ export const NOMES_EXPRESSOES: Record<Expressao, string> = {
   chamada: "Em chamada",
   assistindo: "Assistindo",
   sonolento: "Com sono",
+  andando: "Andando",
+  acenando: "Acenando",
+  pulando: "Pulando",
 };
 
 /** Expressões que se mexem sozinhas (quadros de animação). */
-export const ANIMADAS: Expressao[] = ["digitando", "programando", "desenhando", "musica", "lendo", "chamada", "assistindo", "sonolento"];
+export const ANIMADAS: Expressao[] = ["digitando", "programando", "desenhando", "musica", "lendo", "chamada", "assistindo", "sonolento", "andando", "acenando", "pulando"];
 
 export type Acessorio = "nenhum" | "chapeu" | "coroa" | "laco" | "oculos" | "fones" | "antena";
 
@@ -362,6 +369,21 @@ function quadros(expressao: Expressao): { quadros: Desenho[]; ms: number } | nul
           base({ esquerdo: PISCANDO, direito: PISCANDO, boca: "pequena" }),
         ],
       };
+    case "andando":
+      return { ms: 260, quadros: [base({ boca: "sorriso" }), base({ boca: "sorriso", deslocar: [0, -1] })] };
+    case "acenando":
+      return {
+        ms: 300,
+        quadros: [
+          base({ esquerdo: olhoAberto(0, 0), direito: FECHADO, boca: "sorriso", extras: [[-2, 5, ""], [-3, 4, ""]] }),
+          base({ esquerdo: olhoAberto(0, 0), direito: FECHADO, boca: "sorriso", extras: [[-2, 5, ""], [-2, 3, ""]] }),
+        ],
+      };
+    case "pulando":
+      return {
+        ms: 220,
+        quadros: [base({ esquerdo: FELIZ, direito: FELIZ, boca: "grande" }), base({ esquerdo: FELIZ, direito: FELIZ, boca: "grande", deslocar: [0, -1] })],
+      };
     case "sonolento": {
       const sono = base({ esquerdo: MEIO_FECHADO, direito: MEIO_FECHADO, boca: "reta" });
       const bocejo = base({ esquerdo: FECHADO, direito: FECHADO, boca: "susto" });
@@ -416,7 +438,14 @@ interface Personagem {
   /** Desenhado em vetor (curvas, sombras), não em pixels. */
   vetor?: boolean;
   /** Feito com IA: uma imagem para cada expressão (pasta em public/personagens). */
-  imagens?: { pasta: string; mapa: Partial<Record<Expressao, string>>; padrao: string };
+  imagens?: {
+    pasta: string;
+    ext: string;
+    padrao: string;
+    mapa: Partial<Record<Expressao, string>>;
+    /** Expressões que trocam de imagem sozinhas (ex.: digitando = mãos para cima e para baixo). */
+    anim?: Partial<Record<Expressao, { quadros: string[]; ms: number }>>;
+  };
   /** Bocas diferentes (ex.: o "w" do gato no lugar do sorriso). */
   bocas?: Partial<Record<keyof typeof BOCAS, readonly [readonly number[], readonly number[]]>>;
   /** Boca desenhada pelo próprio personagem (ex.: bico). */
@@ -713,25 +742,34 @@ export const PERSONAGENS: Record<PersonagemId, Personagem> = {
     pixels: [],
     imagens: {
       pasta: "/personagens/broto",
+      ext: "webp",
       padrao: "neutro",
       mapa: {
         feliz: "feliz",
         rindo: "rindo",
-        musica: "rindo",
+        musica: "dancando",
         piscadinha: "feliz",
-        chamada: "feliz",
+        chamada: "chamada",
         surpreso: "surpreso",
-        alerta: "surpreso",
-        assistindo: "surpreso",
+        alerta: "susto",
+        assistindo: "pipoca",
         ouvindo: "surpreso",
         triste: "triste",
-        dormindo: "dormindo",
-        sonolento: "dormindo",
-        pensando: "pensando",
-        programando: "pensando",
-        desenhando: "pensando",
-        apaixonado: "amor",
+        dormindo: "soneca",
+        pensando: "ideia",
+        programando: "programando",
+        desenhando: "desenhando",
+        lendo: "lendo",
+        apaixonado: "coracao",
         confuso: "confuso",
+        foco: "programando",
+        acenando: "acenando",
+        pulando: "pulando",
+      },
+      anim: {
+        digitando: { quadros: ["digitando1", "digitando2"], ms: 220 },
+        andando: { quadros: ["andando1", "andando2"], ms: 260 },
+        sonolento: { quadros: ["bocejando", "dormindo", "dormindo", "bocejando", "soneca", "soneca"], ms: 1100 },
       },
     },
   },
@@ -819,6 +857,22 @@ export class Carinha {
   /** Expressões animadas trocam de quadro sozinhas. */
   private animar(): void {
     window.clearInterval(this.animacao);
+    // Personagem feito com IA: troca de imagem (ex.: mãos no teclado).
+    const ap = this.aparencia();
+    const animImagem = this.opcoes.comAcessorio ? PERSONAGENS[ap.personagem]?.imagens?.anim?.[this.expressao] : undefined;
+    if (animImagem) {
+      this.quadro = 0;
+      this.animacao = window.setInterval(() => {
+        if (!this.elemento.isConnected) {
+          if (this.foiMostrada || performance.now() - this.criada > 10_000) this.parar();
+          return;
+        }
+        this.foiMostrada = true;
+        this.quadro++;
+        this.desenhar();
+      }, animImagem.ms);
+      return;
+    }
     estiloOlhos = this.estiloDosOlhos();
     const anim = quadros(this.expressao);
     if (!anim) return;
@@ -902,18 +956,21 @@ export class Carinha {
       this.enquadrar(true);
       this.elemento.setAttribute("shape-rendering", "geometricPrecision");
       const im = personagem.imagens;
-      // Piscar = um instante de olhos fechados.
-      const nome = d.esquerdo === PISCANDO ? (im.mapa.dormindo ?? im.padrao) : (im.mapa[this.expressao] ?? im.padrao);
+      const anim = im.anim?.[this.expressao];
+      // Piscar = um instante de olhos fechados ("dormindo" é a de olhos fechados, sem zzz).
+      const nome = anim
+        ? anim.quadros[this.quadro % anim.quadros.length]
+        : d.esquerdo === PISCANDO
+          ? "dormindo"
+          : (im.mapa[this.expressao] ?? im.padrao);
       const corV = d.cor ?? ap.corOlhos;
       const quadrado = (x: number, y: number, c: string) => `<rect x="${x}" y="${y}" width="1" height="1" rx=".3" fill="${c || corV}"/>`;
       const acessorio = d.acessorio ?? (ap.acessorio !== "nenhum" ? ap.acessorio : null);
-      const extras = [
-        ...(acessorio ? ACESSORIOS[acessorio] : []).map(([x, y, c]) => quadrado(x, y, c)),
-        ...(d.extras ?? []).map(([x, y, c]) => quadrado(x, y, c)),
-      ].join("");
+      // As poses já trazem o teclado, o lápis etc.: aqui só o acessório escolhido.
+      const extras = (acessorio ? ACESSORIOS[acessorio] : []).map(([x, y, c]) => quadrado(x, y, c)).join("");
       // Seguindo o mouse: inclina um pouco para o lado.
       const [mx, my] = d.deslocar ?? [this.olhar[0] * 0.6, this.olhar[1] * 0.3];
-      this.elemento.innerHTML = `<g transform="translate(${mx} ${my})"><image href="${im.pasta}/${nome}.png" x="2.5" y="-4.2" width="14.2" height="14.2" preserveAspectRatio="xMidYMid meet"/>${extras}</g>`;
+      this.elemento.innerHTML = `<g transform="translate(${mx} ${my})"><image href="${im.pasta}/${nome}.${im.ext}" x="2.5" y="-4.2" width="14.2" height="14.2" preserveAspectRatio="xMidYMid meet"/>${extras}</g>`;
       this.elemento.style.setProperty("--brilho", "transparent");
       return;
     }
@@ -1014,9 +1071,10 @@ export class Carinha {
 export function precarregarImagens(id: PersonagemId): void {
   const im = PERSONAGENS[id]?.imagens;
   if (!im) return;
-  for (const nome of new Set([im.padrao, ...Object.values(im.mapa)])) {
+  const todos = [im.padrao, "dormindo", ...Object.values(im.mapa), ...Object.values(im.anim ?? {}).flatMap((a) => a.quadros)];
+  for (const nome of new Set(todos)) {
     const i = new Image();
-    i.src = `${im.pasta}/${nome}.png`;
+    i.src = `${im.pasta}/${nome}.${im.ext}`;
   }
 }
 

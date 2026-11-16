@@ -2320,3 +2320,14 @@ body.carinha-fora .estado.repouso > .carinha {
   vertical-align: -2px;
   color: var(--ciano);
 }
+
+/* Personagem 3D no passeio: sem cápsula preta nem pezinhos (a imagem já tem corpo). */
+.bicho-3d .cabeca-bicho {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.bicho-3d .pes {
+  display: none;
+}
