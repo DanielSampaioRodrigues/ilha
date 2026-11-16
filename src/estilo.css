@@ -1776,3 +1776,42 @@ body.escolhendo #palco {
 .nova-memoria .entrada {
   flex: 1;
 }
+
+/* ---------- Escolher personagem ---------- */
+
+.grade-personagens {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.cartao-personagem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: var(--vidro);
+  color: var(--texto);
+  text-align: center;
+  cursor: pointer;
+}
+
+.cartao-personagem.ativo {
+  border-color: var(--ciano);
+  background: color-mix(in srgb, var(--ciano) 10%, transparent);
+}
+
+.cartao-personagem .secundario {
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.rosto-personagem {
+  display: grid;
+  place-items: center;
+  height: 48px;
+  margin-bottom: 4px;
+}

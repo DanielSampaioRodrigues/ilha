@@ -54,7 +54,8 @@ na ilha aberta. Também dá para pedir pelo menu do ícone: **Procurar atualiza�
 - **A carinha percebe o que você faz**: digita junto, dança com música, assiste vídeo,
   põe fones em chamada, desenha quando você está num programa de design. Desliga em
   Personagem › "Perceber o que estou fazendo".
-- **Personagem**: 21 expressões, cor dos olhos e das bochechas, acessórios, olhos que
+- **Personagem**: escolha quem mora na ilha (Robozinho, Gato, Urso, Sapo, Alien,
+  Fantasma, Coelho), 21 expressões, cor dos olhos e das bochechas, acessórios, olhos que
   seguem o mouse, mosquinha e cochilo quando parado.
 - **Central** (botão de painel na ilha aberta, ou menu do ícone › Abrir a Central): a ilha
   cresce do topo num painel grande (sem janela a mais na barra de tarefas). Fecha com

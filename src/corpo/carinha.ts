@@ -314,6 +314,110 @@ function quadros(expressao: Expressao): { quadros: Desenho[]; ms: number } | nul
   }
 }
 
+// ---------- Personagens ----------
+// Cada personagem é a mesma carinha (olhos e boca das 21 expressões) com o
+// que é dele em volta: orelhas, bigodes, antenas… Desenhos próprios da ilha.
+
+export type PersonagemId = "robo" | "gato" | "urso" | "sapo" | "alien" | "fantasma" | "coelho";
+
+interface Personagem {
+  nome: string;
+  jeito: string;
+  pixels: Pixel[];
+  /** Bocas diferentes (ex.: o "w" do gato no lugar do sorriso). */
+  bocas?: Partial<Record<keyof typeof BOCAS, readonly [readonly number[], readonly number[]]>>;
+}
+
+/** Espelha pixels da esquerda para a direita da carinha (19 de largura). */
+function espelhar(pixels: Pixel[]): Pixel[] {
+  return [...pixels, ...pixels.map(([x, y, c]) => [18 - x, y, c] as Pixel)];
+}
+
+function pontos(lista: Ponto[], cor: string): Pixel[] {
+  return lista.map(([x, y]) => [x, y, cor] as Pixel);
+}
+
+const LARANJA_GATO = "#FFA51F";
+const MARROM = "#C68A5A";
+const VERDE_SAPO = "#5BE38F";
+const LILAS = "#B78CFF";
+const FANTASMA = "#C9D0D7";
+const BRANCO = "#E9ECEF";
+const ROSA = "#FF8FB4";
+
+export const PERSONAGENS: Record<PersonagemId, Personagem> = {
+  robo: { nome: "Robozinho", jeito: "O clássico: curioso e prestativo.", pixels: [] },
+  gato: {
+    nome: "Gato",
+    jeito: "Independente, mas sempre de olho em tudo.",
+    pixels: [
+      ...espelhar(pontos([[0, -4], [0, -3], [1, -3], [0, -2], [2, -2], [0, -1], [1, -1], [2, -1], [3, -1]], LARANJA_GATO)),
+      ...espelhar(pontos([[1, -2]], ROSA)),
+      ...espelhar(pontos([[-3, 7], [-2, 7], [-3, 9], [-2, 9]], "#9AA3AD")),
+      [9, 7, ROSA],
+    ],
+    bocas: { sorriso: [[7, 9, 11], [8, 10]], grande: [[7, 9, 11], [8, 9, 10]] },
+  },
+  urso: {
+    nome: "Urso",
+    jeito: "Calmo e abraçável. Nunca tem pressa.",
+    pixels: [
+      ...espelhar(pontos([[0, -4], [1, -4], [-1, -3], [2, -3], [-1, -2], [2, -2], [0, -1], [1, -1]], MARROM)),
+      ...espelhar(pontos([[0, -3], [1, -3], [0, -2], [1, -2]], "#8B5A3C")),
+      [8, 7, "#F2D2B0"],
+      [9, 7, "#F2D2B0"],
+      [10, 7, "#F2D2B0"],
+    ],
+  },
+  sapo: {
+    nome: "Sapo",
+    jeito: "Animado: pula de tarefa em tarefa.",
+    pixels: espelhar(pontos([[2, -2], [3, -2], [4, -2], [1, -1], [5, -1]], VERDE_SAPO)),
+    bocas: {
+      sorriso: [[4, 14], [5, 6, 7, 8, 9, 10, 11, 12, 13]],
+      grande: [[4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], [5, 6, 7, 8, 9, 10, 11, 12, 13]],
+    },
+  },
+  alien: {
+    nome: "Alien",
+    jeito: "Veio de muito longe só para te ajudar.",
+    pixels: [
+      ...espelhar(pontos([[5, -1], [4, -2]], LILAS)),
+      ...espelhar(pontos([[2, -4], [3, -4], [2, -3], [3, -3]], VERDE_SAPO)),
+      ...pontos([[9, 0], [8, 1], [10, 1], [9, 2]], LILAS),
+      [9, 1, ""],
+    ],
+  },
+  fantasma: {
+    nome: "Fantasma",
+    jeito: "Aparece quando você precisa (e some em tela cheia).",
+    pixels: espelhar(
+      pontos(
+        [
+          [3, -3], [4, -3], [5, -3], [6, -3], [7, -3], [8, -3], [9, -3],
+          [1, -2], [2, -2],
+          [0, -1],
+          [-1, 0], [-1, 1], [-1, 2], [-1, 3], [-1, 4], [-1, 5], [-1, 6], [-1, 7], [-1, 8], [-1, 9],
+          [-2, 9],
+        ],
+        FANTASMA,
+      ),
+    ),
+  },
+  coelho: {
+    nome: "Coelho",
+    jeito: "Rápido nas respostas, orelhas sempre em pé.",
+    pixels: [
+      ...espelhar(pontos([[2, -4], [3, -4], [2, -3], [3, -3], [2, -2], [3, -2], [2, -1], [3, -1]], BRANCO)),
+      ...espelhar(pontos([[3, -3], [3, -2]], ROSA)),
+      [9, 7, ROSA],
+      [8, 9, BRANCO],
+      [10, 9, BRANCO],
+    ],
+    bocas: { sorriso: [[8, 10], []] },
+  },
+};
+
 // ---------- A carinha ----------
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -334,11 +438,12 @@ export interface Aparencia {
   corOlhos: string;
   corBochechas: string;
   acessorio: Acessorio;
+  personagem: PersonagemId;
 }
 
 function aparenciaSalva(): Aparencia {
   const c = ler().config;
-  return { corOlhos: c.corOlhos, corBochechas: c.corBochechas, acessorio: c.acessorio };
+  return { corOlhos: c.corOlhos, corBochechas: c.corBochechas, acessorio: c.acessorio, personagem: c.personagem ?? "robo" };
 }
 
 export class Carinha {
@@ -438,15 +543,18 @@ export class Carinha {
 
   private pintar(d: Desenho): void {
     const ap = this.aparencia();
-    this.enquadrar(!!this.opcoes.comAcessorio && (ap.acessorio !== "nenhum" || !!d.acessorio));
+    const personagem = PERSONAGENS[ap.personagem] ?? PERSONAGENS.robo;
+    this.enquadrar(!!this.opcoes.comAcessorio && (ap.acessorio !== "nenhum" || !!d.acessorio || personagem.pixels.length > 0));
     const cor = d.cor ?? ap.corOlhos;
     const pixels: string[] = [];
     const [mx, my] = d.deslocar ?? [0, 0];
     const acender = (x: number, y: number, c: string) =>
       pixels.push(`<rect x="${x + mx}" y="${y + my}" width="1" height="1" fill="${c || cor}"/>`);
+    // O que é do personagem (orelhas, bigodes…) vem primeiro, por baixo.
+    if (this.opcoes.comAcessorio) personagem.pixels.forEach(([x, y, c]) => acender(x, y, c));
     d.esquerdo.forEach(([x, y]) => acender(x, y, cor));
     d.direito.forEach(([x, y]) => acender(x + 12, y, cor));
-    const [l8, l9] = BOCAS[d.boca];
+    const [l8, l9] = personagem.bocas?.[d.boca] ?? BOCAS[d.boca];
     l8.forEach((x) => acender(x, 8, cor));
     l9.forEach((x) => acender(x, 9, cor));
     if (d.bochechas && ap.corBochechas !== "nenhuma") [0, 1, 17, 18].forEach((x) => acender(x, 8, ap.corBochechas));

@@ -101,6 +101,8 @@ export interface Config {
   corOlhos: string;
   corBochechas: string;
   acessorio: "nenhum" | "chapeu" | "coroa" | "laco" | "oculos" | "fones" | "antena";
+  /** Qual personagem (robô, gato, urso…). */
+  personagem: "robo" | "gato" | "urso" | "sapo" | "alien" | "fantasma" | "coelho";
   /** Na ilha aberta: a cabeça do robô vermelho ou a carinha de pixel grande. */
   cabecaAberta: "robo" | "carinha";
   olhosSeguemMouse: boolean;
@@ -243,6 +245,7 @@ function padrao(): Dados {
       corOlhos: "#3FE6EE",
       corBochechas: "#FF8FB4",
       acessorio: "nenhum",
+      personagem: "robo",
       cabecaAberta: "robo",
       olhosSeguemMouse: true,
       brincadeiras: true,

@@ -6,8 +6,10 @@ import {
   Carinha,
   NOMES_ACESSORIOS,
   NOMES_EXPRESSOES,
+  PERSONAGENS,
   type Acessorio,
   type Expressao,
+  type PersonagemId,
 } from "../carinha";
 import type { Contexto } from "../contexto";
 import { aoClicar, cabecalho, html } from "../ui";
@@ -66,6 +68,22 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
       </div>
 
       <section class="secao">
+        <p class="titulo-secao">Quem mora na ilha</p>
+        <div class="grade-personagens">
+          ${(Object.keys(PERSONAGENS) as PersonagemId[])
+            .map(
+              (id) => `
+            <button type="button" class="cartao-personagem ${id === c.personagem ? "ativo" : ""}" data-acao="personagem" data-personagem="${id}" aria-pressed="${id === c.personagem}">
+              <span class="rosto-personagem" data-rosto="${id}"></span>
+              <span class="principal">${PERSONAGENS[id].nome}</span>
+              <span class="secundario">${PERSONAGENS[id].jeito}</span>
+            </button>`,
+            )
+            .join("")}
+        </div>
+      </section>
+
+      <section class="secao">
         <p class="titulo-secao">Aparência</p>
         <div class="item"><div class="coluna"><span class="principal">Olhos</span></div><div class="linha amostras">${amostras(CORES_OLHOS, c.corOlhos, "olhos")}</div></div>
         <div class="item"><div class="coluna"><span class="principal">Bochechas</span></div><div class="linha amostras">${amostras(CORES_BOCHECHAS, c.corBochechas, "bochechas")}</div></div>
@@ -107,6 +125,12 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
   };
   desenharPrevia();
 
+  // Cada cartão mostra o personagem feliz, com as cores escolhidas.
+  raiz.querySelectorAll<HTMLElement>("[data-rosto]").forEach((lugar) => {
+    const personagem = lugar.dataset.rosto as PersonagemId;
+    lugar.replaceChildren(new Carinha("feliz", { tamanho: 3, comAcessorio: true, aparencia: { personagem, acessorio: "nenhum" } }).elemento);
+  });
+
   const salvar = (fazer: (c: Config) => void) => {
     mudar((d) => fazer(d.config));
     ctx.renovar();
@@ -122,6 +146,7 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
       else c.corBochechas = b.dataset.cor!;
     }),
   );
+  aoClicar(raiz, "personagem", (b) => salvar((c) => (c.personagem = b.dataset.personagem as PersonagemId)));
   aoClicar(raiz, "acessorio", (b) => salvar((c) => (c.acessorio = b.dataset.acessorio as Acessorio)));
   aoClicar(raiz, "cabeca", (b) => salvar((c) => (c.cabecaAberta = b.dataset.valor as Config["cabecaAberta"])));
   aoClicar(raiz, "alternar", (b) =>
