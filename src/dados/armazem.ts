@@ -347,7 +347,8 @@ function completar(salvo: (Partial<Dados> & { lembretes?: LembreteAntigo[] }) | 
   }));
   const config = { ...base.config, ...(resto.config ?? {}) };
   // O padrão antigo era o robô vermelho; agora é o personagem escolhido.
-  if (!config.cabecaRevista) {
+  // (olha o que estava salvo: o padrão novo já vem "revisado").
+  if (!resto.config?.cabecaRevista) {
     config.cabecaAberta = "carinha";
     config.cabecaRevista = true;
   }
