@@ -2,7 +2,7 @@
 // Tudo que liga/desliga usa o mesmo interruptor: à direita, verde/cor = ligado.
 import { ler, mudar, type ModoDiscreto } from "../../dados/armazem";
 import { arcoIris } from "./personagem";
-import { aoCarregarVozes, falar, vozesEmPortugues } from "../../maos/fala";
+import { aoCarregarVozes, erroVozNatural, falar, vozesEmPortugues } from "../../maos/fala";
 import {
   abrirPrograma,
   abrirRegistros,
@@ -19,7 +19,7 @@ import {
   PROGRAMAS_COM_ABAS,
   situacaoAvisos,
   type ProgramaIA,
-  type SituacaoAviso, atenderPeloNome, conferirVoz, consertarVoz, estadoChamado, type EstadoChamado, type EstadoVoz } from "../../maos/sistema";
+  type SituacaoAviso, atenderPeloNome, conferirVoz, consertarVoz, estadoChamado, vozesNaturais, type EstadoChamado, type EstadoVoz } from "../../maos/sistema";
 import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
 import { aoClicar, cabecalho, escapar, html, recadoTemporario } from "../ui";
@@ -105,7 +105,21 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
           <button type="button" class="chave" role="switch" aria-checked="${dados.config.atenderPeloNome}" aria-label="Atender quando eu chamar pelo nome" data-acao="atender-nome"><span></span></button>
         </div>
         <div class="item">
-          <div class="coluna"><span class="principal">Voz</span><span class="secundario">As do Windows. As “Natural” soam melhor (Configurações › Hora e idioma › Fala › Adicionar vozes).</span></div>
+          <div class="coluna"><span class="principal">Voz natural (ElevenLabs)</span><span class="secundario">Voz humana, bem menos robótica. Precisa da chave da ElevenLabs (em Chaves de IA, abaixo); se der erro, ele usa a voz do Windows.</span></div>
+          <button type="button" class="chave" role="switch" aria-checked="${!!dados.config.vozNatural}" aria-label="Voz natural (ElevenLabs)" data-acao="voz-natural"><span></span></button>
+        </div>
+        <div class="item linha-voz-natural" ${dados.config.vozNatural ? "" : "hidden"}>
+          <div class="coluna"><span class="principal">Qual voz</span><span class="secundario situacao-vozes-naturais">Carregando as vozes…</span></div>
+          <select class="entrada curta2 escolha-voz-natural" aria-label="Voz da ElevenLabs"></select>
+          <select class="entrada curta2 escolha-modelo-natural" aria-label="Qualidade">
+            <option value="eleven_multilingual_v2">Natural</option>
+            <option value="eleven_flash_v2_5">Econômica (rende o dobro)</option>
+            <option value="eleven_v4_turbo">Mais expressiva</option>
+          </select>
+          <button type="button" class="botao" data-acao="testar-voz">Ouvir</button>
+        </div>
+        <div class="item">
+          <div class="coluna"><span class="principal">Voz do Windows</span><span class="secundario">Usada sem a voz natural (ou se ela falhar). As “Natural” soam melhor (Configurações › Hora e idioma › Fala › Adicionar vozes).</span></div>
           <select class="entrada curta2 escolha-voz" aria-label="Voz"><option value="">Automática</option></select>
           <button type="button" class="botao" data-acao="testar-voz">Ouvir</button>
         </div>
@@ -189,6 +203,21 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
           </form>
           <span class="secundario">Usada na tradução da tela e, depois, na conversa. Fica no cofre de senhas do Windows. <button type="button" class="link" data-acao="como-chave">Como pegar a chave</button></span>
         </div>
+        <div class="item coluna-item chave-elevenlabs">
+          <div class="linha">
+            <div class="coluna">
+              <span class="principal">ElevenLabs (voz natural)</span>
+              <span class="secundario situacao-chave-el">Conferindo…</span>
+            </div>
+            <button type="button" class="botao" data-acao="testar-chave-el" hidden>Testar</button>
+            <button type="button" class="botao" data-acao="apagar-chave-el" hidden>Apagar</button>
+          </div>
+          <form class="linha form-chave-el">
+            <input class="entrada" type="password" name="chave" placeholder="Cole aqui a chave da ElevenLabs" autocomplete="off" spellcheck="false" aria-label="Chave da ElevenLabs">
+            <button type="submit" class="botao ciano">Guardar</button>
+          </form>
+          <span class="secundario">Usada para ele falar com voz natural. Fica no cofre de senhas do Windows. <button type="button" class="link" data-acao="como-chave-el">Como pegar a chave</button></span>
+        </div>
       </section>
 
       <section class="secao">
@@ -249,6 +278,35 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     b.setAttribute("aria-checked", String(ligado));
     atenderPeloNome(ligado, ler().config.nomeRobo).catch(() => {});
   });
+  // Voz natural (ElevenLabs)
+  const linhaNatural = raiz.querySelector<HTMLElement>(".linha-voz-natural")!;
+  const escolhaNatural = raiz.querySelector<HTMLSelectElement>(".escolha-voz-natural")!;
+  const escolhaModelo = raiz.querySelector<HTMLSelectElement>(".escolha-modelo-natural")!;
+  const situacaoVozes = raiz.querySelector<HTMLElement>(".situacao-vozes-naturais")!;
+  escolhaModelo.value = ler().config.modeloElevenlabs || "eleven_multilingual_v2";
+  const carregarVozesNaturais = () => {
+    situacaoVozes.textContent = "Carregando as vozes…";
+    vozesNaturais()
+      .then((lista) => {
+        const atual = ler().config.vozElevenlabs ?? "";
+        escolhaNatural.innerHTML =
+          '<option value="">Padrão (Sarah)</option>' +
+          lista.map((v) => `<option value="${escapar(v.id)}" ${v.id === atual ? "selected" : ""}>${escapar(v.nome)}${v.descricao ? ` · ${escapar(v.descricao)}` : ""}</option>`).join("");
+        situacaoVozes.textContent = lista.length ? "Todas falam português; cada uma tem um jeito." : "Escolha a voz e toque em Ouvir.";
+      })
+      .catch((erro: unknown) => (situacaoVozes.textContent = String(erro)));
+  };
+  if (ler().config.vozNatural) carregarVozesNaturais();
+  aoClicar(raiz, "voz-natural", (b) => {
+    const ligado = !ler().config.vozNatural;
+    mudar((d) => (d.config.vozNatural = ligado));
+    b.setAttribute("aria-checked", String(ligado));
+    linhaNatural.hidden = !ligado;
+    if (ligado) carregarVozesNaturais();
+  });
+  escolhaNatural.addEventListener("change", () => mudar((d) => (d.config.vozElevenlabs = escolhaNatural.value)));
+  escolhaModelo.addEventListener("change", () => mudar((d) => (d.config.modeloElevenlabs = escolhaModelo.value)));
+
   const escolhaVoz = raiz.querySelector<HTMLSelectElement>(".escolha-voz")!;
   aoCarregarVozes(() => {
     const atual = ler().config.voz;
@@ -259,7 +317,12 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         .join("");
   });
   escolhaVoz.addEventListener("change", () => mudar((d) => (d.config.voz = escolhaVoz.value)));
-  aoClicar(raiz, "testar-voz", () => falar(`Oi, ${ler().config.nome}! Eu sou ${ler().config.nomeRobo}. É assim que eu falo.`));
+  aoClicar(raiz, "testar-voz", () =>
+    falar(`Oi, ${ler().config.nome}! Eu sou ${ler().config.nomeRobo}. É assim que eu falo.`, () => {
+      // A voz natural falhou e caiu na do Windows: mostra o porquê.
+      if (ler().config.vozNatural && erroVozNatural) situacaoVozes.textContent = erroVozNatural;
+    }),
+  );
 
   // Conferir a voz: cada item mostra ✓ ou o que falta, com "Consertar" (que pergunta antes).
   const listaVoz = raiz.querySelector<HTMLElement>(".lista-voz")!;
@@ -534,6 +597,50 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   });
   aoClicar(raiz, "como-chave", () => {
     abrirPrograma("https://platform.deepseek.com/api_keys").catch(() => {});
+  });
+
+  // Chave da ElevenLabs (voz natural)
+  const situacaoEl = raiz.querySelector<HTMLElement>(".situacao-chave-el")!;
+  const formEl = raiz.querySelector<HTMLFormElement>(".form-chave-el")!;
+  const botaoTestarEl = raiz.querySelector<HTMLButtonElement>('[data-acao="testar-chave-el"]')!;
+  const botaoApagarEl = raiz.querySelector<HTMLButtonElement>('[data-acao="apagar-chave-el"]')!;
+  const mostrarChaveEl = (tem: boolean, texto?: string) => {
+    situacaoEl.textContent = texto ?? (tem ? "Chave guardada." : "Nenhuma chave guardada.");
+    botaoTestarEl.hidden = !tem;
+    botaoApagarEl.hidden = !tem;
+    formEl.hidden = tem;
+  };
+  const testarEl = () =>
+    vozesNaturais().then((lista) => `Funcionando: ${lista.length} vozes disponíveis.`);
+  temChave("elevenlabs").then((t) => mostrarChaveEl(t)).catch(() => mostrarChaveEl(false));
+  formEl.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const campo = formEl.querySelector<HTMLInputElement>("input")!;
+    salvarChave("elevenlabs", campo.value)
+      .then(() => {
+        campo.value = "";
+        mostrarChaveEl(true, "Chave guardada. Testando…");
+        return testarEl();
+      })
+      .then((r) => {
+        mostrarChaveEl(true, `Chave guardada. ${r}`);
+        if (ler().config.vozNatural) carregarVozesNaturais();
+      })
+      .catch((erro: unknown) => mostrarChaveEl(true, String(erro)));
+  });
+  aoClicar(raiz, "testar-chave-el", () => {
+    situacaoEl.textContent = "Testando…";
+    testarEl()
+      .then((r) => (situacaoEl.textContent = r))
+      .catch((erro: unknown) => (situacaoEl.textContent = String(erro)));
+  });
+  aoClicar(raiz, "apagar-chave-el", () => {
+    apagarChave("elevenlabs")
+      .then(() => mostrarChaveEl(false, "Chave apagada."))
+      .catch(() => {});
+  });
+  aoClicar(raiz, "como-chave-el", () => {
+    abrirPrograma("https://elevenlabs.io/app/settings/api-keys").catch(() => {});
   });
 
   aoClicar(raiz, "procurar", () => ctx.procurarAtualizacao());

@@ -138,6 +138,11 @@ export interface Config {
   falarRespostas: boolean;
   /** Voz escolhida para falar ("" = a melhor em português que houver). */
   voz: string;
+  /** Falar com a voz natural da ElevenLabs (precisa da chave). */
+  vozNatural?: boolean;
+  /** Voz da ElevenLabs escolhida (id) e o modelo. */
+  vozElevenlabs?: string;
+  modeloElevenlabs?: string;
   /** Ficar ouvindo o nome do robô para atender (microfone sempre ligado). */
   atenderPeloNome: boolean;
   /** Depois de responder em voz alta, volta a ouvir (conversa contínua). */

@@ -100,6 +100,8 @@ pub fn run() {
             maos::conferir_voz::conferir_voz,
             maos::conferir_voz::consertar_voz,
             maos::chamado::estado_chamado,
+            maos::voz_natural::falar_natural,
+            maos::voz_natural::vozes_naturais,
             maos::voz::parar_de_ouvir,
             maos::chamado::atender_pelo_nome,
             maos::copiados::copiados_listar,

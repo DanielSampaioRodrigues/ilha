@@ -1,6 +1,8 @@
-// A ilha fala: lê respostas em voz alta com as vozes do próprio Windows
-// (as mesmas do Narrador; as "Natural" soam bem melhor, se houver).
+// A ilha fala: lê respostas em voz alta. Com a "voz natural" ligada, usa a
+// ElevenLabs (voz humana); senão, ou se der erro, as vozes do Windows.
 import { ler } from "../dados/armazem";
+import { dentroDoApp } from "../ponte";
+import { falarNatural } from "./sistema";
 
 function vozes(): SpeechSynthesisVoice[] {
   return typeof speechSynthesis === "undefined" ? [] : speechSynthesis.getVoices();
@@ -48,25 +50,80 @@ export function paraFala(texto: string): string {
 
 /** A fala em andamento (para desligar o "terminou" dela antes de cortar). */
 let atual: SpeechSynthesisUtterance | null = null;
+/** Áudio da voz natural tocando (e a vez dele: uma fala nova cancela a anterior). */
+let audio: HTMLAudioElement | null = null;
+let vez = 0;
+/** Último erro da voz natural (para mostrar nos Ajustes). */
+export let erroVozNatural = "";
 
 function cortar(): void {
   document.body.classList.remove("falando");
+  vez++;
+  if (audio) {
+    audio.onended = null;
+    audio.onerror = null;
+    audio.pause();
+    URL.revokeObjectURL(audio.src);
+    audio = null;
+  }
   if (atual) {
     // Cortar uma fala também dispara "terminou"; isso não pode reabrir o microfone.
     atual.onend = null;
     atual.onerror = null;
     atual = null;
   }
-  speechSynthesis.cancel();
+  if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+}
+
+/** Voz natural (ElevenLabs): pede o áudio e toca. Se falhar, usa a do Windows. */
+async function falarComVozNatural(texto: string, aoTerminar?: () => void): Promise<void> {
+  const minhaVez = vez;
+  const c = ler().config;
+  document.body.classList.add("falando");
+  try {
+    const mp3 = await falarNatural(texto, c.vozElevenlabs ?? "", c.modeloElevenlabs ?? "");
+    if (minhaVez !== vez) return; // cortaram enquanto o áudio chegava
+    erroVozNatural = "";
+    const tocar = new Audio(URL.createObjectURL(new Blob([mp3], { type: "audio/mpeg" })));
+    audio = tocar;
+    const terminou = () => {
+      if (audio !== tocar) return;
+      URL.revokeObjectURL(tocar.src);
+      audio = null;
+      document.body.classList.remove("falando");
+      aoTerminar?.();
+    };
+    tocar.onended = terminou;
+    tocar.onerror = terminou;
+    await tocar.play();
+  } catch (erro) {
+    if (minhaVez !== vez) return;
+    erroVozNatural = String(erro);
+    console.warn("Voz natural falhou; usando a do Windows.", erro);
+    falarWindows(texto, aoTerminar);
+  }
 }
 
 export function falar(texto: string, aoTerminar?: () => void): void {
-  if (typeof speechSynthesis === "undefined" || !texto.trim()) {
+  if (!texto.trim()) {
     aoTerminar?.();
     return;
   }
   cortar();
-  const fala = new SpeechSynthesisUtterance(paraFala(texto));
+  if (dentroDoApp && ler().config.vozNatural) {
+    void falarComVozNatural(paraFala(texto), aoTerminar);
+    return;
+  }
+  falarWindows(paraFala(texto), aoTerminar);
+}
+
+function falarWindows(texto: string, aoTerminar?: () => void): void {
+  if (typeof speechSynthesis === "undefined") {
+    document.body.classList.remove("falando");
+    aoTerminar?.();
+    return;
+  }
+  const fala = new SpeechSynthesisUtterance(texto);
   atual = fala;
   const voz = escolherVoz();
   if (voz) fala.voice = voz;
@@ -84,7 +141,7 @@ export function falar(texto: string, aoTerminar?: () => void): void {
 }
 
 export function calar(): void {
-  if (typeof speechSynthesis !== "undefined") cortar();
+  cortar();
 }
 
-export const falando = () => typeof speechSynthesis !== "undefined" && speechSynthesis.speaking;
+export const falando = () => !!audio || (typeof speechSynthesis !== "undefined" && speechSynthesis.speaking);
