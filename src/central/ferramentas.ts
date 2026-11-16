@@ -227,7 +227,8 @@ export function montarFerramentas(redesenhar: () => void): HTMLElement {
     const partes = String(f.get("comando") ?? "").trim().match(/"[^"]*"|\S+/g) ?? [];
     const limpas = partes.map((p) => p.replace(/^"|"$/g, ""));
     const valores: Omit<ServidorMcp, "id"> = {
-      nome: slug(String(f.get("nome"))),
+      // "ilha" é o nome do servidor de permissões da própria ilha.
+      nome: slug(String(f.get("nome"))) === "ilha" ? "ilha-meu" : slug(String(f.get("nome"))),
       descricao: String(f.get("descricao") ?? "").trim(),
       tipo: f.get("tipo") === "remoto" ? "remoto" : "local",
       comando: limpas[0] ?? "",

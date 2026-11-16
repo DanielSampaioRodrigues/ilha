@@ -114,6 +114,14 @@ fn calendarios_da_resposta(xml: &str, base: &str) -> Vec<Calendario> {
         .collect()
 }
 
+/// A senha só pode ir para o iCloud, sempre por https.
+fn endereco_do_icloud(url: &str) -> bool {
+    let Some(resto) = url.strip_prefix("https://") else { return false };
+    let servidor = resto.split(['/', '?', '#']).next().unwrap_or_default();
+    let servidor = servidor.rsplit_once(':').map(|(h, porta)| if porta.chars().all(|c| c.is_ascii_digit()) { h } else { servidor }).unwrap_or(servidor);
+    servidor == "icloud.com" || servidor.ends_with(".icloud.com")
+}
+
 /// Endereço completo a partir de um href (que pode ser só o caminho).
 fn juntar(base: &str, href: &str) -> String {
     if href.starts_with("http") {
@@ -189,8 +197,13 @@ pub fn ics(e: &Evento, agora_utc: &str) -> Result<String, String> {
         "semanal" => Some("FREQ=WEEKLY".into()),
         "mensal" => {
             let dia: u32 = inicio[6..8].parse().unwrap_or(1);
-            // Dia 29+ não existe em todo mês: aí usa o último dia do mês.
-            Some(if dia <= 28 { format!("FREQ=MONTHLY;BYMONTHDAY={dia}") } else { "FREQ=MONTHLY;BYMONTHDAY=-1".into() })
+            // Dia 29+ não existe em todo mês: pega o maior dia possível até ele
+            // (ex.: dia 30 → 28 em fevereiro, 30 nos outros meses).
+            Some(match dia {
+                1..=28 => format!("FREQ=MONTHLY;BYMONTHDAY={dia}"),
+                31 => "FREQ=MONTHLY;BYMONTHDAY=-1".into(),
+                _ => format!("FREQ=MONTHLY;BYMONTHDAY={};BYSETPOS=-1", (28..=dia).map(|d| d.to_string()).collect::<Vec<_>>().join(",")),
+            })
         }
         "anual" => Some("FREQ=YEARLY".into()),
         _ => None,
@@ -226,6 +239,9 @@ fn cliente() -> Result<reqwest::Client, String> {
 async fn propfind(c: &reqwest::Client, url: &str, profundidade: &str, corpo: &str, email: &str, senha: &str) -> Result<(String, String), String> {
     let mut alvo = url.to_string();
     for _ in 0..4 {
+        if !endereco_do_icloud(&alvo) {
+            return Err("O iCloud mandou para um endereço que não é da Apple; parei por segurança.".into());
+        }
         let r = c
             .request(Method::from_bytes(b"PROPFIND").map_err(|e| e.to_string())?, &alvo)
             .basic_auth(email, Some(senha))
@@ -318,7 +334,7 @@ fn uid_valido(uid: &str) -> bool {
 #[tauri::command]
 pub async fn icloud_enviar(email: String, calendario: String, eventos: Vec<Evento>, apagar: Vec<String>) -> Result<Vec<String>, String> {
     let senha = cofre::ler_icloud().ok_or("Conecte o iCloud em Ajustes.")?;
-    if !calendario.starts_with("https://") {
+    if !endereco_do_icloud(&calendario) {
         return Err("Calendário inválido.".into());
     }
     let pasta = if calendario.ends_with('/') { calendario } else { format!("{calendario}/") };
@@ -403,6 +419,11 @@ mod testes {
         let t = ics(&e, "20261116T000000Z").unwrap();
         assert!(t.contains("DTSTART;VALUE=DATE:20261231"));
         assert!(t.contains("RRULE:FREQ=MONTHLY;BYMONTHDAY=-1"));
+        let trinta = Evento { inicio: "2026-11-30".into(), ..e.clone() };
+        assert!(ics(&trinta, "20261116T000000Z").unwrap().contains("BYMONTHDAY=28,29,30;BYSETPOS=-1"));
+        assert!(endereco_do_icloud("https://p55-caldav.icloud.com:443/1/calendars/home/"));
+        assert!(!endereco_do_icloud("https://icloud.com.ladrao.net/x"));
+        assert!(!endereco_do_icloud("http://caldav.icloud.com/"));
         assert!(t.contains("SUMMARY:Vence: Netflix\\, R$ 55"));
         assert!(t.contains("TRIGGER:-PT2340M"));
         let h = Evento { inicio: "2026-11-20T09:30".into(), repete: "semanal".into(), alerta_minutos: Some(0), ..e };

@@ -46,26 +46,42 @@ export function paraFala(texto: string): string {
   return t;
 }
 
+/** A fala em andamento (para desligar o "terminou" dela antes de cortar). */
+let atual: SpeechSynthesisUtterance | null = null;
+
+function cortar(): void {
+  if (atual) {
+    // Cortar uma fala também dispara "terminou"; isso não pode reabrir o microfone.
+    atual.onend = null;
+    atual.onerror = null;
+    atual = null;
+  }
+  speechSynthesis.cancel();
+}
+
 export function falar(texto: string, aoTerminar?: () => void): void {
   if (typeof speechSynthesis === "undefined" || !texto.trim()) {
     aoTerminar?.();
     return;
   }
-  speechSynthesis.cancel();
+  cortar();
   const fala = new SpeechSynthesisUtterance(paraFala(texto));
+  atual = fala;
   const voz = escolherVoz();
   if (voz) fala.voice = voz;
   fala.lang = voz?.lang ?? "pt-BR";
   fala.rate = 1.05;
-  if (aoTerminar) {
-    fala.onend = aoTerminar;
-    fala.onerror = aoTerminar;
-  }
+  const terminou = () => {
+    if (atual === fala) atual = null;
+    aoTerminar?.();
+  };
+  fala.onend = terminou;
+  fala.onerror = terminou;
   speechSynthesis.speak(fala);
 }
 
 export function calar(): void {
-  if (typeof speechSynthesis !== "undefined") speechSynthesis.cancel();
+  if (typeof speechSynthesis !== "undefined") cortar();
 }
 
 export const falando = () => typeof speechSynthesis !== "undefined" && speechSynthesis.speaking;

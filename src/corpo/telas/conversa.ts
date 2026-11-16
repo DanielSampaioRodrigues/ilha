@@ -72,6 +72,18 @@ function nomeDeQuem(): string {
 }
 
 async function enviar(texto: string, ctx: Contexto, porVoz = false): Promise<void> {
+  // Uma de cada vez (ex.: algo ouvido enquanto uma mensagem digitada ainda roda).
+  if (rodando || enviando) return;
+  enviando = true;
+  try {
+    await enviarAgora(texto, ctx, porVoz);
+  } finally {
+    enviando = false;
+  }
+}
+let enviando = false;
+
+async function enviarAgora(texto: string, ctx: Contexto, porVoz: boolean): Promise<void> {
   calar();
   const c = (atual ??= nova());
   const responderEmVoz = (t: string) => {

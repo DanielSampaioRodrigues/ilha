@@ -17,21 +17,31 @@ static ATUAL: Mutex<Option<Operacao>> = Mutex::new(None);
 /// Escuta uma frase (até ~15 s) e devolve o texto. Vazio = não ouviu nada.
 #[tauri::command]
 pub async fn ouvir() -> Result<String, String> {
+    use std::sync::atomic::Ordering;
+    PARAR.store(false, Ordering::Relaxed);
     // A escuta do nome solta o microfone enquanto isso.
-    super::chamado::OCUPADO.store(true, std::sync::atomic::Ordering::Relaxed);
+    super::chamado::OCUPADO.fetch_add(1, Ordering::Relaxed);
     let r = tauri::async_runtime::spawn_blocking(|| {
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        // Espera a escuta do nome soltar o microfone (até 3 s).
+        let comeco = std::time::Instant::now();
+        while super::chamado::ATIVO.load(Ordering::Relaxed) && comeco.elapsed() < std::time::Duration::from_secs(3) {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
         sistema::ouvir()
     })
     .await
     .map_err(|e| e.to_string());
-    super::chamado::OCUPADO.store(false, std::sync::atomic::Ordering::Relaxed);
+    super::chamado::OCUPADO.fetch_sub(1, Ordering::Relaxed);
     r?
 }
+
+/// O Dan apertou Parar (vale mesmo antes de o microfone abrir de fato).
+pub static PARAR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Para de ouvir (botão Parar).
 #[tauri::command]
 pub fn parar_de_ouvir() {
+    PARAR.store(true, std::sync::atomic::Ordering::Relaxed);
     sistema::parar();
 }
 
@@ -83,6 +93,10 @@ mod sistema {
             let _ = t.SetEndSilenceTimeout(TimeSpan { Duration: 12 * 1_000_000 });
             let _ = t.SetBabbleTimeout(TimeSpan { Duration: 15 * 10_000_000 });
         }
+        // Parar antes de o microfone abrir: nem começa.
+        if super::PARAR.load(std::sync::atomic::Ordering::Relaxed) {
+            return Ok(String::new());
+        }
         let operacao = rec.RecognizeAsync().map_err(explicar)?;
         if let Ok(mut a) = ATUAL.lock() {
             *a = Some(operacao.clone());
@@ -90,6 +104,10 @@ mod sistema {
         let resultado = operacao.join();
         if let Ok(mut a) = ATUAL.lock() {
             *a = None;
+        }
+        // Cancelado (Parar): qualquer que seja o código de erro, é "nada ouvido".
+        if super::PARAR.load(std::sync::atomic::Ordering::Relaxed) || operacao.Status().is_ok_and(|s| s == windows_future::AsyncStatus::Canceled) {
+            return Ok(String::new());
         }
         match resultado {
             Ok(r) => {

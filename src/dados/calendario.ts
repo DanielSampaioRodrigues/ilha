@@ -74,6 +74,8 @@ export async function sincronizarCalendario(): Promise<number> {
   enviando = true;
   try {
     const feitos = new Set(await icloudEnviar(email, calendario, mudados, apagar));
+    // Trocou de calendário ou de conta no meio do envio: não anota (manda de novo depois).
+    if (ler().config.icloudCalendario !== calendario || ler().config.icloudEmail !== email) return 0;
     mudar((dd) => {
       const novo = { ...dd.config.calendarioEnviados };
       for (const e of mudados) if (feitos.has(e.uid)) novo[e.uid] = impressao(e);

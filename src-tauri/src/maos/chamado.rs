@@ -3,14 +3,19 @@
 //! pedido. É uma lista fechada de frases, reconhecida no próprio computador.
 //! Desligado por padrão (o microfone fica sempre ligado enquanto ativo).
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use tauri::AppHandle;
 
 static LIGADO: AtomicBool = AtomicBool::new(false);
-/// O "ouvir" normal está usando o microfone: a escuta do nome pausa.
-pub static OCUPADO: AtomicBool = AtomicBool::new(false);
+/// Quantos "ouvir" normais estão usando o microfone (a escuta do nome pausa).
+pub static OCUPADO: AtomicUsize = AtomicUsize::new(0);
+/// A escuta do nome está com o microfone agora.
+pub static ATIVO: AtomicBool = AtomicBool::new(false);
+/// O Windows encerrou a escuta sozinho (microfone trocado, PC suspenso…).
+#[cfg_attr(not(windows), allow(dead_code))]
+static TERMINOU: AtomicBool = AtomicBool::new(false);
 static NOME: Mutex<String> = Mutex::new(String::new());
 static INICIADO: AtomicBool = AtomicBool::new(false);
 
@@ -45,12 +50,13 @@ mod sistema {
     use windows::Foundation::TypedEventHandler;
     use windows::Globalization::Language;
     use windows::Media::SpeechRecognition::{
-        SpeechContinuousRecognitionSession, SpeechContinuousRecognitionResultGeneratedEventArgs, SpeechRecognitionConfidence,
+        SpeechContinuousRecognitionCompletedEventArgs, SpeechContinuousRecognitionSession,
+        SpeechContinuousRecognitionResultGeneratedEventArgs, SpeechRecognitionConfidence,
         SpeechRecognitionListConstraint, SpeechRecognitionResultStatus, SpeechRecognizer,
     };
     use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
-    use super::{frases, LIGADO, NOME, OCUPADO};
+    use super::{frases, ATIVO, LIGADO, NOME, OCUPADO, TERMINOU};
 
     fn preparar(app: &AppHandle, nome: &str) -> windows::core::Result<SpeechRecognizer> {
         let rec = Language::CreateLanguage(&HSTRING::from("pt-BR"))
@@ -79,6 +85,14 @@ mod sistema {
             }
             Ok(())
         }))?;
+        // Se o Windows encerrar a escuta por conta própria, ela é recomeçada.
+        rec.ContinuousRecognitionSession()?.Completed(&TypedEventHandler::<
+            SpeechContinuousRecognitionSession,
+            SpeechContinuousRecognitionCompletedEventArgs,
+        >::new(|_, _| {
+            TERMINOU.store(true, Ordering::Relaxed);
+            Ok(())
+        }))?;
         Ok(rec)
     }
 
@@ -91,7 +105,15 @@ mod sistema {
             loop {
                 std::thread::sleep(Duration::from_millis(400));
                 let nome = NOME.lock().map(|n| n.clone()).unwrap_or_default();
-                let querer = LIGADO.load(Ordering::Relaxed) && !OCUPADO.load(Ordering::Relaxed) && !nome.trim().is_empty();
+                let livre = || OCUPADO.load(Ordering::Relaxed) == 0;
+                let querer = LIGADO.load(Ordering::Relaxed) && livre() && !nome.trim().is_empty();
+                // Encerrada pelo Windows: descarta para recomeçar.
+                if TERMINOU.swap(false, Ordering::Relaxed) && atual.is_some() {
+                    atual = None;
+                    ATIVO.store(false, Ordering::Relaxed);
+                    std::thread::sleep(Duration::from_secs(2));
+                    continue;
+                }
                 // Desliga se não quer mais (ou se o nome mudou).
                 if let Some((rec, nome_atual)) = &atual {
                     if !querer || *nome_atual != nome {
@@ -99,14 +121,21 @@ mod sistema {
                             let _ = s.StopAsync().and_then(|op| op.join());
                         }
                         atual = None;
+                        ATIVO.store(false, Ordering::Relaxed);
                     }
                 }
                 if querer && atual.is_none() {
                     match preparar(&app, &nome) {
+                        // O microfone pode ter sido pedido enquanto preparava.
+                        Ok(_) if !livre() => {}
                         Ok(rec) => {
                             let comecou = rec.ContinuousRecognitionSession().and_then(|s| s.StartAsync()).and_then(|op| op.join());
                             match comecou {
-                                Ok(()) => atual = Some((rec, nome)),
+                                Ok(()) => {
+                                    TERMINOU.store(false, Ordering::Relaxed);
+                                    ATIVO.store(true, Ordering::Relaxed);
+                                    atual = Some((rec, nome));
+                                }
                                 Err(e) => {
                                     log::warn!("Chamar pelo nome: não consegui começar a ouvir: {}", e.message());
                                     std::thread::sleep(Duration::from_secs(20));

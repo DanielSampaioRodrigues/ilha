@@ -73,19 +73,51 @@ fn senha_aleatoria() -> String {
     texto
 }
 
-/// Resumo curto do que a IA quer fazer.
+/// O que a IA quer fazer, COMPLETO (o Dan precisa ver tudo antes de aprovar).
+/// Só corta textos enormes, e avisa quando corta.
 pub fn resumir(ferramenta: &str, entrada: &Value) -> String {
-    for chave in ["command", "file_path", "path", "url", "pattern", "query", "description"] {
-        if let Some(v) = entrada.get(chave).and_then(|v| v.as_str()) {
-            return v.chars().take(300).collect();
+    const LIMITE: usize = 6000;
+    let cortar = |t: &str| {
+        if t.chars().count() > LIMITE {
+            format!("{}\n… (cortado: o pedido é muito longo; na dúvida, responda Não)", t.chars().take(LIMITE).collect::<String>())
+        } else {
+            t.to_string()
+        }
+    };
+    // Comando ou arquivo: mostra o principal primeiro e o resto embaixo.
+    if let Some(objeto) = entrada.as_object() {
+        if let Some(principal) = ["command", "file_path", "path", "url"].iter().find_map(|c| objeto.get(*c).and_then(|v| v.as_str())) {
+            let resto: serde_json::Map<String, Value> = objeto
+                .iter()
+                .filter(|(k, _)| !["command", "file_path", "path", "url", "description"].contains(&k.as_str()))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            let extra = if resto.is_empty() { String::new() } else { format!("\n\n{}", serde_json::to_string_pretty(&resto).unwrap_or_default()) };
+            return cortar(&format!("{principal}{extra}"));
         }
     }
-    let texto = entrada.to_string();
+    let texto = serde_json::to_string_pretty(entrada).unwrap_or_default();
     if texto == "null" || texto == "{}" {
         ferramenta.to_string()
     } else {
-        texto.chars().take(300).collect()
+        cortar(&texto)
     }
+}
+
+/// O outro lado (o processo do Claude Code) desistiu? (conexão fechada)
+fn cliente_saiu(conexao: &TcpStream) -> bool {
+    let mut b = [0u8; 1];
+    if conexao.set_nonblocking(true).is_err() {
+        return false;
+    }
+    let saiu = match conexao.peek(&mut b) {
+        Ok(0) => true,
+        Ok(_) => false,
+        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => false,
+        Err(_) => true,
+    };
+    let _ = conexao.set_nonblocking(false);
+    saiu
 }
 
 /// Abre a porta e fica atendendo (chamado ao ligar a ilha).
@@ -132,7 +164,15 @@ fn atender(app: AppHandle, conexao: TcpStream, senha: &str) {
         ferramenta: pedido.ferramenta,
     };
     let _ = app.emit("ilha:permissao", pergunta);
-    let permitir = receber.recv_timeout(ESPERA_MAXIMA).unwrap_or(false);
+    // Espera a resposta, conferindo a cada segundo se a IA não foi parada.
+    let comeco = std::time::Instant::now();
+    let permitir = loop {
+        match receber.recv_timeout(Duration::from_secs(1)) {
+            Ok(r) => break r,
+            Err(_) if comeco.elapsed() >= ESPERA_MAXIMA || cliente_saiu(&conexao) => break false,
+            Err(_) => {}
+        }
+    };
     if let Ok(mut e) = app.state::<Esperando>().0.lock() {
         e.remove(&id);
     }
@@ -230,17 +270,30 @@ pub fn servidor_mcp_se_pedido() -> bool {
     let args: Vec<String> = std::env::args().collect();
     let Some(pos) = args.iter().position(|a| a == "--mcp-permissao") else { return false };
     let conversa = args.get(pos + 1).cloned().unwrap_or_default();
-    let entrada = std::io::stdin();
-    let mut saida = std::io::stdout();
-    for linha in entrada.lock().lines().map_while(Result::ok) {
-        let Ok(msg) = serde_json::from_str::<Value>(&linha) else { continue };
-        let perguntar = |ferramenta: &str, e: &Value| perguntar_a_ilha(&conversa, ferramenta, e);
-        if let Some(resposta) = responder_mcp(&msg, &conversa, &perguntar) {
-            let _ = writeln!(saida, "{resposta}");
-            let _ = saida.flush();
+    // As mensagens são atendidas noutra linha de execução; esta só lê a entrada.
+    // Se a entrada fechar (Claude Code parado), o processo sai na hora — e a
+    // ilha percebe a conexão fechada e tira a pergunta da tela.
+    let (enviar, receber) = channel::<Value>();
+    let atendente = std::thread::spawn(move || {
+        let mut saida = std::io::stdout();
+        for msg in receber {
+            let perguntar = |ferramenta: &str, e: &Value| perguntar_a_ilha(&conversa, ferramenta, e);
+            if let Some(resposta) = responder_mcp(&msg, &conversa, &perguntar) {
+                let _ = writeln!(saida, "{resposta}");
+                let _ = saida.flush();
+            }
+        }
+    });
+    for linha in std::io::stdin().lock().lines().map_while(Result::ok) {
+        if let Ok(msg) = serde_json::from_str::<Value>(&linha) {
+            let _ = enviar.send(msg);
         }
     }
-    true
+    // Entrada acabou: espera um instante a última resposta e sai.
+    drop(enviar);
+    let _ = std::thread::spawn(move || atendente.join());
+    std::thread::sleep(Duration::from_millis(300));
+    std::process::exit(0)
 }
 
 /// Arquivo de configuração MCP com o servidor de permissões da ilha.
@@ -282,6 +335,9 @@ mod testes {
     #[test]
     fn resume_o_pedido() {
         assert_eq!(resumir("Bash", &json!({"command": "rm -rf build"})), "rm -rf build");
-        assert_eq!(resumir("Write", &json!({"file_path": "C:/a.txt", "content": "x"})), "C:/a.txt");
+        let w = resumir("Write", &json!({"file_path": "C:/a.txt", "content": "x"}));
+        assert!(w.starts_with("C:/a.txt") && w.contains("\"content\": \"x\""));
+        let longo = "a".repeat(7000);
+        assert!(resumir("Bash", &json!({ "command": longo })).contains("cortado"));
     }
 }
