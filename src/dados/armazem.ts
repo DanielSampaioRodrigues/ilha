@@ -138,6 +138,8 @@ export interface Config {
   modelosRapida?: Partial<Record<string, string>>;
   /** Conversa rápida: só conversar, ou fazer tudo no PC (pedindo "Posso?" no que não tem volta). */
   modoRapida?: "conversar" | "editar";
+  /** Microfone com cancelamento de eco (interromper sem fone). Ligado se não houver nada. */
+  microfoneComEco?: boolean;
   /** Mandar as memórias para as IAs. */
   usarMemoria: boolean;
   /** A carinha reage ao que o Dan faz (digitando, música, vídeo…). */

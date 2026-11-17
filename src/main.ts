@@ -6,6 +6,7 @@ import { aoPerderFoco, dentroDoApp, ouvir } from "./ponte";
 import { procurar, versaoAtual } from "./atualizacao";
 import { calar, falando } from "./maos/fala";
 import { aoMudarDeFora, carregar, ler, mudar } from "./dados/armazem";
+import { ajustarMicrofoneComEco } from "./maos/microfone-eco";
 import { avancar, paraISO } from "./dados/datas";
 import { aplicarCor } from "./corpo/tema";
 import { olharTodas, precarregarImagens } from "./corpo/carinha";
@@ -80,6 +81,10 @@ async function iniciar(): Promise<void> {
   precarregarImagens(ler().config.personagem);
   if (!ler().config.copiadosLigado) copiadosLigar(false).catch(() => {});
   if (ler().config.atenderPeloNome) atenderPeloNome(true, ler().config.nomeRobo).catch(() => {});
+  // Microfone com cancelamento de eco (só nesta janela, a da ilha): fica ligado
+  // enquanto "Atender quando eu chamar pelo nome" estiver ligado.
+  ajustarMicrofoneComEco();
+  aoMudarDeFora(ajustarMicrofoneComEco);
   // Calendário da Apple: manda o que mudou (se estiver conectado).
   import("./dados/calendario").then((m) => m.sincronizarSempre());
   // Chamou pelo nome: abre a conversa já ouvindo o pedido.

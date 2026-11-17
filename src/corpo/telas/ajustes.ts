@@ -23,6 +23,7 @@ import {
 import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
 import { procurar, type Novidade } from "../../atualizacao";
+import { ajustarMicrofoneComEco } from "../../maos/microfone-eco";
 import { aoClicar, cabecalho, escapar, html, recadoTemporario } from "../ui";
 
 const TECLAS = [
@@ -122,6 +123,10 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         <div class="item">
           <div class="coluna"><span class="principal">Atender quando eu chamar pelo nome</span><span class="secundario">Diga “${escapar(dados.config.nomeRobo)}” (ou “${escapar(dados.config.nomeRobo)}, que horas são?”) e ele responde, com a ilha aberta ou fechada. O microfone fica ligado, mas tudo é entendido no próprio PC: nada sai do computador e só o que vem depois do nome vira pedido.</span></div>
           <button type="button" class="chave" role="switch" aria-checked="${dados.config.atenderPeloNome}" aria-label="Atender quando eu chamar pelo nome" data-acao="atender-nome"><span></span></button>
+        </div>
+        <div class="item">
+          <div class="coluna"><span class="principal">Interromper sem fone</span><span class="secundario">Usa o cancelamento de eco das chamadas de vídeo: a voz do robô que sai na caixa de som é tirada do que o microfone ouve, então dá para chamar “${escapar(dados.config.nomeRobo)}” e interromper mesmo sem fone. Funciona melhor com a voz natural. Se não der certo no seu PC, desligue.</span></div>
+          <button type="button" class="chave" role="switch" aria-checked="${dados.config.microfoneComEco !== false}" aria-label="Interromper sem fone" data-acao="microfone-eco"><span></span></button>
         </div>
         <div class="item">
           <div class="coluna"><span class="principal">Voz natural (ElevenLabs)</span><span class="secundario">Voz humana, bem menos robótica. Precisa da chave da ElevenLabs (em Chaves de IA, abaixo); se der erro, ele usa a voz do Windows.</span></div>
@@ -296,6 +301,13 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     mudar((d) => (d.config.atenderPeloNome = ligado));
     b.setAttribute("aria-checked", String(ligado));
     atenderPeloNome(ligado, ler().config.nomeRobo).catch(() => {});
+    ajustarMicrofoneComEco();
+  });
+  aoClicar(raiz, "microfone-eco", (b) => {
+    const ligado = ler().config.microfoneComEco === false;
+    mudar((d) => (d.config.microfoneComEco = ligado));
+    b.setAttribute("aria-checked", String(ligado));
+    ajustarMicrofoneComEco();
   });
   // Voz natural (ElevenLabs)
   const linhaNatural = raiz.querySelector<HTMLElement>(".linha-voz-natural")!;

@@ -24,6 +24,12 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        // O microfone é liberado só para as janelas da própria ilha (conteúdo local):
+        // é por ele que vem o som com cancelamento de eco. Sem pergunta do Windows.
+        .on_permission_request(|_, tipo| match tipo {
+            tauri::webview::PermissionKind::Microphone => tauri::webview::PermissionResponse::Allow,
+            _ => tauri::webview::PermissionResponse::Default,
+        })
         // Se a ilha já estiver aberta, não cria outra: repassa o aviso ou só abre a que existe.
         .plugin(tauri_plugin_single_instance::init(|app, args, pasta| {
             match avisos::ler(&args, &pasta) {
@@ -126,6 +132,7 @@ pub fn run() {
             maos::ouvido::fala_com_nome,
             maos::ouvido::escolher_ouvido,
             maos::ouvido::testar_ouvido,
+            maos::ouvido::som_do_microfone,
             maos::volume::volume_atual,
             maos::volume::definir_volume,
             maos::pc::diagnostico_pc,

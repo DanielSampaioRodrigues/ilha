@@ -638,14 +638,72 @@ pub fn achar_nome(texto: &str, nome: &str) -> Option<String> {
 /// Som do microfone, já em 16 kHz e um canal, chegando aos pedaços.
 pub struct Microfone {
     #[cfg(windows)]
-    _fluxo: cpal::Stream,
+    _fluxo: Option<cpal::Stream>,
     pub chegando: std::sync::mpsc::Receiver<Vec<f32>>,
     /// Nome do microfone que o Windows escolheu (para o teste do ouvido).
     pub nome: String,
+    /// O som vem da janela da ilha, com cancelamento de eco.
+    pub com_eco: bool,
+}
+
+impl Microfone {
+    /// O jeito de ouvir mudou (a janela começou ou parou de mandar som com
+    /// cancelamento de eco): hora de reabrir o microfone.
+    fn desatualizado(&self) -> bool {
+        self.com_eco != eco_ativo()
+    }
+}
+
+// ---------- Microfone com cancelamento de eco (pela janela da ilha) ----------
+//
+// A janela da ilha (WebView2, o mesmo motor do Edge) capta o microfone com o
+// cancelamento de eco das chamadas de vídeo: a voz do robô que sai na caixa de
+// som é tirada do que o microfone ouve. Assim dá para interromper sem fone. A
+// janela manda o som para cá (`som_do_microfone`); se ele parar de chegar, a
+// ilha volta para o microfone direto (cpal). Ideia do projeto aberto "jarvis".
+
+static OUVINTES_ECO: Mutex<Vec<std::sync::mpsc::Sender<Vec<f32>>>> = Mutex::new(Vec::new());
+static ULTIMO_SOM_ECO: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// A janela está mandando som (com cancelamento de eco) agora.
+fn eco_ativo() -> bool {
+    ULTIMO_SOM_ECO.lock().ok().and_then(|u| *u).is_some_and(|t| t.elapsed() < Duration::from_millis(1500))
+}
+
+/// Som da janela da ilha: PCM 16 bits, 16 kHz, um canal (corpo binário).
+#[tauri::command]
+pub fn som_do_microfone(pedido: tauri::ipc::Request<'_>) {
+    let tauri::ipc::InvokeBody::Raw(bytes) = pedido.body() else { return };
+    let amostras: Vec<f32> = bytes.chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]]) as f32 / 32768.0).collect();
+    if let Ok(mut u) = ULTIMO_SOM_ECO.lock() {
+        *u = Some(Instant::now());
+    }
+    if let Ok(mut lista) = OUVINTES_ECO.lock() {
+        lista.retain(|o| o.send(amostras.clone()).is_ok());
+    }
+}
+
+/// Microfone pela janela (com cancelamento de eco), se ela estiver mandando som.
+fn microfone_com_eco() -> Option<Microfone> {
+    if !eco_ativo() {
+        return None;
+    }
+    let (envia, chegando) = std::sync::mpsc::channel();
+    OUVINTES_ECO.lock().ok()?.push(envia);
+    Some(Microfone {
+        #[cfg(windows)]
+        _fluxo: None,
+        chegando,
+        nome: "Microfone com cancelamento de eco".into(),
+        com_eco: true,
+    })
 }
 
 #[cfg(windows)]
 pub fn abrir_microfone() -> Result<Microfone, String> {
+    if let Some(m) = microfone_com_eco() {
+        return Ok(m);
+    }
     use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
     use cpal::SampleFormat;
     let host = cpal::default_host();
@@ -683,11 +741,14 @@ pub fn abrir_microfone() -> Result<Microfone, String> {
     }
     .map_err(|e| format!("Não consegui abrir o microfone: {e}"))?;
     fluxo.play().map_err(|e| format!("Não consegui ligar o microfone: {e}"))?;
-    Ok(Microfone { _fluxo: fluxo, chegando, nome })
+    Ok(Microfone { _fluxo: Some(fluxo), chegando, nome, com_eco: false })
 }
 
 #[cfg(not(windows))]
 pub fn abrir_microfone() -> Result<Microfone, String> {
+    if let Some(m) = microfone_com_eco() {
+        return Ok(m);
+    }
     Err("O ouvido próprio só grava o microfone no Windows.".into())
 }
 
@@ -1102,7 +1163,8 @@ fn atender(
 /// falando), ouve o pedido (junto com o nome ou logo depois, no mesmo
 /// microfone) e manda o texto ("ilha:pedido-ouvido"). Devolve `true`.
 pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl Fn(String)) -> Result<bool, String> {
-    let microfone = abrir_microfone()?;
+    let mut microfone = abrir_microfone()?;
+    let mut ultima_conferida = Instant::now();
     // 400 ms de silêncio já encerram a fala do nome (responde mais rápido; se a
     // pessoa continuar falando, a continuação vira o pedido).
     let mut cortador = Cortador::new(400, 8_000);
@@ -1116,6 +1178,18 @@ pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl F
         if ultimo_alivio.elapsed() > Duration::from_secs(30) {
             ultimo_alivio = Instant::now();
             aliviar_memoria();
+        }
+        // A janela começou (ou parou) de mandar som com cancelamento de eco:
+        // troca de microfone sem a pessoa perceber.
+        if ultima_conferida.elapsed() > Duration::from_secs(1) {
+            ultima_conferida = Instant::now();
+            if microfone.desatualizado() {
+                microfone = abrir_microfone()?;
+                log::info!("Ouvido: agora ouvindo por \"{}\"", microfone.nome);
+                cortador = Cortador::new(400, 8_000);
+                fila.clear();
+                recente.clear();
+            }
         }
         let som = match microfone.chegando.recv_timeout(Duration::from_millis(200)) {
             Ok(som) => som,
