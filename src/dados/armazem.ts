@@ -136,6 +136,8 @@ export interface Config {
   conversaRapida: string;
   /** Modelo escolhido para a conversa rápida, por IA ("" = o padrão do programa). */
   modelosRapida?: Partial<Record<string, string>>;
+  /** Conversa rápida: só conversar, ou fazer tudo no PC (pedindo "Posso?" no que não tem volta). */
+  modoRapida?: "conversar" | "editar";
   /** Mandar as memórias para as IAs. */
   usarMemoria: boolean;
   /** A carinha reage ao que o Dan faz (digitando, música, vídeo…). */

@@ -210,6 +210,38 @@ fn perguntar_a_ilha(conversa: &str, ferramenta: &str, entrada: &Value) -> Result
     Ok(v["permitir"].as_bool().unwrap_or(false))
 }
 
+/// Comandos que só olham (não mudam nada no PC). Bem conservador: qualquer
+/// redirecionamento, encadeamento ou execução embutida faz perguntar.
+const SO_OLHAM: [&str; 34] = [
+    "ls", "dir", "pwd", "cd", "echo", "cat", "type", "head", "tail", "wc", "find", "findstr", "grep", "rg", "where", "which",
+    "tree", "date", "whoami", "hostname", "systeminfo", "tasklist", "ipconfig", "ping", "get-childitem", "get-content",
+    "get-item", "get-location", "get-date", "get-process", "test-path", "resolve-path", "select-string", "get-computerinfo",
+];
+const GIT_QUE_OLHA: [&str; 7] = ["status", "log", "diff", "show", "branch", "remote", "blame"];
+
+pub fn seguro_sem_perguntar(ferramenta: &str, entrada: &Value) -> bool {
+    match ferramenta {
+        "Read" | "Glob" | "Grep" | "LS" | "WebSearch" | "WebFetch" | "TodoWrite" | "NotebookRead" => true,
+        "Bash" | "PowerShell" => {
+            let comando = entrada["command"].as_str().unwrap_or_default().trim();
+            if comando.is_empty() || comando.contains(['>', ';', '&', '`', '\n']) || comando.contains("$(") {
+                return false;
+            }
+            // Cada parte de um "|" precisa ser só de olhar.
+            comando.split('|').all(|parte| {
+                let mut palavras = parte.split_whitespace();
+                let primeira = palavras.next().unwrap_or_default().to_lowercase();
+                let primeira = primeira.trim_end_matches(".exe");
+                if primeira == "git" {
+                    return palavras.next().is_some_and(|sub| GIT_QUE_OLHA.contains(&sub.to_lowercase().as_str()));
+                }
+                SO_OLHAM.contains(&primeira) || primeira == "select-object" || primeira == "sort-object" || primeira == "measure-object"
+            })
+        }
+        _ => false,
+    }
+}
+
 /// Resposta da ferramenta "aprovar" no formato que o Claude Code espera.
 pub fn resposta_da_ferramenta(permitir: Result<bool, String>, entrada: &Value) -> Value {
     let decisao = match permitir {
@@ -254,7 +286,13 @@ pub fn responder_mcp(msg: &Value, conversa: &str, perguntar: &dyn Fn(&str, &Valu
                 .find(|v| !v.is_null())
                 .cloned()
                 .unwrap_or_else(|| json!({}));
-            resposta_da_ferramenta(perguntar(ferramenta, &entrada), &entrada)
+            // Só olhar (listar, ler, pesquisar) não precisa de permissão: com voz,
+            // perguntar a cada "listar pasta" deixaria a conversa impossível.
+            if seguro_sem_perguntar(ferramenta, &entrada) {
+                resposta_da_ferramenta(Ok(true), &entrada)
+            } else {
+                resposta_da_ferramenta(perguntar(ferramenta, &entrada), &entrada)
+            }
         }
         _ => {
             return Some(json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": format!("Método desconhecido: {metodo}") } }));
@@ -322,14 +360,31 @@ mod testes {
         assert!(responder_mcp(&json!({"jsonrpc":"2.0","method":"notifications/initialized"}), "c", &sim).is_none());
         let lista = responder_mcp(&json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}), "c", &sim).unwrap();
         assert_eq!(lista["result"]["tools"][0]["name"], "aprovar");
-        let chamada = json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"aprovar","arguments":{"tool_name":"Bash","input":{"command":"ls"}}}});
+        let chamada = json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"aprovar","arguments":{"tool_name":"Bash","input":{"command":"npm install"}}}});
         let r = responder_mcp(&chamada, "c", &sim).unwrap();
         let texto: Value = serde_json::from_str(r["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(texto["behavior"], "allow");
-        assert_eq!(texto["updatedInput"]["command"], "ls");
+        assert_eq!(texto["updatedInput"]["command"], "npm install");
         let nao = |_: &str, _: &Value| Ok(false);
         let r = responder_mcp(&chamada, "c", &nao).unwrap();
         assert!(r["result"]["content"][0]["text"].as_str().unwrap().contains("deny"));
+    }
+
+    #[test]
+    fn so_olhar_nao_pergunta() {
+        use serde_json::json;
+        let b = |c: &str| super::seguro_sem_perguntar("Bash", &json!({ "command": c }));
+        assert!(b("ls -la"));
+        assert!(b("git status"));
+        assert!(b("Get-ChildItem C:\\Users | Select-Object Name"));
+        assert!(!b("rm -rf pasta"));
+        assert!(!b("git push"));
+        assert!(!b("ls > lista.txt"));
+        assert!(!b("ls; rm x"));
+        assert!(!b("echo $(rm x)"));
+        assert!(!b("Remove-Item x"));
+        assert!(super::seguro_sem_perguntar("WebSearch", &json!({})));
+        assert!(!super::seguro_sem_perguntar("Write", &json!({})));
     }
 
     #[test]

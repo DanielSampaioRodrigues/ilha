@@ -14,6 +14,7 @@ import { textoRico } from "../../central/texto-rico";
 import { tentarComando } from "../comandos";
 import type { Contexto } from "../contexto";
 import { ICONES } from "../icones";
+import { oQueQuer } from "../estados";
 import { aoClicar, cabecalho, escapar, html } from "../ui";
 
 const MOTORES: Motor[] = ["deepseek", "claude", "codex", "antigravity", "gemini"];
@@ -59,6 +60,34 @@ const DESPEDIDAS = /^(tchau|obrigad[oa]|valeu|pode parar|para de ouvir|chega|era
 export function abrirOuvindo(): void {
   ouvirAoAbrir = true;
 }
+/**
+ * Uma IA pediu permissão numa conversa por voz: pergunta falando ("Posso?") e
+ * ouve "sim" ou "não". O cartão na ilha continua lá para quem preferir clicar.
+ */
+export function perguntarPorVoz(p: { id: string; conversa: string; ferramenta: string; detalhe: string }, responder: (sim: boolean) => void): void {
+  if (!p.conversa.startsWith("rapida-") || !ler().config.falarRespostas) return;
+  const curto = p.detalhe && p.detalhe.length <= 60 ? ` (${p.detalhe})` : "";
+  falar(`Posso ${oQueQuer(p.ferramenta)}${curto}?`, () => {
+    ouvir()
+      .then((t) => {
+        const r = t.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (/^(sim|pode|claro|ok|okay|beleza|manda|vai|faz|autorizo|isso|positivo|com certeza)\b/.test(r)) responder(true);
+        else if (/^(nao|para|pare|cancela|cancelar|negativo|nem pensar|espera)\b/.test(r)) responder(false);
+      })
+      .catch(() => {});
+  });
+}
+
+/** Frases curtas enquanto a resposta não vem (o silêncio longo parece travado). */
+const ESPERANDO = ["Um instante.", "Deixa eu ver.", "Só um momento.", "Já vejo isso."];
+const TRABALHANDO = ["Fazendo isso agora.", "Trabalhando nisso.", "Cuidando disso."];
+let ultimaFrase = "";
+function fraseDe(lista: string[]): string {
+  const opcoes = lista.filter((f) => f !== ultimaFrase);
+  ultimaFrase = opcoes[Math.floor(Math.random() * opcoes.length)];
+  return ultimaFrase;
+}
+
 /** Pedido que veio junto com o nome ("Robozinho, que horas são?"). */
 let pedidoAoAbrir = "";
 export function abrirComPedido(texto: string): void {
@@ -112,7 +141,7 @@ function nova(): Conversa {
     sessao: null,
     projetoId: null,
     pasta: null,
-    modo: perfil?.modo ?? "conversar",
+    modo: perfil?.modo ?? d.config.modoRapida ?? "conversar",
     perfilId: perfil?.id ?? null,
     modelo: perfil?.modelo ?? d.config.modelosRapida?.[motor] ?? "",
     esforco: perfil?.esforco ?? "",
@@ -191,9 +220,24 @@ async function enviarAgora(texto: string, ctx: Contexto, porVoz: boolean): Promi
   // Por voz: fala frase por frase, conforme a resposta chega (não espera acabar).
   const voz = porVoz && ler().config.falarRespostas ? falarEmPartes(() => depoisDeFalar?.()) : null;
   let falado = 0;
+  // Frase de espera: se em 1,5 s ainda não chegou nada para falar, diz algo curto
+  // (uma vez só); se a IA começou a usar ferramentas, avisa que está trabalhando.
+  let disseEspera = false;
+  const espera = voz
+    ? window.setTimeout(() => {
+        if (falado === 0 && !disseEspera) {
+          disseEspera = true;
+          voz.parte(fraseDe(ESPERANDO));
+        }
+      }, 1500)
+    : 0;
   const falarNovas = (final: boolean) => {
     const robo = c.mensagens[c.mensagens.length - 1];
     if (!voz || robo?.papel !== "robo") return;
+    if (!disseEspera && falado === 0 && !robo.texto && (robo.ferramentas?.length ?? 0) > 0) {
+      disseEspera = true;
+      voz.parte(fraseDe(TRABALHANDO));
+    }
     if (final) {
       voz.parte(robo.texto.slice(falado));
       falado = robo.texto.length;
@@ -218,6 +262,7 @@ async function enviarAgora(texto: string, ctx: Contexto, porVoz: boolean): Promi
     },
   );
   rodando = false;
+  window.clearTimeout(espera);
   aoMudar();
   if (voz) {
     if (!resposta.erro) falarNovas(true);
@@ -250,6 +295,12 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
         <label class="secundario campo-modelo-rapida">Modelo
           <select class="entrada curta2" data-campo="modelo-rapida" aria-label="Modelo"></select>
         </label>
+        <label class="secundario campo-modo-rapida">Pode
+          <select class="entrada curta2" data-campo="modo-rapida" aria-label="O que ele pode fazer">
+            <option value="conversar" ${(d.config.modoRapida ?? "conversar") === "conversar" ? "selected" : ""}>Só conversar</option>
+            <option value="editar" ${d.config.modoRapida === "editar" ? "selected" : ""}>Fazer tudo no PC</option>
+          </select>
+        </label>
         <span class="espaco"></span>
         <button type="button" class="redondo" data-acao="memoria" aria-label="Memória" title="O que eu guardei de você">${ICONES.memoria}</button>
         <button type="button" class="botao" data-acao="nova" title="Começar outra conversa">Nova</button>
@@ -275,6 +326,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
   const botaoEnviar = raiz.querySelector<HTMLButtonElement>(".enviar-rapida")!;
   const seletor = raiz.querySelector<HTMLSelectElement>(".quem-responde select")!;
   const seletorModelo = raiz.querySelector<HTMLSelectElement>('[data-campo="modelo-rapida"]')!;
+  const seletorModo = raiz.querySelector<HTMLSelectElement>('[data-campo="modo-rapida"]')!;
 
   const desenhar = () => {
     const msgs = atual?.mensagens ?? [];
@@ -296,6 +348,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     raiz.querySelector<HTMLButtonElement>('[data-acao="central"]')!.disabled = rodando || !atual?.mensagens.length;
     seletor.disabled = rodando;
     seletorModelo.disabled = rodando;
+    seletorModo.disabled = rodando;
     raiz.querySelector<HTMLElement>(".rapida-ouvindo")!.hidden = !ouvindo;
     raiz.querySelector<HTMLElement>(".texto-ouvindo")!.textContent = aoVivo
       ? `“${aoVivo}”`
@@ -330,6 +383,8 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
       .map((o) => `<option value="${escapar(o.valor)}" ${o.valor === atualModelo ? "selected" : ""}>${escapar(o.nome)}</option>`)
       .join("");
     seletorModelo.closest<HTMLElement>(".campo-modelo-rapida")!.hidden = perfil;
+    // A DeepSeek só conversa (não mexe no PC); no perfil, vale o do perfil.
+    seletorModo.closest<HTMLElement>(".campo-modo-rapida")!.hidden = perfil || motor === "deepseek";
     // Antigravity e DeepSeek: a lista vem do próprio programa/API (uma vez).
     if ((motor === "antigravity" || motor === "deepseek") && !modelosBuscados.has(motor)) {
       modelosBuscados.add(motor);
@@ -349,6 +404,15 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     mudar((dd) => (dd.config.modelosRapida = { ...(dd.config.modelosRapida ?? {}), [motor]: valor }));
     // Vale a partir da próxima mensagem desta conversa.
     if (atual) atual.modelo = valor;
+  });
+  // Fazer tudo no PC: o que só olha vai direto; o que muda algo pede "Posso?" (por voz também).
+  seletorModo.addEventListener("change", () => {
+    const modo = seletorModo.value === "editar" ? "editar" : "conversar";
+    mudar((dd) => (dd.config.modoRapida = modo));
+    // O jeito de trabalhar é de cada conversa: começa outra.
+    if (atual?.mensagens.length) atual = null;
+    else if (atual) atual.modo = modo;
+    desenhar();
   });
   seletor.addEventListener("change", () => {
     mudar((dd) => (dd.config.conversaRapida = seletor.value));

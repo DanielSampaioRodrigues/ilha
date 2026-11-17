@@ -19,7 +19,7 @@ use serde_json::{json, Map, Value};
 
 use crate::maos::cofre;
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ServidorMcp {
     pub nome: String,
     pub tipo: String,

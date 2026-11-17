@@ -18,6 +18,7 @@ import {
   perceberAtividade,
   atenderPeloNome,
   escolherOuvido,
+  responderPermissao,
   copiadosLigar,
   midiaAtual,
   PROGRAMAS_COM_ABAS,
@@ -61,7 +62,16 @@ async function iniciar(): Promise<void> {
   ouvir<boolean>("ilha:passeio", (fora) => ilha.passeando(fora));
   ilha.agendarPasseios();
   ilha.agendarRotinas();
-  ouvir<import("./corpo/contexto").Pergunta>("ilha:permissao", (p) => ilha.perguntar(p));
+  ouvir<import("./corpo/contexto").Pergunta>("ilha:permissao", (p) => {
+    ilha.perguntar(p);
+    // Conversa por voz: pergunta falando e aceita "sim"/"não" falado.
+    import("./corpo/telas/conversa").then((m) =>
+      m.perguntarPorVoz(p, (sim) => {
+        responderPermissao(p.id, sim).catch(() => {});
+        ilha.esquecerPergunta(p.id);
+      }),
+    );
+  });
   ouvir<string>("ilha:permissao-fim", (id) => ilha.esquecerPergunta(id));
   ouvir<{ digitando: boolean; categoria: string }>("ilha:atividade", (a) => ilha.atividade(a.digitando, a.categoria));
   // Madrugada etc.: confere a hora de tempos em tempos.

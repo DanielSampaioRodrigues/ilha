@@ -577,7 +577,220 @@ impl Leitor {
     }
 }
 
+// ---------- Claude Code sempre aberto ----------
+//
+// Abrir o Claude Code leva alguns segundos. Em vez de abrir e fechar a cada
+// pergunta, a ilha deixa ele aberto por conversa (modo oficial de entrada
+// contínua: `--input-format stream-json`) e só manda a pergunta nova. A partir
+// da segunda pergunta, a resposta começa quase na hora. (Ideia do projeto
+// aberto "jarvis", que faz o mesmo pelo Claude Agent SDK.)
+
+struct ClaudeAberto {
+    /// Tudo o que define o processo (argumentos, pasta, raciocínio): mudou, abre outro.
+    chave: String,
+    entrada: std::process::ChildStdin,
+    linhas: std::sync::mpsc::Receiver<String>,
+    erros: Arc<Mutex<String>>,
+    filho: Arc<Mutex<Child>>,
+    usado: std::time::Instant,
+    temporario: Option<PathBuf>,
+}
+
+static ABERTOS: Mutex<Option<HashMap<String, ClaudeAberto>>> = Mutex::new(None);
+
+impl ClaudeAberto {
+    fn fechar(self) {
+        if let Ok(mut f) = self.filho.lock() {
+            let _ = f.kill();
+            let _ = f.wait();
+        }
+        if let Some(t) = &self.temporario {
+            let _ = std::fs::remove_file(t);
+        }
+    }
+}
+
+/// Fecha os que ficaram 15 minutos sem uso (cada um ocupa memória).
+fn fechar_parados() {
+    let parados: Vec<ClaudeAberto> = {
+        let Ok(mut a) = ABERTOS.lock() else { return };
+        let mapa = a.get_or_insert_with(HashMap::new);
+        let chaves: Vec<String> = mapa
+            .iter()
+            .filter(|(_, c)| c.usado.elapsed() > std::time::Duration::from_secs(15 * 60))
+            .map(|(k, _)| k.clone())
+            .collect();
+        chaves.iter().filter_map(|k| mapa.remove(k)).collect()
+    };
+    for c in parados {
+        c.fechar();
+    }
+}
+
+fn rodar_claude_aberto(pedido: &Pedido, canal: &Channel<Evento>, andamento: &Andamento) -> Result<(), String> {
+    fechar_parados();
+    let exe = executavel("claude").ok_or("Não encontrei o programa \"claude\" neste computador. Ele precisa estar instalado e com login feito.")?;
+    let editar = pedido.modo == "editar";
+    // Os argumentos sem o "continuar a sessão": é o que identifica o processo.
+    let mut base = argumentos("claude", None, editar, &pedido.modelo, &pedido.esforco);
+    base.extend(["--input-format".into(), "stream-json".into()]);
+    if !pedido.sistema.trim().is_empty() {
+        base.extend(["--append-system-prompt".into(), pedido.sistema.clone()]);
+    }
+    let pasta = pedido
+        .pasta
+        .as_deref()
+        .filter(|p| Path::new(p).is_dir())
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")).map(PathBuf::from));
+    let mcps: Vec<String> = pedido.mcps.iter().map(|m| format!("{m:?}")).collect();
+    let chave = format!("{base:?}|{pasta:?}|{mcps:?}");
+
+    // Já aberto com a mesma configuração e ainda vivo? Usa. Senão, abre outro.
+    let reaproveitado = ABERTOS.lock().ok().and_then(|mut a| a.get_or_insert_with(HashMap::new).remove(&pedido.conversa_id));
+    let mut aberto = match reaproveitado {
+        Some(c) if c.chave == chave && c.filho.lock().ok().is_some_and(|mut f| matches!(f.try_wait(), Ok(None))) => c,
+        outro => {
+            if let Some(c) = outro {
+                c.fechar();
+            }
+            let mut args = base.clone();
+            if let Some(id) = pedido.sessao.as_deref() {
+                args.extend(["--resume".into(), id.to_string()]);
+            }
+            let aplicacao = mcp::aplicar("claude", &pedido.mcps, &pedido.mcps_da_ilha, &pedido.conversa_id, editar)?;
+            args.extend(aplicacao.argumentos.iter().cloned());
+            let mut cmd = comando(&exe, &args);
+            cmd.envs(&aplicacao.ambiente);
+            if valor_simples(&pedido.esforco) {
+                cmd.env("CLAUDE_CODE_EFFORT_LEVEL", &pedido.esforco);
+            }
+            // Sempre pela assinatura (nunca por uma chave de API guardada no PC).
+            cmd.env_remove("ANTHROPIC_API_KEY");
+            cmd.env_remove("ANTHROPIC_AUTH_TOKEN");
+            if let Some(p) = &pasta {
+                cmd.current_dir(p);
+            }
+            let mut filho = cmd
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .map_err(|e| format!("Não consegui abrir o Claude Code: {e}"))?;
+            let entrada = filho.stdin.take().ok_or("sem entrada")?;
+            let saida = filho.stdout.take().ok_or("sem saída")?;
+            let (envia, linhas) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                for linha in BufReader::new(saida).lines().map_while(Result::ok) {
+                    if envia.send(linha).is_err() {
+                        break;
+                    }
+                }
+            });
+            let erros = Arc::new(Mutex::new(String::new()));
+            if let Some(mut e) = filho.stderr.take() {
+                let guarda = erros.clone();
+                std::thread::spawn(move || {
+                    let mut buf = [0u8; 2048];
+                    while let Ok(n) = e.read(&mut buf) {
+                        if n == 0 {
+                            break;
+                        }
+                        if let Ok(mut g) = guarda.lock() {
+                            g.push_str(&String::from_utf8_lossy(&buf[..n]));
+                            let tamanho = g.chars().count();
+                            if tamanho > 4000 {
+                                *g = g.chars().skip(tamanho - 4000).collect();
+                            }
+                        }
+                    }
+                });
+            }
+            ClaudeAberto {
+                chave,
+                entrada,
+                linhas,
+                erros,
+                filho: Arc::new(Mutex::new(filho)),
+                usado: std::time::Instant::now(),
+                temporario: aplicacao.temporario.clone(),
+            }
+        }
+    };
+
+    // A pergunta, como uma linha de JSON (a sessão continua aberta depois).
+    let texto = super::anexos::para_programa("claude", &pedido.prompt, &pedido.anexos);
+    let linha = serde_json::json!({ "type": "user", "message": { "role": "user", "content": texto } }).to_string() + "\n";
+    if aberto.entrada.write_all(linha.as_bytes()).and_then(|_| aberto.entrada.flush()).is_err() {
+        aberto.fechar();
+        return Err("O Claude Code fechou sozinho. Mande de novo.".into());
+    }
+    if let Ok(mut a) = andamento.0.lock() {
+        a.insert(pedido.conversa_id.clone(), Parada::Processo(aberto.filho.clone()));
+    }
+    let mut leitor = Leitor {
+        motor: "claude".into(),
+        recebeu_parcial: false,
+        escreveu_texto: false,
+        erro: None,
+        custo: None,
+        passo: Value::Null,
+        avisou_sessao: false,
+    };
+    // Lê até o fim desta resposta ("result"); o processo continua aberto.
+    let mut terminou_bem = false;
+    loop {
+        match aberto.linhas.recv_timeout(std::time::Duration::from_millis(300)) {
+            Ok(linha) => {
+                let fim = serde_json::from_str::<Value>(&linha).is_ok_and(|v| v["type"] == "result");
+                leitor.linha(&linha, canal);
+                if fim {
+                    terminou_bem = true;
+                    break;
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // Parar (o botão) mata o processo; a leitura acaba sozinha.
+                if andamento.0.lock().map(|a| !a.contains_key(&pedido.conversa_id)).unwrap_or(false) {
+                    break;
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+        }
+    }
+    let parou_a_pedido = andamento.0.lock().map(|a| !a.contains_key(&pedido.conversa_id)).unwrap_or(false);
+    if let Ok(mut a) = andamento.0.lock() {
+        a.remove(&pedido.conversa_id);
+    }
+    let erro = if parou_a_pedido {
+        Some("Parado.".to_string())
+    } else if leitor.erro.is_some() {
+        leitor.erro.clone()
+    } else if !terminou_bem && !leitor.escreveu_texto {
+        let erros = aberto.erros.lock().map(|e| sem_cores(&e)).unwrap_or_default();
+        let fim: String = erros.trim().chars().rev().take(400).collect::<Vec<_>>().into_iter().rev().collect();
+        Some(if fim.is_empty() { "O Claude Code terminou com erro.".to_string() } else { fim })
+    } else {
+        None
+    };
+    // Vivo e sem problema: fica aberto para a próxima pergunta.
+    let vivo = aberto.filho.lock().ok().is_some_and(|mut f| matches!(f.try_wait(), Ok(None)));
+    if vivo && terminou_bem && !parou_a_pedido {
+        aberto.usado = std::time::Instant::now();
+        if let Ok(mut a) = ABERTOS.lock() {
+            a.get_or_insert_with(HashMap::new).insert(pedido.conversa_id.clone(), aberto);
+        }
+    } else {
+        aberto.fechar();
+    }
+    let _ = canal.send(Evento::Fim { erro, custo: leitor.custo });
+    Ok(())
+}
+
 fn rodar_programa(pedido: &Pedido, canal: &Channel<Evento>, andamento: &Andamento) -> Result<(), String> {
+    if pedido.motor == "claude" {
+        return rodar_claude_aberto(pedido, canal, andamento);
+    }
     let nome = nome_do_programa(&pedido.motor).ok_or("Motor desconhecido.")?;
     let exe = executavel(nome).ok_or_else(|| {
         format!("Não encontrei o programa \"{nome}\" neste computador. Ele precisa estar instalado e com login feito.")
