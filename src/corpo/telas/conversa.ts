@@ -29,6 +29,13 @@ let microfoneAberto = false;
 let aoAbrirMicrofone: () => void = () => {};
 /** Já gravou: o ouvido está transformando a fala em texto. */
 let entendendo = false;
+/** O que a nuvem já entendeu, enquanto a pessoa ainda fala. */
+let aoVivo = "";
+aoEvento<string>("ilha:ouvindo-texto", (t) => {
+  if (!ouvindo) return;
+  aoVivo = t;
+  aoAbrirMicrofone();
+});
 aoEvento("ilha:entendendo", () => {
   if (!ouvindo) return;
   entendendo = true;
@@ -72,6 +79,7 @@ export function abrirEsperandoPedido(etapa: "ouvindo" | "entendendo"): void {
   esperandoPedido = true;
   pedidoOuvido = null;
   ouvindo = true;
+  aoVivo = "";
   // O microfone já está aberto (é o mesmo que ouviu o nome): pode falar.
   microfoneAberto = true;
   entendendo = etapa === "entendendo";
@@ -289,11 +297,13 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     seletor.disabled = rodando;
     seletorModelo.disabled = rodando;
     raiz.querySelector<HTMLElement>(".rapida-ouvindo")!.hidden = !ouvindo;
-    raiz.querySelector<HTMLElement>(".texto-ouvindo")!.textContent = entendendo
-      ? "Entendendo o que você disse…"
-      : microfoneAberto
-        ? "Pode falar!"
-        : "Abrindo o microfone… espere o bip";
+    raiz.querySelector<HTMLElement>(".texto-ouvindo")!.textContent = aoVivo
+      ? `“${aoVivo}”`
+      : entendendo
+        ? "Entendendo o que você disse…"
+        : microfoneAberto
+          ? "Pode falar!"
+          : "Abrindo o microfone… espere o bip";
     raiz.querySelector<HTMLElement>(".rapida-ouvindo .ponto")!.classList.toggle("esperando", !microfoneAberto);
     document.body.classList.toggle("ouvindo-voz", ouvindo);
     const erro = raiz.querySelector<HTMLElement>(".rapida-erro-voz")!;
@@ -396,6 +406,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     ouvindo = true;
     microfoneAberto = false;
     entendendo = false;
+    aoVivo = "";
     aoAbrirMicrofone = () => raiz.isConnected && desenhar();
     erroVoz = "";
     desenhar();

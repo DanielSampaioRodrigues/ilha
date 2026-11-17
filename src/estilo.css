@@ -2449,3 +2449,10 @@ body.carinha-fora .estado.repouso > .carinha {
 .confirma-voz .linha {
   gap: 8px;
 }
+
+/* Texto ao vivo (ouvido na nuvem): pode ser comprido, quebra a linha. */
+.rapida-ouvindo .texto-ouvindo {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}

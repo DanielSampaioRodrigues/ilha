@@ -732,8 +732,9 @@ struct EnvioNuvem {
 }
 
 impl EnvioNuvem {
-    fn novo() -> Self {
-        EnvioNuvem { nuvem: super::nuvem::abrir(), antes: std::collections::VecDeque::new() }
+    /// `app`: para mostrar o texto ao vivo na ilha enquanto a pessoa fala.
+    fn novo(app: Option<&AppHandle>) -> Self {
+        EnvioNuvem { nuvem: super::nuvem::abrir(app.cloned()), antes: std::collections::VecDeque::new() }
     }
 
     /// Chamar depois de empurrar o som no cortador: `falava` é como estava antes.
@@ -779,7 +780,7 @@ pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, Strin
     let _ = app.emit("ilha:microfone-aberto", ());
     preparar_bom();
     let mut cortador = Cortador::new(1_400, 20_000);
-    let mut nuvem = EnvioNuvem::novo();
+    let mut nuvem = EnvioNuvem::novo(Some(app));
     let comeco = Instant::now();
     let fala = loop {
         if parar.load(Ordering::Relaxed) {
@@ -847,7 +848,7 @@ fn pedido_junto(fala: &[f32], nome: &str, resto: String) -> String {
     if !tem(bom()) {
         return resto;
     }
-    let nuvem = EnvioNuvem::novo();
+    let nuvem = EnvioNuvem::novo(None);
     if let Some(n) = &nuvem.nuvem {
         n.enviar(fala);
     }
@@ -877,12 +878,13 @@ fn chamou(fala: &[f32], nome: &str) -> Option<(String, String)> {
 /// Depois do nome sozinho: o MESMO microfone já ouve o pedido (sem fechar e
 /// abrir outro, que perdia o começo da frase). Espera até 8 s a pessoa começar.
 fn ouvir_continuacao(
+    app: &AppHandle,
     microfone: &Microfone,
     fila: &mut std::collections::VecDeque<Vec<f32>>,
 ) -> Result<(Vec<f32>, EnvioNuvem), String> {
     if let Some(f) = fila.pop_front() {
         // Já gravada: vai para a nuvem de uma vez (ou é entendida no PC).
-        let nuvem = EnvioNuvem::novo();
+        let nuvem = EnvioNuvem::novo(None);
         if let Some(n) = &nuvem.nuvem {
             n.enviar(&f);
         }
@@ -890,7 +892,7 @@ fn ouvir_continuacao(
     }
     let parar = &super::voz::PARAR;
     let mut cortador = Cortador::new(1_400, 20_000);
-    let mut nuvem = EnvioNuvem::novo();
+    let mut nuvem = EnvioNuvem::novo(Some(app));
     let comeco = Instant::now();
     loop {
         if parar.load(Ordering::Relaxed) {
@@ -940,7 +942,7 @@ fn atender(
     } else {
         // Uma palavra que veio colada no nome ("Robozinho, que… horas são?") entra no pedido.
         let comeco_do_pedido = resto.clone();
-        ouvir_continuacao(microfone, fila).and_then(|(f, nuvem)| {
+        ouvir_continuacao(app, microfone, fila).and_then(|(f, nuvem)| {
             if f.is_empty() {
                 return Ok(String::new());
             }

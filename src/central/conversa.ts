@@ -101,6 +101,11 @@ let ditando = false;
 aoEventoDaIlha("ilha:microfone-aberto", () => {
   if (ditando) bip();
 });
+/** Ditado: o texto ao vivo (nuvem) aparece no campo enquanto a pessoa fala. */
+let aoVivoDitado: (t: string) => void = () => {};
+aoEventoDaIlha<string>("ilha:ouvindo-texto", (t) => {
+  if (ditando) aoVivoDitado(t);
+});
 /** Arquivos esperando a próxima mensagem. */
 let anexosPendentes: string[] = [];
 let aoMudarAnexos: () => void = () => {};
@@ -640,13 +645,19 @@ export function montarConversa(): HTMLElement {
         return;
       }
       ditando = true;
+      const base = campo.value.trim();
+      aoVivoDitado = (t) => {
+        campo.value = base ? `${base} ${t}` : t;
+        ajustar();
+      };
       botaoDitado.classList.add("ditando");
       botaoDitado.title = "Ouvindo… fale e espere. Clique para parar.";
       ouvir()
         .then((texto) => {
           const t = texto.trim();
-          if (!t) return;
-          campo.value = campo.value.trim() ? `${campo.value.trimEnd()} ${t}` : t;
+          campo.value = base;
+          if (!t) return ajustar();
+          campo.value = base ? `${base} ${t}` : t;
           rascunho = campo.value;
           ajustar();
         })
@@ -656,6 +667,7 @@ export function montarConversa(): HTMLElement {
         })
         .finally(() => {
           ditando = false;
+          aoVivoDitado = () => {};
           botaoDitado.classList.remove("ditando");
           botaoDitado.title = "Ditado: fale e eu escrevo aqui (clique de novo para parar)";
           campo.focus();

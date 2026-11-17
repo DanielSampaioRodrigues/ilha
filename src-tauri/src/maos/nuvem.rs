@@ -37,7 +37,7 @@ fn pcm16(amostras: &[f32]) -> Vec<u8> {
 
 /// Abre a conexão (se a nuvem está escolhida e há chave). O som pode ser
 /// mandado na hora: o que chegar antes de conectar espera na fila.
-pub fn abrir() -> Option<Nuvem> {
+pub fn abrir(app: Option<tauri::AppHandle>) -> Option<Nuvem> {
     if !LIGADA.load(Ordering::Relaxed) {
         return None;
     }
@@ -45,7 +45,7 @@ pub fn abrir() -> Option<Nuvem> {
     let (envia, mut fila) = tokio::sync::mpsc::unbounded_channel::<(Vec<u8>, bool)>();
     let (devolve, resultado) = std::sync::mpsc::channel();
     tauri::async_runtime::spawn(async move {
-        let r = conversar(&chave, &mut fila).await;
+        let r = conversar(&chave, &mut fila, app.as_ref()).await;
         if let Err(e) = &r {
             log::warn!("Ouvido na nuvem: {e}");
         }
@@ -57,7 +57,12 @@ pub fn abrir() -> Option<Nuvem> {
     Some(Nuvem { envia, resultado })
 }
 
-async fn conversar(chave: &str, fila: &mut tokio::sync::mpsc::UnboundedReceiver<(Vec<u8>, bool)>) -> Result<String, String> {
+async fn conversar(
+    chave: &str,
+    fila: &mut tokio::sync::mpsc::UnboundedReceiver<(Vec<u8>, bool)>,
+    app: Option<&tauri::AppHandle>,
+) -> Result<String, String> {
+    use tauri::Emitter;
     // A criptografia padrão (uma vez só; se já houver, tudo bem).
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let mut pedido = ENDERECO.into_client_request().map_err(|e| e.to_string())?;
@@ -103,7 +108,15 @@ async fn conversar(chave: &str, fila: &mut tokio::sync::mpsc::UnboundedReceiver<
                             return Ok(texto);
                         }
                     }
-                    "partial_transcript" | "session_started" | "warning" => {}
+                    "partial_transcript" => {
+                        // Texto ao vivo, enquanto a pessoa fala (a ilha mostra).
+                        if let Some(app) = app {
+                            let parcial = v["text"].as_str().unwrap_or_default().trim();
+                            let ao_vivo = if texto.is_empty() { parcial.to_string() } else { format!("{texto} {parcial}") };
+                            let _ = app.emit("ilha:ouvindo-texto", ao_vivo.trim().to_string());
+                        }
+                    }
+                    "session_started" | "warning" => {}
                     tipo if v.get("error").is_some() => {
                         return Err(match tipo {
                             "auth_error" => "a ElevenLabs recusou a chave (ela precisa da permissão “Speech to Text”)".into(),
@@ -148,7 +161,7 @@ mod testes {
         let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
         let (envia, mut fila) = tokio::sync::mpsc::unbounded_channel();
         envia.send((super::pcm16(&[0.0; 16000]), true)).unwrap();
-        let r = rt.block_on(super::conversar("chave-falsa-de-teste", &mut fila));
+        let r = rt.block_on(super::conversar("chave-falsa-de-teste", &mut fila, None));
         println!("{r:?}");
         assert!(r.unwrap_err().contains("recusou a chave"));
     }
