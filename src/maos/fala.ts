@@ -166,6 +166,112 @@ function falarWindows(texto: string, aoTerminar?: () => void): void {
   speechSynthesis.speak(fala);
 }
 
+/**
+ * Fala em partes, conforme a resposta vai chegando (como num assistente de
+ * voz): a primeira frase já começa enquanto a IA ainda escreve o resto. Com a
+ * voz natural, o áudio da próxima frase já é pedido enquanto a atual toca.
+ */
+export interface FalaEmPartes {
+  parte(texto: string): void;
+  fim(): void;
+}
+
+export function falarEmPartes(aoTerminar?: () => void): FalaEmPartes {
+  cortar();
+  const minhaVez = vez;
+  const c = ler().config;
+  const natural = dentroDoApp && !!c.vozNatural;
+  const fila: Promise<AudioBuffer | string>[] = [];
+  let tocando = false;
+  let acabou = false;
+  let terminado = false;
+  const terminar = () => {
+    if (terminado || minhaVez !== vez) return;
+    terminado = true;
+    document.body.classList.remove("falando");
+    aoTerminar?.();
+  };
+  // Áudio da voz natural (ou o próprio texto, para a voz do Windows, se falhar).
+  const preparar = async (texto: string): Promise<AudioBuffer | string> => {
+    if (!natural) return texto;
+    try {
+      const mp3 = await falarNatural(texto, c.vozElevenlabs ?? "", c.modeloElevenlabs ?? "");
+      somCtx ??= new AudioContext();
+      return await somCtx.decodeAudioData(paraArrayBuffer(mp3));
+    } catch (erro) {
+      erroVozNatural = String(erro);
+      return texto;
+    }
+  };
+  const tocar = (item: AudioBuffer | string) =>
+    new Promise<void>((pronto) => {
+      if (typeof item === "string") {
+        if (typeof speechSynthesis === "undefined") return pronto();
+        const fala = new SpeechSynthesisUtterance(item);
+        atual = fala;
+        const voz = escolherVoz();
+        if (voz) fala.voice = voz;
+        fala.lang = voz?.lang ?? "pt-BR";
+        fala.rate = 1.05;
+        fala.onend = () => pronto();
+        fala.onerror = () => pronto();
+        speechSynthesis.speak(fala);
+        return;
+      }
+      const ctx = (somCtx ??= new AudioContext());
+      void ctx.resume();
+      const fonte = ctx.createBufferSource();
+      fonte.buffer = item;
+      fonte.connect(ctx.destination);
+      audio = fonte;
+      fonte.onended = () => {
+        if (audio === fonte) audio = null;
+        pronto();
+      };
+      fonte.start();
+    });
+  const seguir = async () => {
+    if (tocando || minhaVez !== vez) return;
+    const proxima = fila.shift();
+    if (!proxima) {
+      if (acabou) terminar();
+      return;
+    }
+    tocando = true;
+    document.body.classList.add("falando");
+    const item = await proxima;
+    if (minhaVez !== vez) return;
+    await tocar(item);
+    tocando = false;
+    if (minhaVez === vez) void seguir();
+  };
+  return {
+    parte(texto) {
+      const t = paraFala(texto);
+      if (!t.trim() || minhaVez !== vez) return;
+      fila.push(preparar(t));
+      void seguir();
+    },
+    fim() {
+      acabou = true;
+      if (!tocando && !fila.length) terminar();
+    },
+  };
+}
+
+/** Divide o texto que já chegou em frases completas (o resto espera mais texto). */
+export function frasesProntas(texto: string, desde: number, minimo = 24): { frases: string; ate: number } {
+  const resto = texto.slice(desde);
+  let corte = -1;
+  const fim = /[.!?…:;](\s|$)|\n/g;
+  let m: RegExpExecArray | null;
+  while ((m = fim.exec(resto))) {
+    if (m.index + 1 >= minimo) corte = m.index + m[0].length;
+  }
+  if (corte < 0) return { frases: "", ate: desde };
+  return { frases: resto.slice(0, corte), ate: desde + corte };
+}
+
 export function calar(): void {
   cortar();
 }

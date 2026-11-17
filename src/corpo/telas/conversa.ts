@@ -7,7 +7,7 @@ import { ler, mudar, novoId } from "../../dados/armazem";
 import type { Conversa } from "../../dados/conversas";
 import { responder } from "../../dados/pedido";
 import { abrirCentral, motoresDisponiveis, NOMES_MOTORES, ouvir, pararConversa, pararDeOuvir, type Motor } from "../../maos/sistema";
-import { bip, calar, falar } from "../../maos/fala";
+import { bip, calar, falar, falarEmPartes, frasesProntas } from "../../maos/fala";
 import { ouvir as aoEvento } from "../../ponte";
 import { textoRico } from "../../central/texto-rico";
 import { tentarComando } from "../comandos";
@@ -178,12 +178,41 @@ async function enviarAgora(texto: string, ctx: Contexto, porVoz: boolean): Promi
   }
   rodando = true;
   const inicio = Date.now();
-  const resposta = await responder(c, texto, [], () => aoMudar(), () => {
-    emit("ilha:trabalho", { id: c.id, titulo: c.titulo, motor: c.motor }).catch(() => {});
-  });
+  // Por voz: fala frase por frase, conforme a resposta chega (não espera acabar).
+  const voz = porVoz && ler().config.falarRespostas ? falarEmPartes(() => depoisDeFalar?.()) : null;
+  let falado = 0;
+  const falarNovas = (final: boolean) => {
+    const robo = c.mensagens[c.mensagens.length - 1];
+    if (!voz || robo?.papel !== "robo") return;
+    if (final) {
+      voz.parte(robo.texto.slice(falado));
+      falado = robo.texto.length;
+      return;
+    }
+    const { frases, ate } = frasesProntas(robo.texto, falado);
+    if (frases) {
+      voz.parte(frases);
+      falado = ate;
+    }
+  };
+  const resposta = await responder(
+    c,
+    texto,
+    [],
+    () => {
+      aoMudar();
+      falarNovas(false);
+    },
+    () => {
+      emit("ilha:trabalho", { id: c.id, titulo: c.titulo, motor: c.motor }).catch(() => {});
+    },
+  );
   rodando = false;
   aoMudar();
-  if (!resposta.erro) responderEmVoz(resposta.texto);
+  if (voz) {
+    if (!resposta.erro) falarNovas(true);
+    voz.fim();
+  }
   emit("ilha:trabalho-fim", {
     id: c.id,
     titulo: c.titulo,

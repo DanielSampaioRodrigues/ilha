@@ -709,12 +709,13 @@ impl Conversor {
 
 // ---------- Ouvir um pedido ----------
 
-/// Grava até a pessoa parar de falar e devolve o texto. `parar`: botão Parar.
+/// Grava até a pessoa parar de falar (1,4 s de silêncio: dá para pensar no
+/// meio da frase sem ser cortado) e devolve o texto. `parar`: botão Parar.
 pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, String> {
     let microfone = abrir_microfone()?;
     let _ = app.emit("ilha:microfone-aberto", ());
     preparar_bom();
-    let mut cortador = Cortador::new(900, 15_000);
+    let mut cortador = Cortador::new(1_400, 20_000);
     let comeco = Instant::now();
     let fala = loop {
         if parar.load(Ordering::Relaxed) {
@@ -809,7 +810,7 @@ fn ouvir_continuacao(microfone: &Microfone, fila: &mut std::collections::VecDequ
         return Ok(f);
     }
     let parar = &super::voz::PARAR;
-    let mut cortador = Cortador::new(900, 15_000);
+    let mut cortador = Cortador::new(1_400, 20_000);
     let comeco = Instant::now();
     loop {
         if parar.load(Ordering::Relaxed) {
