@@ -28,6 +28,11 @@ pub async fn ouvir(app: tauri::AppHandle) -> Result<String, String> {
         if super::ouvido::pronto_para_pedido() {
             return super::ouvido::ouvir_pedido(&app, &PARAR);
         }
+        // O ouvido do Windows não funciona direito num programa comum como a
+        // ilha (só em apps da loja): enquanto o ouvido próprio instala, avisa.
+        if let Some(aviso) = super::ouvido::aviso_instalando() {
+            return Err(aviso);
+        }
         // Espera a escuta do nome soltar o microfone (até 3 s).
         let comeco = std::time::Instant::now();
         while super::chamado::ATIVO.load(Ordering::Relaxed) && comeco.elapsed() < std::time::Duration::from_secs(3) {

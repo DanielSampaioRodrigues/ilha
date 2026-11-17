@@ -56,6 +56,31 @@ let pedidoAoAbrir = "";
 export function abrirComPedido(texto: string): void {
   pedidoAoAbrir = texto;
 }
+/**
+ * Chamou pelo nome: o ouvido da ilha já está ouvindo o pedido (no mesmo
+ * microfone, sem esperar). Para de falar na hora (dá para interromper o robô
+ * chamando o nome) e mostra "ouvindo"; o texto chega por "ilha:pedido-ouvido".
+ */
+let esperandoPedido = false;
+let pedidoOuvido: { texto?: string; erro?: string } | null = null;
+let aoChegarPedido: () => void = () => {};
+export function abrirEsperandoPedido(etapa: "ouvindo" | "entendendo"): void {
+  calar();
+  esperandoPedido = true;
+  pedidoOuvido = null;
+  ouvindo = true;
+  // O microfone já está aberto (é o mesmo que ouviu o nome): pode falar.
+  microfoneAberto = true;
+  entendendo = etapa === "entendendo";
+  erroVoz = "";
+  if (!entendendo) bip();
+  aoAbrirMicrofone();
+}
+aoEvento<{ texto?: string; erro?: string }>("ilha:pedido-ouvido", (r) => {
+  if (!esperandoPedido) return;
+  pedidoOuvido = r;
+  aoChegarPedido();
+});
 let aoMudar: () => void = () => {};
 let disponiveis: Partial<Record<Motor, boolean>> = {};
 motoresDisponiveis()
@@ -313,6 +338,25 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
   aoClicar(raiz, "parar-ouvir", () => {
     pararDeOuvir().catch(() => {});
   });
+  // Pedido ouvido depois do nome: manda (ou mostra o erro).
+  const tratarPedido = () => {
+    const r = pedidoOuvido;
+    if (!r) return;
+    pedidoOuvido = null;
+    esperandoPedido = false;
+    ouvindo = false;
+    const texto = r.texto?.trim() ?? "";
+    if (texto) void enviar(texto, ctx, true).then(desenhar);
+    else if (r.erro) erroVoz = r.erro;
+    desenhar();
+  };
+  aoChegarPedido = () => {
+    if (raiz.isConnected) tratarPedido();
+  };
+  if (esperandoPedido) {
+    aoAbrirMicrofone = () => raiz.isConnected && desenhar();
+    window.setTimeout(tratarPedido, 0);
+  }
   if (pedidoAoAbrir) {
     const texto = pedidoAoAbrir;
     pedidoAoAbrir = "";

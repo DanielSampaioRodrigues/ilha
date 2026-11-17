@@ -120,6 +120,7 @@ pub fn run() {
             corpo::foco::janela_da_frente,
             maos::ouvido::estado_ouvido,
             maos::ouvido::baixar_ouvido,
+            maos::ouvido::falando_agora,
             maos::volume::volume_atual,
             maos::volume::definir_volume,
             maos::pc::diagnostico_pc,

@@ -38,6 +38,14 @@ const ENDERECO: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/mai
 pub const TAXA: usize = 16_000;
 
 static PASTA: Mutex<Option<PathBuf>> = Mutex::new(None);
+/// O robô está falando agora (a tela avisa). Ele mesmo pode dizer o próprio
+/// nome; aí só vale o nome dito no começo da fala (alguém interrompendo).
+static FALANDO: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command]
+pub fn falando_agora(sim: bool) {
+    FALANDO.store(sim, Ordering::Relaxed);
+}
 /// Folga da janela de áudio do Whisper (-1 = janela inteira). Só muda em teste.
 static JANELA: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(128);
 static BAIXANDO: AtomicBool = AtomicBool::new(false);
@@ -77,12 +85,35 @@ pub fn iniciar(app: &AppHandle) {
     tauri::async_runtime::spawn(async move {
         // Espera a ilha terminar de ligar antes de ocupar a internet.
         tokio_dormir(Duration::from_secs(20)).await;
-        let _ = baixar_o_que_falta(&app).await;
+        // Se a internet falhar, tenta de novo a cada 2 minutos (continua de onde parou).
+        while baixar_o_que_falta(&app).await.is_err() {
+            tokio_dormir(Duration::from_secs(120)).await;
+        }
     });
 }
 
 async fn tokio_dormir(d: Duration) {
     let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(d)).await;
+}
+
+/// Se o ouvido ainda não está pronto, o que dizer (andamento ou o erro do download).
+pub fn aviso_instalando() -> Option<String> {
+    if pronto_para_pedido() || PASTA.lock().ok()?.is_none() {
+        return None;
+    }
+    let e = estado_ouvido();
+    let mb = |n: u64| n / 1_000_000;
+    Some(if e.baixando {
+        format!(
+            "O ouvido da ilha ainda está se instalando ({} de {} MB). Assim que o primeiro pedaço terminar, o microfone funciona.",
+            mb(e.baixado),
+            mb(e.total)
+        )
+    } else if let Some(erro) = e.erro {
+        format!("O ouvido da ilha não terminou de instalar: {erro} Em Ajustes › Voz › Ouvido da ilha, clique em “Tentar de novo”.")
+    } else {
+        "O ouvido da ilha vai começar a se instalar em instantes. Tente de novo daqui a pouco.".into()
+    })
 }
 
 #[derive(Serialize, Clone)]
@@ -149,15 +180,28 @@ async fn baixar_o_que_falta(app: &AppHandle) -> Result<(), String> {
 async fn baixar(app: &AppHandle, m: &Modelo) -> Result<(), String> {
     let destino = caminho(m).ok_or("Sem pasta para o ouvido.")?;
     let parcial = destino.with_extension("parcial");
-    let mut resposta = reqwest::Client::new()
-        .get(format!("{ENDERECO}{}", m.arquivo))
+    // Continua de onde parou (se a ilha foi fechada no meio do download).
+    let ja_tinha = std::fs::metadata(&parcial).map(|d| d.len()).unwrap_or(0).min(m.tamanho);
+    let mut pedido = reqwest::Client::new().get(format!("{ENDERECO}{}", m.arquivo));
+    if ja_tinha > 0 {
+        pedido = pedido.header("Range", format!("bytes={ja_tinha}-"));
+    }
+    let mut resposta = pedido
         .send()
         .await
         .and_then(|r| r.error_for_status())
         .map_err(|e| format!("Não consegui baixar o ouvido (confira a internet): {e}"))?;
-    let mut arquivo = std::fs::File::create(&parcial).map_err(|e| e.to_string())?;
+    let continuando = ja_tinha > 0 && resposta.status() == reqwest::StatusCode::PARTIAL_CONTENT;
+    let mut arquivo = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(continuando)
+        .truncate(!continuando)
+        .open(&parcial)
+        .map_err(|e| e.to_string())?;
+    let mut neste = if continuando { ja_tinha } else { 0 };
+    BAIXADO.fetch_add(neste, Ordering::Relaxed);
     let mut ultimo_aviso = Instant::now();
-    let mut neste = 0u64;
     use std::io::Write;
     while let Some(pedaco) = resposta.chunk().await.map_err(|e| format!("A internet caiu no meio do download: {e}"))? {
         arquivo.write_all(&pedaco).map_err(|e| format!("Não consegui gravar no disco: {e}"))?;
@@ -170,8 +214,11 @@ async fn baixar(app: &AppHandle, m: &Modelo) -> Result<(), String> {
     }
     drop(arquivo);
     if neste != m.tamanho {
-        let _ = std::fs::remove_file(&parcial);
-        return Err("O download veio incompleto. Vou tentar de novo da próxima vez.".into());
+        // Veio a mais (arquivo trocado no site): começa do zero da próxima vez.
+        if neste > m.tamanho {
+            let _ = std::fs::remove_file(&parcial);
+        }
+        return Err("O download parou antes do fim. Continua de onde parou na próxima tentativa.".into());
     }
     std::fs::rename(&parcial, &destino).map_err(|e| e.to_string())?;
     Ok(())
@@ -242,7 +289,10 @@ pub fn transcrever(m: &Modelo, audio: &[f32], dica: Option<&str>) -> Result<Stri
     let mut estado = contexto.create_state().map_err(|e| e.to_string())?;
     let mut p = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
     p.set_language(Some("pt"));
-    let nucleos = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).clamp(1, 8);
+    // O Whisper rende mais com um "fio" por núcleo de verdade (não por núcleo
+    // lógico): com 8 ou mais lógicos, usa a metade.
+    let logicos = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+    let nucleos = if logicos >= 8 { logicos / 2 } else { logicos }.clamp(1, 8);
     p.set_n_threads(nucleos as i32);
     p.set_no_context(true);
     p.set_single_segment(true);
@@ -466,6 +516,12 @@ pub fn achar_nome(texto: &str, nome: &str) -> Option<String> {
     None
 }
 
+/// O nome está nas duas primeiras palavras ("Robozinho, para" / "Ei, Robozinho").
+pub fn nome_no_comeco(texto: &str, nome: &str) -> bool {
+    let comeco: Vec<&str> = texto.split_whitespace().take(3).collect();
+    achar_nome(&comeco.join(" "), nome).is_some()
+}
+
 // ---------- Microfone ----------
 
 /// Som do microfone, já em 16 kHz e um canal, chegando aos pedaços.
@@ -603,67 +659,67 @@ pub fn preparar_bom() {
 
 // ---------- Esperar o nome ----------
 
-/// Vê se a fala chama o robô. Devolve (o que ouviu, o pedido). Se o nome veio
-/// sozinho ("Robozinho… que horas são?", com pausa), `seguinte` dá a fala
-/// logo depois, que vira o pedido.
-fn chamado(fala: &[f32], nome: &str, seguinte: impl FnOnce() -> Option<Vec<f32>>) -> Option<(String, String)> {
-    let texto = transcrever(&PEQUENO, fala, Some(nome)).ok().filter(|t| !t.is_empty())?;
-    let resto = achar_nome(&texto, nome)?;
-    preparar_bom();
-    let melhor = if tem(&BOM) { &BOM } else { &PEQUENO };
-    let pedido = if resto.split_whitespace().count() < 2 {
-        // Nome sozinho (ou com uma palavra só): se a pessoa continua falando logo
-        // depois, essa próxima fala é o pedido.
-        match seguinte().and_then(|f| transcrever(melhor, &f, None).ok()).filter(|t| !t.is_empty()) {
-            Some(t) => t,
-            None => resto,
-        }
-    } else if tem(&BOM) {
-        // Veio pedido junto: o modelo bom escuta de novo para entender direito
-        // (sem dica: com o nome de dica, ele às vezes repete ou some com o nome).
-        match transcrever(&BOM, fala, None).ok().filter(|t| !t.is_empty()) {
-            Some(t) => match achar_nome(&t, nome) {
-                Some(r) if !r.is_empty() => r,
-                Some(_) => resto,
-                // Ele não escreveu o nome: o texto todo é o pedido.
-                None => t,
-            },
-            None => resto,
-        }
-    } else {
-        resto
-    };
-    Some((texto, pedido))
+/// O pedido que veio na mesma fala do nome ("Robozinho, que horas são?").
+/// O modelo bom escuta de novo para entender direito (sem dica: com o nome de
+/// dica, ele às vezes repete ou some com o nome).
+fn pedido_junto(fala: &[f32], nome: &str, resto: String) -> String {
+    if !tem(&BOM) {
+        return resto;
+    }
+    match transcrever(&BOM, fala, None).ok().filter(|t| !t.is_empty()) {
+        Some(t) => match achar_nome(&t, nome) {
+            Some(r) if !r.is_empty() => r,
+            Some(_) => resto,
+            // Ele não escreveu o nome: o texto todo é o pedido.
+            None => t,
+        },
+        None => resto,
+    }
 }
 
-/// Depois do nome: se a pessoa começa a falar em até 1,5 s, espera essa fala.
-fn continuacao(microfone: &Microfone, cortador: &mut Cortador) -> Option<Vec<f32>> {
+/// Vê se a fala chama o robô (modelo pequeno, rápido). Devolve (o que ouviu,
+/// o que veio depois do nome).
+fn chamou(fala: &[f32], nome: &str) -> Option<(String, String)> {
+    let texto = transcrever(&PEQUENO, fala, Some(nome)).ok().filter(|t| !t.is_empty())?;
+    let resto = achar_nome(&texto, nome)?;
+    Some((texto, resto))
+}
+
+/// Depois do nome sozinho: o MESMO microfone já ouve o pedido (sem fechar e
+/// abrir outro, que perdia o começo da frase). Espera até 8 s a pessoa começar.
+fn ouvir_continuacao(microfone: &Microfone, fila: &mut std::collections::VecDeque<Vec<f32>>) -> Result<Vec<f32>, String> {
+    if let Some(f) = fila.pop_front() {
+        return Ok(f);
+    }
+    let parar = &super::voz::PARAR;
+    let mut cortador = Cortador::new(900, 15_000);
     let comeco = Instant::now();
     loop {
-        if !cortador.falando() && comeco.elapsed() > Duration::from_millis(1500) {
-            return None;
+        if parar.load(Ordering::Relaxed) {
+            return Ok(Vec::new());
         }
-        if comeco.elapsed() > Duration::from_secs(16) {
-            return None;
+        if !cortador.falando() && comeco.elapsed() > Duration::from_secs(8) {
+            return Err("Não ouvi o pedido depois do nome. Chame de novo e fale logo depois do bip.".into());
         }
         match microfone.chegando.recv_timeout(Duration::from_millis(100)) {
             Ok(som) => {
                 if let Some(f) = cortador.empurrar(&som).into_iter().next() {
-                    return Some(f);
+                    return Ok(f);
                 }
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-            Err(_) => return None,
+            Err(_) => return Err("O microfone parou de mandar som.".into()),
         }
     }
 }
 
-/// Fica ouvindo até `continuar` dizer que não. Quando alguém chama pelo nome,
-/// avisa a ilha ("ilha:chamou"), já com o pedido se veio junto ("Robozinho, que
-/// horas são?"), e devolve `true`.
+/// Fica ouvindo até `continuar` dizer que não. Quando alguém chama pelo nome:
+/// avisa a ilha na hora ("ilha:chamou": ela abre e para de falar, se estava
+/// falando), ouve o pedido (junto com o nome ou logo depois, no mesmo
+/// microfone) e manda o texto ("ilha:pedido-ouvido"). Devolve `true`.
 pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl Fn(String)) -> Result<bool, String> {
     let microfone = abrir_microfone()?;
-    let mut cortador = Cortador::new(700, 8_000);
+    let mut cortador = Cortador::new(600, 8_000);
     let mut fila: std::collections::VecDeque<Vec<f32>> = std::collections::VecDeque::new();
     let mut ultimo_alivio = Instant::now();
     while continuar() {
@@ -682,17 +738,40 @@ pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl F
                 continue;
             }
             let nome = super::chamado::nome_atual();
-            let Some((texto, pedido)) = chamado(&fala, &nome, || fila.pop_front().or_else(|| continuacao(&microfone, &mut cortador)))
-            else {
+            let inicio = Instant::now();
+            let Some((texto, resto)) = chamou(&fala, &nome) else { continue };
+            if FALANDO.load(Ordering::Relaxed) && !nome_no_comeco(&texto, &nome) {
                 continue;
-            };
+            }
+            log::info!("Ouvido: nome reconhecido em {} ms", inicio.elapsed().as_millis());
             ouviu(texto.clone());
-            log::info!("Ouvido: chamou pelo nome{}", if pedido.is_empty() { "" } else { " com pedido" });
-            let _ = app.emit(
-                "ilha:chamou",
-                serde_json::json!({ "texto": texto, "pedido": if pedido.is_empty() { None } else { Some(pedido) } }),
-            );
-            // Sem pedido, a ilha abre o microfone dela: este para de ouvir.
+            preparar_bom();
+            super::voz::PARAR.store(false, Ordering::Relaxed);
+            // A etapa vai junto: a tela pode ainda estar abrindo quando os avisos chegam.
+            let veio_junto = resto.split_whitespace().count() >= 2;
+            let etapa = if veio_junto { "entendendo" } else { "ouvindo" };
+            let _ = app.emit("ilha:chamou", serde_json::json!({ "texto": texto, "esperando": true, "etapa": etapa }));
+            let pedido = if veio_junto {
+                Ok(pedido_junto(&fala, &nome, resto))
+            } else {
+                // Uma palavra que veio colada no nome ("Robozinho, que… horas são?") entra no pedido.
+                let comeco_do_pedido = resto.clone();
+                ouvir_continuacao(&microfone, &mut fila).and_then(|f| {
+                    if f.is_empty() {
+                        return Ok(String::new());
+                    }
+                    let _ = app.emit("ilha:entendendo", ());
+                    let modelo = if tem(&BOM) { &BOM } else { &PEQUENO };
+                    let inicio = Instant::now();
+                    let t = transcrever(modelo, &f, None);
+                    log::info!("Ouvido: pedido entendido em {} ms ({})", inicio.elapsed().as_millis(), modelo.arquivo);
+                    t.map(|t| if comeco_do_pedido.is_empty() || t.is_empty() { t } else { format!("{comeco_do_pedido} {t}") })
+                })
+            };
+            let _ = match pedido {
+                Ok(texto) => app.emit("ilha:pedido-ouvido", serde_json::json!({ "texto": texto })),
+                Err(erro) => app.emit("ilha:pedido-ouvido", serde_json::json!({ "erro": erro })),
+            };
             return Ok(true);
         }
     }
@@ -711,6 +790,8 @@ mod testes {
         assert_eq!(achar_nome("Robozinhos.", "Robozinho").as_deref(), Some(""));
         assert_eq!(achar_nome("vamos almoçar agora", "Robozinho"), None);
         assert_eq!(achar_nome("o robô quebrou", "Robozinho"), None);
+        assert!(nome_no_comeco("Ei, Robozinho, para", "Robozinho"));
+        assert!(!nome_no_comeco("Eu sou o seu ajudante, o Robozinho", "Robozinho"));
     }
 
     #[test]
@@ -776,7 +857,14 @@ mod testes {
             }
             let primeira = falas.pop_front().unwrap();
             let inicio = Instant::now();
-            let r = chamado(&primeira, "Robozinho", || falas.pop_front());
+            let r = chamou(&primeira, "Robozinho").map(|(texto, resto)| {
+                let pedido = if resto.split_whitespace().count() >= 2 {
+                    pedido_junto(&primeira, "Robozinho", resto)
+                } else {
+                    falas.pop_front().and_then(|f| transcrever(&BOM, &f, None).ok()).unwrap_or(resto)
+                };
+                (texto, pedido)
+            });
             println!("{nome}: {r:?} ({} ms)", inicio.elapsed().as_millis());
             match espera {
                 None => assert!(r.is_none(), "{nome}"),

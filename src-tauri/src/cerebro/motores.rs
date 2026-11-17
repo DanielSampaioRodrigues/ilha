@@ -618,6 +618,13 @@ fn rodar_programa(pedido: &Pedido, canal: &Channel<Evento>, andamento: &Andament
     if pedido.motor == "claude" && valor_simples(&pedido.esforco) {
         cmd.env("CLAUDE_CODE_EFFORT_LEVEL", &pedido.esforco);
     }
+    // Claude Code: sempre pela conta (assinatura) em que o Dan entrou. Se o PC
+    // tiver uma chave de API guardada nas variáveis do Windows, o Claude Code
+    // usaria ela (e cobraria à parte); aqui ela não passa.
+    if pedido.motor == "claude" {
+        cmd.env_remove("ANTHROPIC_API_KEY");
+        cmd.env_remove("ANTHROPIC_AUTH_TOKEN");
+    }
     // O Gemini CLI escondido recusa pastas "não confiáveis" (não tem como
     // perguntar). A pasta é a do projeto escolhido pelo Dan ou a pessoal dele.
     if pedido.motor == "gemini" {

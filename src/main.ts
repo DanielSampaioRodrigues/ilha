@@ -4,6 +4,7 @@ import { Ilha } from "./corpo/ilha";
 import type { NomeEstado, NomeTela } from "./corpo/contexto";
 import { aoPerderFoco, dentroDoApp, ouvir } from "./ponte";
 import { procurar, versaoAtual } from "./atualizacao";
+import { calar, falando } from "./maos/fala";
 import { aoMudarDeFora, carregar, ler, mudar } from "./dados/armazem";
 import { avancar, paraISO } from "./dados/datas";
 import { aplicarCor } from "./corpo/tema";
@@ -72,10 +73,13 @@ async function iniciar(): Promise<void> {
   import("./dados/calendario").then((m) => m.sincronizarSempre());
   // Chamou pelo nome: abre a conversa já ouvindo o pedido.
   // Se o pedido veio junto ("Robozinho, que horas são?"), já manda; senão, abre ouvindo.
-  ouvir<string | { texto: string; pedido?: string | null }>("ilha:chamou", (chamou) => {
+  ouvir<string | { texto: string; pedido?: string | null; esperando?: boolean; etapa?: "ouvindo" | "entendendo" }>("ilha:chamou", (chamou) => {
     const pedido = typeof chamou === "object" ? chamou.pedido?.trim() : "";
+    const esperando = typeof chamou === "object" && !!chamou.esperando;
     import("./corpo/telas/conversa").then((m) => {
-      if (pedido) m.abrirComPedido(pedido);
+      // Ouvido da ilha: ele mesmo já está ouvindo o pedido.
+      if (esperando) m.abrirEsperandoPedido(typeof chamou === "object" && chamou.etapa === "entendendo" ? "entendendo" : "ouvindo");
+      else if (pedido) m.abrirComPedido(pedido);
       else m.abrirOuvindo();
       ilha.abrir("conversa");
     });
@@ -237,7 +241,13 @@ async function iniciar(): Promise<void> {
     if (ilha.podeFecharSozinha) ilha.fechar();
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape" || ilha.estadoAtual !== "aberta") return;
+    if (e.key !== "Escape") return;
+    // Esc primeiro faz o robô parar de falar.
+    if (falando()) {
+      calar();
+      return;
+    }
+    if (ilha.estadoAtual !== "aberta") return;
     if (ilha.telaAtual !== "inicio") ilha.abrir("inicio");
     else ilha.fechar();
   });

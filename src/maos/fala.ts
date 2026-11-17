@@ -193,3 +193,15 @@ export function bip(): void {
     /* sem som, sem problema */
   }
 }
+
+// Avisa o ouvido quando o robô está falando (classe "falando" no corpo da
+// página): assim ele mesmo dizendo o próprio nome não chama a si mesmo.
+if (dentroDoApp && typeof MutationObserver !== "undefined") {
+  let antes = false;
+  new MutationObserver(() => {
+    const agora = document.body.classList.contains("falando");
+    if (agora === antes) return;
+    antes = agora;
+    import("@tauri-apps/api/core").then(({ invoke }) => invoke("falando_agora", { sim: agora })).catch(() => {});
+  }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+}

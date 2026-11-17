@@ -335,6 +335,8 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   let chamado: EstadoChamado = { ligado: false, escutando: false, erro: null, ouviu: null };
   /** O ouvido da ilha (Whisper) está instalado. */
   let ouvidoPronto = false;
+  /** Texto do andamento da instalação do ouvido (para o "Conferir a voz"). */
+  let situacaoOuvido = "";
   const itemChamado = (): ItemVoz => {
     const nome = ler().config.nomeRobo;
     if (!ler().config.atenderPeloNome)
@@ -407,6 +409,11 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         conserto: "fala_online",
         explica:
           "Vou ligar o “Reconhecimento de fala online” nas configurações de privacidade do Windows. Com ele, o que você fala ao microfone vermelho vai para a Microsoft virar texto.",
+      },
+      {
+        ok: false,
+        texto: "Ouvido da ilha instalado",
+        falta: situacaoOuvido || "Ainda instalando sozinho. Enquanto isso, os itens abaixo (do Windows) são só reserva.",
       },
       { ok: e.pacote_pt, texto: "Pacote de fala em português (Brasil)", falta: "Não está instalado.", ...pacote },
       {
@@ -498,6 +505,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         situacao.textContent = `Instalando sozinho (${mb(e.baixado)} de ${mb(e.total)})… ${e.pequeno ? "Já atende pelo nome; o resto chega em seguida." : "Pode continuar usando o computador."}`;
       else if (e.erro) situacao.textContent = e.erro;
       else situacao.textContent = "Vai se instalar sozinho em instantes (cerca de 630 MB, uma vez só).";
+      situacaoOuvido = situacao.textContent ?? "";
     };
     const atualizar = () => estadoOuvido().then(mostrar).catch(() => {});
     atualizar();

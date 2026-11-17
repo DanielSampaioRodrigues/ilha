@@ -193,8 +193,8 @@ mod sistema {
                     });
                     ATIVO.store(false, Ordering::Relaxed);
                     match resultado {
-                        // Chamou: dá tempo de a ilha abrir o microfone dela.
-                        Ok(true) => std::thread::sleep(Duration::from_secs(2)),
+                        // Chamou: o pedido já foi ouvido no mesmo microfone.
+                        Ok(true) => std::thread::sleep(Duration::from_millis(300)),
                         Ok(false) => {}
                         Err(e) => {
                             log::warn!("Chamar pelo nome: {e}");
