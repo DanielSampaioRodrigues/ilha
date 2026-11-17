@@ -33,7 +33,13 @@ export function textoDaMemoria(d: Dados = ler()): string {
 export function instrucoesExtras(c: Conversa, d: Dados = ler()): string {
   const perfil = d.perfis.find((p) => p.id === c.perfilId);
   const skills = d.skills.filter((s) => c.skills?.includes(s.id));
+  // Conversa rápida da ilha: quase sempre por voz. A IA só recebe texto e, sem
+  // isso, responde "não escuto áudio" e manda listas compridas para ler em voz alta.
+  const voz = c.id.startsWith("rapida-")
+    ? `Esta é a conversa rápida da Ilha, um assistente no computador de ${d.config.nome}. Muitas vezes ${d.config.nome} fala pelo microfone: a Ilha transforma a fala em texto (pode vir com pequenos erros de transcrição; entenda pelo sentido) e lê a sua resposta em voz alta, com o nome "${d.config.nomeRobo}". Então, sim, você está ouvindo pela Ilha. Responda curto, natural e do jeito que se fala (duas ou três frases quando der), sem listas, tabelas, código ou formatação, a não ser que peçam.`
+    : "";
   return [
+    voz,
     perfil?.instrucoes ? `Instruções do perfil "${perfil.nome}":\n${perfil.instrucoes}` : "",
     ...skills.map((s) => `Skill "${s.nome}"${s.descricao ? ` (${s.descricao})` : ""}:\n${s.instrucoes}`),
     textoDaMemoria(d),

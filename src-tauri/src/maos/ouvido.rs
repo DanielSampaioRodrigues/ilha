@@ -86,6 +86,8 @@ static JANELA: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(
 static BAIXANDO: AtomicBool = AtomicBool::new(false);
 /// Quanto o último pedido levou para ser entendido (ms), para mostrar nos Ajustes.
 static ULTIMO_PEDIDO_MS: AtomicU64 = AtomicU64::new(0);
+/// O último pedido foi entendido na nuvem (e não no PC).
+static ULTIMO_PELA_NUVEM: AtomicBool = AtomicBool::new(false);
 /// Tamanho da última fala de pedido (ms de áudio).
 static ULTIMA_FALA_MS: AtomicU64 = AtomicU64::new(0);
 static BAIXADO: AtomicU64 = AtomicU64::new(0);
@@ -214,6 +216,8 @@ pub struct EstadoOuvido {
     pub nucleos: usize,
     /// Último problema do ouvido na nuvem (`None` = funcionou ou não usado).
     pub erro_nuvem: Option<String>,
+    /// O último pedido foi entendido na nuvem.
+    pub pela_nuvem: bool,
 }
 
 fn falta() -> Vec<&'static Modelo> {
@@ -233,6 +237,7 @@ pub fn estado_ouvido() -> EstadoOuvido {
         fala_ms: ULTIMA_FALA_MS.load(Ordering::Relaxed),
         nucleos: nucleos_do_whisper(),
         erro_nuvem: super::nuvem::ULTIMO_ERRO.lock().ok().and_then(|e| e.clone()),
+        pela_nuvem: ULTIMO_PELA_NUVEM.load(Ordering::Relaxed),
     }
 }
 
@@ -750,11 +755,13 @@ impl EnvioNuvem {
 
     /// Texto da nuvem; se falhar (sem internet, sem chave, cota), entende no PC.
     fn entender(self, fala: &[f32]) -> Result<String, String> {
+        ULTIMO_PELA_NUVEM.store(false, Ordering::Relaxed);
         if let Some(n) = self.nuvem {
             let inicio = Instant::now();
             match n.terminar() {
                 Ok(t) if !t.trim().is_empty() => {
                     log::info!("Ouvido: pedido entendido na nuvem em {} ms depois da fala", inicio.elapsed().as_millis());
+                    ULTIMO_PELA_NUVEM.store(true, Ordering::Relaxed);
                     return Ok(t.trim().to_string());
                 }
                 Ok(_) => log::info!("Ouvido: a nuvem não devolveu texto; entendendo no PC"),
