@@ -52,6 +52,7 @@ pub async fn escolher_ouvido(app: AppHandle, preciso: bool) {
     if PASTA.lock().ok().is_some_and(|p| p.is_some()) && !falta().is_empty() {
         let _ = baixar_o_que_falta(&app).await;
     }
+    aquecer();
 }
 const ENDERECO: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
 
@@ -72,6 +73,8 @@ static JANELA: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(
 static BAIXANDO: AtomicBool = AtomicBool::new(false);
 /// Quanto o último pedido levou para ser entendido (ms), para mostrar nos Ajustes.
 static ULTIMO_PEDIDO_MS: AtomicU64 = AtomicU64::new(0);
+/// Tamanho da última fala de pedido (ms de áudio).
+static ULTIMA_FALA_MS: AtomicU64 = AtomicU64::new(0);
 static BAIXADO: AtomicU64 = AtomicU64::new(0);
 static ERRO_BAIXAR: Mutex<Option<String>> = Mutex::new(None);
 
@@ -101,8 +104,36 @@ pub fn pronto_para_pedido() -> bool {
 
 // ---------- Baixar sozinho ----------
 
+/// O Windows deixa mais lentos os programas que não estão na frente
+/// ("economia de energia" dos processos em segundo plano). A ilha quase
+/// sempre está atrás das outras janelas, e o ouvido precisa de rapidez.
+#[cfg(windows)]
+fn sem_economia_de_energia() {
+    use windows::Win32::System::Threading::{
+        GetCurrentProcess, ProcessPowerThrottling, SetProcessInformation, PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+        PROCESS_POWER_THROTTLING_EXECUTION_SPEED, PROCESS_POWER_THROTTLING_STATE,
+    };
+    let estado = PROCESS_POWER_THROTTLING_STATE {
+        Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+        ControlMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+        StateMask: 0,
+    };
+    unsafe {
+        let _ = SetProcessInformation(
+            GetCurrentProcess(),
+            ProcessPowerThrottling,
+            (&estado as *const PROCESS_POWER_THROTTLING_STATE).cast(),
+            std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32,
+        );
+    }
+}
+
+#[cfg(not(windows))]
+fn sem_economia_de_energia() {}
+
 /// Chamado ao ligar: guarda a pasta e baixa o que faltar, em segundo plano.
 pub fn iniciar(app: &AppHandle) {
+    sem_economia_de_energia();
     let Ok(dados) = app.path().app_data_dir() else { return };
     let pasta = dados.join("whisper");
     let _ = std::fs::create_dir_all(&pasta);
@@ -111,12 +142,19 @@ pub fn iniciar(app: &AppHandle) {
     }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        // Espera a ilha terminar de ligar antes de ocupar a internet.
+        // Já está tudo baixado: aquece logo. Senão, espera a ilha terminar de ligar
+        // antes de ocupar a internet.
+        if falta().is_empty() {
+            tokio_dormir(Duration::from_secs(3)).await;
+            aquecer();
+            return;
+        }
         tokio_dormir(Duration::from_secs(20)).await;
         // Se a internet falhar, tenta de novo a cada 2 minutos (continua de onde parou).
         while baixar_o_que_falta(&app).await.is_err() {
             tokio_dormir(Duration::from_secs(120)).await;
         }
+        aquecer();
     });
 }
 
@@ -157,6 +195,10 @@ pub struct EstadoOuvido {
     pub erro: Option<String>,
     /// Quanto o último pedido levou para ser entendido (ms; 0 = nenhum ainda).
     pub ultimo_ms: u64,
+    /// Tamanho dessa fala (ms de áudio).
+    pub fala_ms: u64,
+    /// Fios (núcleos) que o Whisper usa neste PC.
+    pub nucleos: usize,
 }
 
 fn falta() -> Vec<&'static Modelo> {
@@ -173,6 +215,8 @@ pub fn estado_ouvido() -> EstadoOuvido {
         total: falta().iter().map(|m| m.tamanho).sum(),
         erro: ERRO_BAIXAR.lock().ok().and_then(|e| e.clone()),
         ultimo_ms: ULTIMO_PEDIDO_MS.load(Ordering::Relaxed),
+        fala_ms: ULTIMA_FALA_MS.load(Ordering::Relaxed),
+        nucleos: nucleos_do_whisper(),
     }
 }
 
@@ -302,8 +346,15 @@ fn contexto(m: &Modelo) -> Result<Arc<WhisperContext>, String> {
 /// Solta da memória o modelo bom se ficou 5 minutos sem uso (ele ocupa ~600 MB).
 pub fn aliviar_memoria() {
     if let Ok(mut lista) = CARREGADOS.lock() {
-        lista.retain(|c| c.arquivo == PEQUENO.arquivo || c.usado.elapsed() < Duration::from_secs(300));
+        // Só o "mais preciso" (~600 MB de memória) é solto; o pequeno e o rápido ficam prontos.
+        lista.retain(|c| c.arquivo != PRECISO.arquivo || c.usado.elapsed() < Duration::from_secs(300));
     }
+}
+
+/// Um fio por núcleo de verdade (não por núcleo lógico): com 8 ou mais lógicos, a metade.
+fn nucleos_do_whisper() -> usize {
+    let logicos = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+    if logicos >= 8 { logicos / 2 } else { logicos }.clamp(1, 8)
 }
 
 /// Frases que o Whisper "inventa" em silêncio ou barulho (vêm de legendas de vídeos).
@@ -327,8 +378,7 @@ pub fn transcrever(m: &Modelo, audio: &[f32], dica: Option<&str>) -> Result<Stri
     p.set_language(Some("pt"));
     // O Whisper rende mais com um "fio" por núcleo de verdade (não por núcleo
     // lógico): com 8 ou mais lógicos, usa a metade.
-    let logicos = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
-    let nucleos = if logicos >= 8 { logicos / 2 } else { logicos }.clamp(1, 8);
+    let nucleos = nucleos_do_whisper();
     // O pequeno (procurar o nome) roda o tempo todo: usa só 2 fios, para não
     // pesar no computador nem atrasar o modelo bom.
     let nucleos = if m.arquivo == PEQUENO.arquivo { nucleos.min(2) } else { nucleos };
@@ -688,11 +738,27 @@ pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, Strin
     let inicio = Instant::now();
     let texto = transcrever(bom(), &fala, None)?;
     ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
-    log::info!("Ouvido: pedido entendido em {} ms ({} letras)", inicio.elapsed().as_millis(), texto.chars().count());
+    ULTIMA_FALA_MS.store((fala.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
+    log::info!("Ouvido: pedido entendido em {} ms ({} letras, fala de {} ms)", inicio.elapsed().as_millis(), texto.chars().count(), fala.len() * 1000 / TAXA);
     if texto.is_empty() {
         return Err("Chegou som, mas não entendi nenhuma palavra. Fale de novo, um pouco mais perto do microfone.".into());
     }
     Ok(texto)
+}
+
+/// Deixa os modelos carregados e "aquecidos" (a primeira conta do Whisper é a
+/// mais lenta). Chamado ao ligar, quando termina de baixar e ao trocar o jeito.
+pub fn aquecer() {
+    if !pronto() {
+        return;
+    }
+    std::thread::spawn(|| {
+        let inicio = Instant::now();
+        let silencio = vec![0.0f32; TAXA];
+        let _ = transcrever(&PEQUENO, &silencio, None);
+        let _ = transcrever(bom(), &silencio, None);
+        log::info!("Ouvido: modelos prontos na memória em {} ms", inicio.elapsed().as_millis());
+    });
 }
 
 /// Carrega o modelo bom em segundo plano (leva uns segundos), enquanto a pessoa fala.
@@ -803,7 +869,11 @@ pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl F
             let etapa = if veio_junto { "entendendo" } else { "ouvindo" };
             let _ = app.emit("ilha:chamou", serde_json::json!({ "texto": texto, "esperando": true, "etapa": etapa }));
             let pedido = if veio_junto {
-                Ok(pedido_junto(&fala, &nome, resto))
+                let inicio = Instant::now();
+                let p = pedido_junto(&fala, &nome, resto);
+                ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
+                ULTIMA_FALA_MS.store((fala.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
+                Ok(p)
             } else {
                 // Uma palavra que veio colada no nome ("Robozinho, que… horas são?") entra no pedido.
                 let comeco_do_pedido = resto.clone();
@@ -815,7 +885,8 @@ pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl F
                     let inicio = Instant::now();
                     let t = transcrever(bom(), &f, None);
                     ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
-                    log::info!("Ouvido: pedido entendido em {} ms", inicio.elapsed().as_millis());
+                    ULTIMA_FALA_MS.store((f.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
+                    log::info!("Ouvido: pedido entendido em {} ms (fala de {} ms)", inicio.elapsed().as_millis(), f.len() * 1000 / TAXA);
                     t.map(|t| if comeco_do_pedido.is_empty() || t.is_empty() { t } else { format!("{comeco_do_pedido} {t}") })
                 })
             };

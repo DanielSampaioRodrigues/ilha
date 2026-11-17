@@ -451,7 +451,11 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       ouvidoPronto = e.pequeno && e.bom;
       tentar.hidden = !(e.erro && !e.baixando);
       if (e.pequeno && e.bom)
-        situacao.textContent = `Pronto. Entende o que você fala no próprio PC, sem internet, com a ilha aberta ou fechada.${e.ultimo_ms ? ` O último pedido foi entendido em ${(e.ultimo_ms / 1000).toFixed(1).replace(".", ",")} s.` : ""}`;
+        situacao.textContent = `Pronto. Entende o que você fala no próprio PC, sem internet, com a ilha aberta ou fechada.${
+          e.ultimo_ms
+            ? ` O último pedido (fala de ${(e.fala_ms / 1000).toFixed(1).replace(".", ",")} s) foi entendido em ${(e.ultimo_ms / 1000).toFixed(1).replace(".", ",")} s, usando ${e.nucleos} núcleos.`
+            : ""
+        }`;
       else if (e.baixando)
         situacao.textContent = `Preparando sozinho (${mb(e.baixado)} de ${mb(e.total)})… Quando terminar, a ilha avisa e a voz passa a funcionar. Pode continuar usando o computador.`;
       else if (e.erro) situacao.textContent = e.erro;

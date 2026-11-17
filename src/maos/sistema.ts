@@ -442,9 +442,13 @@ export interface EstadoOuvido {
   erro: string | null;
   /** Quanto o último pedido levou para ser entendido (ms; 0 = nenhum ainda). */
   ultimo_ms: number;
+  /** Tamanho dessa fala (ms de áudio). */
+  fala_ms: number;
+  /** Fios (núcleos) que o Whisper usa neste PC. */
+  nucleos: number;
 }
 export const estadoOuvido = () =>
-  pedir<EstadoOuvido>("estado_ouvido", undefined, { pequeno: false, bom: false, baixando: true, baixado: 120_000_000, total: 249_793_112, erro: null, ultimo_ms: 0 });
+  pedir<EstadoOuvido>("estado_ouvido", undefined, { pequeno: false, bom: false, baixando: true, baixado: 120_000_000, total: 249_793_112, erro: null, ultimo_ms: 0, fala_ms: 0, nucleos: 4 });
 export const baixarOuvido = () => pedir<void>("baixar_ouvido");
 /** Ouvido rápido (padrão) ou mais preciso (mais lento). Baixa o que faltar. */
 export const escolherOuvido = (preciso: boolean) => pedir<void>("escolher_ouvido", { preciso });
