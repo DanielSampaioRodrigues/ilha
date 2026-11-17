@@ -19,7 +19,7 @@ import {
   PROGRAMAS_COM_ABAS,
   situacaoAvisos,
   type ProgramaIA,
-  type SituacaoAviso, atenderPeloNome, conferirVoz, consertarVoz, estadoChamado, vozesNaturais, type EstadoChamado, type EstadoVoz } from "../../maos/sistema";
+  type SituacaoAviso, atenderPeloNome, baixarOuvido, conferirVoz, consertarVoz, estadoChamado, estadoOuvido, vozesNaturais, type EstadoChamado, type EstadoOuvido, type EstadoVoz } from "../../maos/sistema";
 import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
 import { procurar, type Novidade } from "../../atualizacao";
@@ -102,7 +102,11 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
           <button type="button" class="chave" role="switch" aria-checked="${dados.config.conversaContinua}" aria-label="Continuar ouvindo depois de responder" data-acao="conversa-continua"><span></span></button>
         </div>
         <div class="item">
-          <div class="coluna"><span class="principal">Atender quando eu chamar pelo nome</span><span class="secundario">Diga “${escapar(dados.config.nomeRobo)}” (ou “ei ${escapar(dados.config.nomeRobo)}”) e ele abre ouvindo. Deixa o microfone sempre ligado; o nome é reconhecido no próprio PC.</span></div>
+          <div class="coluna"><span class="principal">Ouvido da ilha</span><span class="secundario situacao-ouvido">Conferindo…</span></div>
+          <button type="button" class="botao" data-acao="baixar-ouvido" hidden>Tentar de novo</button>
+        </div>
+        <div class="item">
+          <div class="coluna"><span class="principal">Atender quando eu chamar pelo nome</span><span class="secundario">Diga “${escapar(dados.config.nomeRobo)}” (ou “${escapar(dados.config.nomeRobo)}, que horas são?”) e ele responde, com a ilha aberta ou fechada. O microfone fica ligado, mas tudo é entendido no próprio PC: nada sai do computador e só o que vem depois do nome vira pedido.</span></div>
           <button type="button" class="chave" role="switch" aria-checked="${dados.config.atenderPeloNome}" aria-label="Atender quando eu chamar pelo nome" data-acao="atender-nome"><span></span></button>
         </div>
         <div class="item">
@@ -329,6 +333,8 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   const listaVoz = raiz.querySelector<HTMLElement>(".lista-voz")!;
   type ItemVoz = { ok: boolean | null; texto: string; falta?: string; conserto?: string; explica?: string; botao?: string; nota?: string };
   let chamado: EstadoChamado = { ligado: false, escutando: false, erro: null, ouviu: null };
+  /** O ouvido da ilha (Whisper) está instalado. */
+  let ouvidoPronto = false;
   const itemChamado = (): ItemVoz => {
     const nome = ler().config.nomeRobo;
     if (!ler().config.atenderPeloNome)
@@ -348,6 +354,29 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     };
   };
   const itensVoz = (e: EstadoVoz): ItemVoz[] => {
+    // Com o ouvido da ilha instalado, o reconhecimento de fala do Windows não importa mais.
+    if (ouvidoPronto)
+      return [
+        { ok: e.microfone, texto: "Microfone ligado", falta: "Não achei microfone. Ligue um microfone ou um fone com microfone." },
+        e.microfone_bloqueado_no_pc
+          ? {
+              ok: false,
+              texto: "Microfone liberado",
+              falta: "O microfone está bloqueado para o computador inteiro. Só dá para liberar nas Configurações do Windows.",
+              conserto: "abrir_microfone",
+              explica: "Vou abrir as Configurações do Windows na página do microfone. Ligue “Acesso ao microfone” e “Permitir que aplicativos da área de trabalho acessem o microfone”.",
+              botao: "Abrir Configurações",
+            }
+          : {
+              ok: e.microfone_liberado,
+              texto: "Microfone liberado para a ilha",
+              falta: "O Windows não deixa programas usarem o microfone.",
+              conserto: "microfone",
+              explica: "Vou liberar o microfone para os programas do computador, nas configurações de privacidade do Windows.",
+            },
+        { ok: true, texto: "Ouvido da ilha instalado (entende no próprio PC)" },
+        itemChamado(),
+      ];
     const pacote = {
       conserto: "pacote",
       explica:
@@ -456,6 +485,31 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       }),
     );
   };
+  // Ouvido da ilha (Whisper no PC): baixa sozinho; aqui só mostra como está.
+  {
+    const situacao = raiz.querySelector<HTMLElement>(".situacao-ouvido")!;
+    const tentar = raiz.querySelector<HTMLButtonElement>('[data-acao="baixar-ouvido"]')!;
+    const mb = (n: number) => `${Math.round(n / 1_000_000)} MB`;
+    const mostrar = (e: EstadoOuvido) => {
+      ouvidoPronto = e.pequeno && e.bom;
+      tentar.hidden = !(e.erro && !e.baixando);
+      if (e.pequeno && e.bom) situacao.textContent = "Pronto. Entende o que você fala no próprio PC, sem internet, com a ilha aberta ou fechada.";
+      else if (e.baixando)
+        situacao.textContent = `Instalando sozinho (${mb(e.baixado)} de ${mb(e.total)})… ${e.pequeno ? "Já atende pelo nome; o resto chega em seguida." : "Pode continuar usando o computador."}`;
+      else if (e.erro) situacao.textContent = e.erro;
+      else situacao.textContent = "Vai se instalar sozinho em instantes (cerca de 630 MB, uma vez só).";
+    };
+    const atualizar = () => estadoOuvido().then(mostrar).catch(() => {});
+    atualizar();
+    const vigia = window.setInterval(() => (raiz.isConnected ? atualizar() : window.clearInterval(vigia)), 1500);
+    tentar.addEventListener("click", () => {
+      tentar.hidden = true;
+      situacao.textContent = "Tentando de novo…";
+      baixarOuvido().catch(() => {}).finally(atualizar);
+      window.setTimeout(atualizar, 800);
+    });
+  }
+
   aoClicar(raiz, "conferir-voz", async () => {
     listaVoz.innerHTML = '<p class="secundario">Conferindo…</p>';
     chamado = await estadoChamado();

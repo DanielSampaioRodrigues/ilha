@@ -21,7 +21,13 @@ pub async fn ouvir(app: tauri::AppHandle) -> Result<String, String> {
     PARAR.store(false, Ordering::Relaxed);
     // A escuta do nome solta o microfone enquanto isso.
     super::chamado::OCUPADO.fetch_add(1, Ordering::Relaxed);
-    let r = tauri::async_runtime::spawn_blocking(|| {
+    let r = tauri::async_runtime::spawn_blocking(move || {
+        // Ouvido próprio (Whisper) baixado: é ele que ouve (o do Windows só
+        // funciona com uma janela da ilha na frente). Não precisa esperar a
+        // escuta do nome: os dois podem usar o microfone juntos.
+        if super::ouvido::pronto_para_pedido() {
+            return super::ouvido::ouvir_pedido(&app, &PARAR);
+        }
         // Espera a escuta do nome soltar o microfone (até 3 s).
         let comeco = std::time::Instant::now();
         while super::chamado::ATIVO.load(Ordering::Relaxed) && comeco.elapsed() < std::time::Duration::from_secs(3) {

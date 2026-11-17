@@ -71,9 +71,12 @@ async function iniciar(): Promise<void> {
   // Calendário da Apple: manda o que mudou (se estiver conectado).
   import("./dados/calendario").then((m) => m.sincronizarSempre());
   // Chamou pelo nome: abre a conversa já ouvindo o pedido.
-  ouvir<string>("ilha:chamou", () => {
+  // Se o pedido veio junto ("Robozinho, que horas são?"), já manda; senão, abre ouvindo.
+  ouvir<string | { texto: string; pedido?: string | null }>("ilha:chamou", (chamou) => {
+    const pedido = typeof chamou === "object" ? chamou.pedido?.trim() : "";
     import("./corpo/telas/conversa").then((m) => {
-      m.abrirOuvindo();
+      if (pedido) m.abrirComPedido(pedido);
+      else m.abrirOuvindo();
       ilha.abrir("conversa");
     });
   });

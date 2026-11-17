@@ -118,6 +118,8 @@ pub fn run() {
             maos::calendario::icloud_enviar,
             corpo::central::tela_inicial_central,
             corpo::foco::janela_da_frente,
+            maos::ouvido::estado_ouvido,
+            maos::ouvido::baixar_ouvido,
             maos::volume::volume_atual,
             maos::volume::definir_volume,
             maos::pc::diagnostico_pc,
@@ -143,6 +145,8 @@ pub fn run() {
             corpo::atividade::iniciar(app.clone());
             corpo::permissao::iniciar(app.clone());
             maos::copiados::iniciar(app.clone());
+            // Ouvido próprio: baixa sozinho o que faltar, em segundo plano.
+            maos::ouvido::iniciar(app);
             corpo::tela_cheia::vigiar(app.clone());
             maos::volume::vigiar(app.clone());
             maos::pc::vigiar(app.clone());

@@ -428,6 +428,18 @@ export const conferirVoz = () =>
     idioma_windows: "en-US",
     ditado_pt: false,
   });
+/** Ouvido próprio da ilha (Whisper no PC): o que já baixou. */
+export interface EstadoOuvido {
+  pequeno: boolean;
+  bom: boolean;
+  baixando: boolean;
+  baixado: number;
+  total: number;
+  erro: string | null;
+}
+export const estadoOuvido = () =>
+  pedir<EstadoOuvido>("estado_ouvido", undefined, { pequeno: false, bom: false, baixando: true, baixado: 120_000_000, total: 633_748_820, erro: null });
+export const baixarOuvido = () => pedir<void>("baixar_ouvido");
 /** Conserta um item ("fala_online", "microfone", "abrir_microfone", "pacote"). Só depois de o Dan confirmar. */
 export const consertarVoz = (item: string) => pedir<void>("consertar_voz", { item });
 

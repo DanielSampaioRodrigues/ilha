@@ -58,6 +58,11 @@ pub fn frases(nome: &str) -> Vec<String> {
     vec![nome.to_string(), format!("ei {nome}"), format!("oi {nome}"), format!("olá {nome}"), format!("ô {nome}")]
 }
 
+/// O nome do robô agora (ex.: "Robozinho").
+pub fn nome_atual() -> String {
+    NOME.lock().map(|n| n.clone()).unwrap_or_default()
+}
+
 #[tauri::command]
 pub fn atender_pelo_nome(app: AppHandle, ligar: bool, nome: String) {
     if let Ok(mut n) = NOME.lock() {
@@ -162,6 +167,43 @@ mod sistema {
                 let nome = NOME.lock().map(|n| n.clone()).unwrap_or_default();
                 let livre = || OCUPADO.load(Ordering::Relaxed) == 0;
                 let querer = LIGADO.load(Ordering::Relaxed) && livre() && !nome.trim().is_empty();
+                // Com o ouvido próprio (Whisper) baixado, é ele que espera o nome:
+                // funciona com a ilha aberta ou fechada.
+                if crate::maos::ouvido::pronto_para_nome() {
+                    if let Some((rec, _)) = atual.take() {
+                        if let Ok(s) = rec.ContinuousRecognitionSession() {
+                            let _ = s.StopAsync().and_then(|op| op.join());
+                        }
+                        let _ = rec.Close();
+                    }
+                    if !querer {
+                        ATIVO.store(false, Ordering::Relaxed);
+                        continue;
+                    }
+                    ATIVO.store(true, Ordering::Relaxed);
+                    guardar(&ULTIMO_ERRO, None);
+                    let nome_inicio = nome.clone();
+                    let continuar = || {
+                        LIGADO.load(Ordering::Relaxed)
+                            && OCUPADO.load(Ordering::Relaxed) == 0
+                            && NOME.lock().map(|n| *n == nome_inicio).unwrap_or(false)
+                    };
+                    let resultado = crate::maos::ouvido::esperar_nome(&app, continuar, |t| {
+                        guardar(&ULTIMO_OUVIDO, Some(format!("“{t}”")));
+                    });
+                    ATIVO.store(false, Ordering::Relaxed);
+                    match resultado {
+                        // Chamou: dá tempo de a ilha abrir o microfone dela.
+                        Ok(true) => std::thread::sleep(Duration::from_secs(2)),
+                        Ok(false) => {}
+                        Err(e) => {
+                            log::warn!("Chamar pelo nome: {e}");
+                            guardar(&ULTIMO_ERRO, Some(e));
+                            std::thread::sleep(Duration::from_secs(5));
+                        }
+                    }
+                    continue;
+                }
                 // Encerrada pelo Windows: descarta para recomeçar.
                 if TERMINOU.swap(false, Ordering::Relaxed) && atual.is_some() {
                     if let Some((rec, _)) = atual.take() {

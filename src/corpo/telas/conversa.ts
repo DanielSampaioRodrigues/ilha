@@ -26,6 +26,13 @@ let ouvindo = false;
 /** O microfone já abriu de verdade (antes disso, o que se fala se perde). */
 let microfoneAberto = false;
 let aoAbrirMicrofone: () => void = () => {};
+/** Já gravou: o ouvido está transformando a fala em texto. */
+let entendendo = false;
+aoEvento("ilha:entendendo", () => {
+  if (!ouvindo) return;
+  entendendo = true;
+  aoAbrirMicrofone();
+});
 aoEvento("ilha:microfone-aberto", () => {
   // Só a janela que pediu para ouvir mostra e apita.
   if (!ouvindo) return;
@@ -43,6 +50,11 @@ const DESPEDIDAS = /^(tchau|obrigad[oa]|valeu|pode parar|para de ouvir|chega|era
 /** Abre a conversa já ouvindo (microfone vermelho da ilha). */
 export function abrirOuvindo(): void {
   ouvirAoAbrir = true;
+}
+/** Pedido que veio junto com o nome ("Robozinho, que horas são?"). */
+let pedidoAoAbrir = "";
+export function abrirComPedido(texto: string): void {
+  pedidoAoAbrir = texto;
 }
 let aoMudar: () => void = () => {};
 let disponiveis: Partial<Record<Motor, boolean>> = {};
@@ -208,7 +220,11 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     raiz.querySelector<HTMLButtonElement>('[data-acao="central"]')!.disabled = rodando || !atual?.mensagens.length;
     seletor.disabled = rodando;
     raiz.querySelector<HTMLElement>(".rapida-ouvindo")!.hidden = !ouvindo;
-    raiz.querySelector<HTMLElement>(".texto-ouvindo")!.textContent = microfoneAberto ? "Pode falar!" : "Abrindo o microfone… espere o bip";
+    raiz.querySelector<HTMLElement>(".texto-ouvindo")!.textContent = entendendo
+      ? "Entendendo o que você disse…"
+      : microfoneAberto
+        ? "Pode falar!"
+        : "Abrindo o microfone… espere o bip";
     raiz.querySelector<HTMLElement>(".rapida-ouvindo .ponto")!.classList.toggle("esperando", !microfoneAberto);
     document.body.classList.toggle("ouvindo-voz", ouvindo);
     const erro = raiz.querySelector<HTMLElement>(".rapida-erro-voz")!;
@@ -272,6 +288,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     calar();
     ouvindo = true;
     microfoneAberto = false;
+    entendendo = false;
     aoAbrirMicrofone = () => raiz.isConnected && desenhar();
     erroVoz = "";
     desenhar();
@@ -296,7 +313,12 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
   aoClicar(raiz, "parar-ouvir", () => {
     pararDeOuvir().catch(() => {});
   });
-  if (ouvirAoAbrir) {
+  if (pedidoAoAbrir) {
+    const texto = pedidoAoAbrir;
+    pedidoAoAbrir = "";
+    ouvirAoAbrir = false;
+    window.setTimeout(() => void enviar(texto, ctx, true).then(desenhar), 150);
+  } else if (ouvirAoAbrir) {
     ouvirAoAbrir = false;
     window.setTimeout(() => void escutar(), 150);
   }
