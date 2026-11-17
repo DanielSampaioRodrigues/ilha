@@ -204,6 +204,16 @@ mod sistema {
                     }
                     continue;
                 }
+                // Ouvido ainda se preparando: espera (o do Windows não funciona
+                // direito num programa comum como a ilha; só confundia).
+                if !querer || crate::maos::ouvido::aviso_instalando().is_some() {
+                    ATIVO.store(false, Ordering::Relaxed);
+                    if let Some(aviso) = crate::maos::ouvido::aviso_instalando() {
+                        guardar(&ULTIMO_ERRO, Some(aviso));
+                    }
+                    std::thread::sleep(Duration::from_secs(1));
+                    continue;
+                }
                 // Encerrada pelo Windows: descarta para recomeçar.
                 if TERMINOU.swap(false, Ordering::Relaxed) && atual.is_some() {
                     if let Some((rec, _)) = atual.take() {

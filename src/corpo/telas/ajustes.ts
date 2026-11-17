@@ -130,7 +130,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         </div>
         <div class="item coluna-item">
           <div class="linha linha-cheia">
-            <div class="coluna"><span class="principal">Conferir a voz</span><span class="secundario">Vê se o Windows tem tudo para ele ouvir você (microfone, permissões e o pacote de fala em português) e conserta o que faltar, sempre perguntando antes.</span></div>
+            <div class="coluna"><span class="principal">Conferir a voz</span><span class="secundario">Vê se está tudo certo para ele ouvir você (microfone, permissão e o ouvido da ilha) e conserta o que faltar, sempre perguntando antes.</span></div>
             <button type="button" class="botao" data-acao="conferir-voz">Conferir</button>
           </div>
           <div class="lista-voz" aria-live="polite"></div>
@@ -355,88 +355,31 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       nota: chamado.ouviu ? `Última coisa que ouviu: ${chamado.ouviu}` : chamado.escutando ? "Diga o nome agora e confira de novo para ver se ele ouviu." : undefined,
     };
   };
-  const itensVoz = (e: EstadoVoz): ItemVoz[] => {
-    // Com o ouvido da ilha instalado, o reconhecimento de fala do Windows não importa mais.
-    if (ouvidoPronto)
-      return [
-        { ok: e.microfone, texto: "Microfone ligado", falta: "Não achei microfone. Ligue um microfone ou um fone com microfone." },
-        e.microfone_bloqueado_no_pc
-          ? {
-              ok: false,
-              texto: "Microfone liberado",
-              falta: "O microfone está bloqueado para o computador inteiro. Só dá para liberar nas Configurações do Windows.",
-              conserto: "abrir_microfone",
-              explica: "Vou abrir as Configurações do Windows na página do microfone. Ligue “Acesso ao microfone” e “Permitir que aplicativos da área de trabalho acessem o microfone”.",
-              botao: "Abrir Configurações",
-            }
-          : {
-              ok: e.microfone_liberado,
-              texto: "Microfone liberado para a ilha",
-              falta: "O Windows não deixa programas usarem o microfone.",
-              conserto: "microfone",
-              explica: "Vou liberar o microfone para os programas do computador, nas configurações de privacidade do Windows.",
-            },
-        { ok: true, texto: "Ouvido da ilha instalado (entende no próprio PC)" },
-        itemChamado(),
-      ];
-    const pacote = {
-      conserto: "pacote",
-      explica:
-        "Vou baixar e instalar, pelo próprio Windows, o pacote de fala em português (Brasil) e as vozes em português. Leva alguns minutos e o Windows vai pedir permissão de administrador (a janela “Deseja permitir…?”).",
-    };
-    return [
-      { ok: e.microfone, texto: "Microfone ligado", falta: "Não achei microfone. Ligue um microfone ou um fone com microfone." },
-      e.microfone_bloqueado_no_pc
-        ? {
-            ok: false,
-            texto: "Microfone liberado",
-            falta: "O microfone está bloqueado para o computador inteiro. Só dá para liberar nas Configurações do Windows.",
-            conserto: "abrir_microfone",
-            explica: "Vou abrir as Configurações do Windows na página do microfone. Ligue “Acesso ao microfone” e “Permitir que aplicativos da área de trabalho acessem o microfone”.",
-            botao: "Abrir Configurações",
-          }
-        : {
-            ok: e.microfone_liberado,
-            texto: "Microfone liberado para a ilha",
-            falta: "O Windows não deixa programas usarem o microfone.",
-            conserto: "microfone",
-            explica: "Vou liberar o microfone para os programas do computador, nas configurações de privacidade do Windows.",
-          },
-      {
-        ok: e.fala_online,
-        texto: "Reconhecimento de fala online ligado",
-        falta: "Está desligado; sem ele o Windows não transforma a fala em texto.",
-        conserto: "fala_online",
-        explica:
-          "Vou ligar o “Reconhecimento de fala online” nas configurações de privacidade do Windows. Com ele, o que você fala ao microfone vermelho vai para a Microsoft virar texto.",
-      },
-      {
-        ok: false,
-        texto: "Ouvido da ilha instalado",
-        falta: situacaoOuvido || "Ainda instalando sozinho. Enquanto isso, os itens abaixo (do Windows) são só reserva.",
-      },
-      { ok: e.pacote_pt, texto: "Pacote de fala em português (Brasil)", falta: "Não está instalado.", ...pacote },
-      {
-        ok: e.idioma_windows === null ? null : /^pt/i.test(e.idioma_windows),
-        texto: "Idioma de fala do Windows em português",
-        falta: `Está em ${e.idioma_windows ?? "outro idioma"}: o Windows entende o que você fala como se fosse esse idioma (por isso o Win + H escreve em inglês).`,
-        conserto: "idioma_pt",
-        explica:
-          "Vou colocar o Português (Brasil) em primeiro lugar nos idiomas do Windows, com os mesmos teclados que você já usa (o seu teclado continua igual, só passa a ficar no português). Depois abro a página Fala: lá, em “Idioma de fala”, escolha Português (Brasil). Se o Windows estiver em outro idioma, ele pode passar a aparecer em português depois de sair e entrar de novo. Dá para desfazer em Configurações › Hora e idioma › Idioma e região.",
-      },
-      {
-        ok: e.ditado_pt,
-        texto: "Ditado em português pronto para usar",
-        falta: "O Windows não preparou o ditado em português (Brasil). Arrume os itens acima e confira de novo.",
-        conserto: "abrir_idiomas",
-        botao: "Abrir Idiomas",
-        explica:
-          "Vou abrir Configurações › Hora e idioma › Idioma e região. Em Português (Brasil) › “…” › Opções de idioma, confira se “Reconhecimento de fala” está instalado (se não estiver, clique em Baixar).",
-      },
-      { ok: vozesEmPortugues().length > 0, texto: "Voz em português para responder", falta: "Não achei voz em português.", ...pacote },
-      itemChamado(),
-    ];
-  };
+  const itensVoz = (e: EstadoVoz): ItemVoz[] => [
+    // O reconhecimento de fala do Windows não entra mais: ele não funciona num
+    // programa comum como a ilha. Quem ouve é o ouvido da ilha (Whisper, no PC).
+    { ok: e.microfone, texto: "Microfone ligado", falta: "Não achei microfone. Ligue um microfone ou um fone com microfone." },
+    e.microfone_bloqueado_no_pc
+      ? {
+          ok: false,
+          texto: "Microfone liberado",
+          falta: "O microfone está bloqueado para o computador inteiro. Só dá para liberar nas Configurações do Windows.",
+          conserto: "abrir_microfone",
+          explica: "Vou abrir as Configurações do Windows na página do microfone. Ligue “Acesso ao microfone” e “Permitir que aplicativos da área de trabalho acessem o microfone”.",
+          botao: "Abrir Configurações",
+        }
+      : {
+          ok: e.microfone_liberado,
+          texto: "Microfone liberado para a ilha",
+          falta: "O Windows não deixa programas usarem o microfone.",
+          conserto: "microfone",
+          explica: "Vou liberar o microfone para os programas do computador, nas configurações de privacidade do Windows.",
+        },
+    ouvidoPronto
+      ? { ok: true, texto: "Ouvido da ilha pronto (entende no próprio PC)" }
+      : { ok: false, texto: "Ouvido da ilha", falta: situacaoOuvido || "Preparando sozinho. Quando terminar, a ilha avisa." },
+    itemChamado(),
+  ];
   const desenharVoz = (e: EstadoVoz, recado = "") => {
     const itens = itensVoz(e);
     const tudoCerto = itens.every((i) => i.ok);
@@ -502,9 +445,9 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       tentar.hidden = !(e.erro && !e.baixando);
       if (e.pequeno && e.bom) situacao.textContent = "Pronto. Entende o que você fala no próprio PC, sem internet, com a ilha aberta ou fechada.";
       else if (e.baixando)
-        situacao.textContent = `Instalando sozinho (${mb(e.baixado)} de ${mb(e.total)})… ${e.pequeno ? "Já atende pelo nome; o resto chega em seguida." : "Pode continuar usando o computador."}`;
+        situacao.textContent = `Preparando sozinho (${mb(e.baixado)} de ${mb(e.total)})… Quando terminar, a ilha avisa e a voz passa a funcionar. Pode continuar usando o computador.`;
       else if (e.erro) situacao.textContent = e.erro;
-      else situacao.textContent = "Vai se instalar sozinho em instantes (cerca de 630 MB, uma vez só).";
+      else situacao.textContent = "Vai se preparar sozinho em instantes (cerca de 630 MB, uma vez só; as atualizações não baixam de novo).";
       situacaoOuvido = situacao.textContent ?? "";
     };
     const atualizar = () => estadoOuvido().then(mostrar).catch(() => {});

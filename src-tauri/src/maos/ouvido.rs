@@ -61,14 +61,19 @@ pub fn tem(m: &Modelo) -> bool {
     caminho(m).and_then(|c| std::fs::metadata(c).ok()).is_some_and(|d| d.len() == m.tamanho)
 }
 
-/// Dá para procurar o nome com o ouvido próprio.
-pub fn pronto_para_nome() -> bool {
-    tem(&PEQUENO)
+/// O ouvido está pronto: os dois modelos baixados. Antes disso, nada de voz
+/// pela metade (o pequeno sozinho entende mal os pedidos e confundia): a
+/// ilha só avisa que está se preparando.
+pub fn pronto() -> bool {
+    tem(&PEQUENO) && tem(&BOM)
 }
 
-/// Dá para entender pedidos com o ouvido próprio (o bom ou, enquanto ele baixa, o pequeno).
+pub fn pronto_para_nome() -> bool {
+    pronto()
+}
+
 pub fn pronto_para_pedido() -> bool {
-    tem(&BOM) || tem(&PEQUENO)
+    pronto()
 }
 
 // ---------- Baixar sozinho ----------
@@ -105,7 +110,7 @@ pub fn aviso_instalando() -> Option<String> {
     let mb = |n: u64| n / 1_000_000;
     Some(if e.baixando {
         format!(
-            "O ouvido da ilha ainda está se instalando ({} de {} MB). Assim que o primeiro pedaço terminar, o microfone funciona.",
+            "O ouvido da ilha ainda está se preparando ({} de {} MB). Quando terminar, a ilha avisa e a voz passa a funcionar.",
             mb(e.baixado),
             mb(e.total)
         )
@@ -156,6 +161,7 @@ async fn baixar_o_que_falta(app: &AppHandle) -> Result<(), String> {
         return Ok(());
     }
     BAIXADO.store(0, Ordering::Relaxed);
+    let ja_faltava = !falta().is_empty();
     if let Ok(mut e) = ERRO_BAIXAR.lock() {
         *e = None;
     }
@@ -173,6 +179,10 @@ async fn baixar_o_que_falta(app: &AppHandle) -> Result<(), String> {
         let _ = app.emit("ouvido:pronto", m.arquivo);
     }
     BAIXANDO.store(false, Ordering::Relaxed);
+    if resultado.is_ok() && pronto() && ja_faltava {
+        // Avisa uma vez, quando termina de preparar (a ilha mostra "pronto").
+        let _ = app.emit("ouvido:tudo-pronto", ());
+    }
     let _ = app.emit("ouvido:progresso", estado_ouvido());
     resultado
 }
@@ -646,9 +656,9 @@ pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, Strin
     };
     drop(microfone);
     let _ = app.emit("ilha:entendendo", ());
-    let modelo = if tem(&BOM) { &BOM } else { &PEQUENO };
-    let texto = transcrever(modelo, &fala, None)?;
-    log::info!("Ouvido: pedido com {} letras ({})", texto.chars().count(), modelo.arquivo);
+    let inicio = Instant::now();
+    let texto = transcrever(&BOM, &fala, None)?;
+    log::info!("Ouvido: pedido entendido em {} ms ({} letras)", inicio.elapsed().as_millis(), texto.chars().count());
     if texto.is_empty() {
         return Err("Chegou som, mas não entendi nenhuma palavra. Fale de novo, um pouco mais perto do microfone.".into());
     }
@@ -768,10 +778,9 @@ pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl F
                         return Ok(String::new());
                     }
                     let _ = app.emit("ilha:entendendo", ());
-                    let modelo = if tem(&BOM) { &BOM } else { &PEQUENO };
                     let inicio = Instant::now();
-                    let t = transcrever(modelo, &f, None);
-                    log::info!("Ouvido: pedido entendido em {} ms ({})", inicio.elapsed().as_millis(), modelo.arquivo);
+                    let t = transcrever(&BOM, &f, None);
+                    log::info!("Ouvido: pedido entendido em {} ms", inicio.elapsed().as_millis());
                     t.map(|t| if comeco_do_pedido.is_empty() || t.is_empty() { t } else { format!("{comeco_do_pedido} {t}") })
                 })
             };

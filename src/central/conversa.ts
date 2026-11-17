@@ -17,7 +17,8 @@ import {
 import { haQuanto } from "../dados/datas";
 import {
   abrirNoTerminal,
-  ditado,
+  ouvir,
+  pararDeOuvir,
   escolherArquivos,
   listarModelos,
   motoresDisponiveis,
@@ -33,6 +34,8 @@ import {
 import { selo, SELO_MOTOR as SELO } from "../corpo/selos";
 import { aoClicar, confirmarAntes, escapar, html } from "../corpo/ui";
 import { ICONES } from "../corpo/icones";
+import { bip } from "../maos/fala";
+import { ouvir as aoEventoDaIlha } from "../ponte";
 import { textoRico } from "./texto-rico";
 
 const MOTORES: Motor[] = ["deepseek", "claude", "codex", "antigravity", "gemini"];
@@ -92,6 +95,12 @@ let filtro: Motor | "todas" = "todas";
 let disponiveis: Record<Motor, boolean> = { deepseek: true, claude: true, codex: true, gemini: true, antigravity: true };
 const buscouModelos = new Set<Motor>();
 let rascunho = "";
+/** O ditado (microfone da caixa de texto) está ouvindo. */
+let ditando = false;
+// Bip quando o microfone abre de verdade: pode falar.
+aoEventoDaIlha("ilha:microfone-aberto", () => {
+  if (ditando) bip();
+});
 /** Arquivos esperando a próxima mensagem. */
 let anexosPendentes: string[] = [];
 let aoMudarAnexos: () => void = () => {};
@@ -596,7 +605,7 @@ export function montarConversa(): HTMLElement {
         <div class="anexos-pendentes"></div>
         <div class="linha-compositor">
           <button type="button" class="redondo" aria-label="Anexar arquivos" title="Anexar arquivos (ou arraste para a janela)" data-acao="anexar">${ICONES.clipe}</button>
-          <button type="button" class="redondo" aria-label="Ditado" title="Ditado: fale e o Windows escreve (Win + H)" data-acao="ditado">${ICONES.microfone}</button>
+          <button type="button" class="redondo" aria-label="Ditado" title="Ditado: fale e eu escrevo aqui (clique de novo para parar)" data-acao="ditado">${ICONES.microfone}</button>
           <textarea rows="1" placeholder="Escreva para ${escapar(ler().config.nomeRobo)}… (Enter envia, Shift+Enter pula linha)" aria-label="Mensagem">${escapar(rascunho)}</textarea>
           ${ocupado ? '<button type="button" class="botao" data-acao="parar">Parar</button>' : '<button type="submit" class="botao ciano">Enviar</button>'}
         </div>
@@ -623,9 +632,34 @@ export function montarConversa(): HTMLElement {
     aoClicar(caixa, "anexar", () => {
       escolherArquivos().then(anexar).catch(() => {});
     });
+    // Ditado pelo ouvido da ilha: o que você fala vira texto no campo (não envia sozinho).
+    const botaoDitado = caixa.querySelector<HTMLButtonElement>('[data-acao="ditado"]')!;
     aoClicar(caixa, "ditado", () => {
-      campo.focus();
-      window.setTimeout(() => ditado().catch(() => {}), 80);
+      if (ditando) {
+        pararDeOuvir().catch(() => {});
+        return;
+      }
+      ditando = true;
+      botaoDitado.classList.add("ditando");
+      botaoDitado.title = "Ouvindo… fale e espere. Clique para parar.";
+      ouvir()
+        .then((texto) => {
+          const t = texto.trim();
+          if (!t) return;
+          campo.value = campo.value.trim() ? `${campo.value.trimEnd()} ${t}` : t;
+          rascunho = campo.value;
+          ajustar();
+        })
+        .catch((erro) => {
+          campo.placeholder = String(erro);
+          window.setTimeout(() => (campo.placeholder = `Escreva para ${ler().config.nomeRobo}… (Enter envia, Shift+Enter pula linha)`), 8000);
+        })
+        .finally(() => {
+          ditando = false;
+          botaoDitado.classList.remove("ditando");
+          botaoDitado.title = "Ditado: fale e eu escrevo aqui (clique de novo para parar)";
+          campo.focus();
+        });
     });
     const ajustar = () => {
       campo.style.height = "auto";

@@ -970,3 +970,10 @@ body.central-janela .fechar-grande {
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* Ditado ouvindo: o microfone fica vermelho e pulsa. */
+.redondo.ditando {
+  background: #ff4d4d;
+  color: #fff;
+  animation: pulsar 1.2s ease-in-out infinite;
+}

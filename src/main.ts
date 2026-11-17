@@ -72,6 +72,14 @@ async function iniciar(): Promise<void> {
   // Calendário da Apple: manda o que mudou (se estiver conectado).
   import("./dados/calendario").then((m) => m.sincronizarSempre());
   // Chamou pelo nome: abre a conversa já ouvindo o pedido.
+  // O ouvido terminou de se preparar (primeira vez): avisa uma vez.
+  ouvir("ouvido:tudo-pronto", () =>
+    ilha.notificar({
+      titulo: "O ouvido da ilha está pronto",
+      detalhe: ler().config.atenderPeloNome ? `Agora é só chamar “${ler().config.nomeRobo}”` : "Já dá para falar pelo microfone",
+      expressao: "feliz",
+    }),
+  );
   // Se o pedido veio junto ("Robozinho, que horas são?"), já manda; senão, abre ouvindo.
   ouvir<string | { texto: string; pedido?: string | null; esperando?: boolean; etapa?: "ouvindo" | "entendendo" }>("ilha:chamou", (chamou) => {
     const pedido = typeof chamou === "object" ? chamou.pedido?.trim() : "";
