@@ -74,7 +74,7 @@ async function iniciar(): Promise<void> {
   import("./dados/calendario").then((m) => m.sincronizarSempre());
   // Chamou pelo nome: abre a conversa já ouvindo o pedido.
   // Ouvido rápido (padrão) ou mais preciso: o Rust baixa o que faltar.
-  escolherOuvido(!!ler().config.ouvidoPreciso).catch(() => {});
+  escolherOuvido(!!ler().config.ouvidoPreciso, !!ler().config.ouvidoNuvem).catch(() => {});
   // O ouvido terminou de se preparar (primeira vez): avisa uma vez.
   ouvir("ouvido:tudo-pronto", () =>
     ilha.notificar({

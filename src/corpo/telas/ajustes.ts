@@ -105,11 +105,12 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
           <div class="coluna"><span class="principal">Ouvido da ilha</span><span class="secundario situacao-ouvido">Conferindo…</span></div>
           <button type="button" class="botao" data-acao="baixar-ouvido" hidden>Tentar de novo</button>
         </div>
-        <div class="item">
-          <div class="coluna"><span class="principal">Jeito de entender</span><span class="secundario">Rápido: responde em cerca de 1 s e acerta bem o dia a dia. Mais preciso: entende melhor frases difíceis, mas leva uns 4 s.</span></div>
+        <div class="item coluna-item">
+          <div class="coluna"><span class="principal">Jeito de entender</span><span class="secundario">No PC, rápido: grátis e sem internet. No PC, mais preciso: entende melhor frases difíceis, mas demora mais. Na nuvem: entende enquanto você fala (o mais rápido), pela ElevenLabs; gasta uns centavos por hora de fala e só o que vem depois do nome sai do PC. Sem internet, volta para o PC sozinho.</span><span class="secundario aviso-nuvem" hidden></span></div>
           <div class="segmentos" role="radiogroup" aria-label="Jeito de entender">
-            <button type="button" class="segmento" role="radio" aria-checked="${!dados.config.ouvidoPreciso}" data-acao="ouvido-jeito" data-preciso="nao">Rápido</button>
-            <button type="button" class="segmento" role="radio" aria-checked="${!!dados.config.ouvidoPreciso}" data-acao="ouvido-jeito" data-preciso="sim">Mais preciso</button>
+            <button type="button" class="segmento" role="radio" aria-checked="${!dados.config.ouvidoNuvem && !dados.config.ouvidoPreciso}" data-acao="ouvido-jeito" data-jeito="rapido">No PC, rápido</button>
+            <button type="button" class="segmento" role="radio" aria-checked="${!dados.config.ouvidoNuvem && !!dados.config.ouvidoPreciso}" data-acao="ouvido-jeito" data-jeito="preciso">No PC, preciso</button>
+            <button type="button" class="segmento" role="radio" aria-checked="${!!dados.config.ouvidoNuvem}" data-acao="ouvido-jeito" data-jeito="nuvem">Na nuvem</button>
           </div>
         </div>
         <div class="item">
@@ -460,17 +461,35 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         situacao.textContent = `Preparando sozinho (${mb(e.baixado)} de ${mb(e.total)})… Quando terminar, a ilha avisa e a voz passa a funcionar. Pode continuar usando o computador.`;
       else if (e.erro) situacao.textContent = e.erro;
       else situacao.textContent = "Vai se preparar sozinho em instantes (uma vez só; as atualizações não baixam de novo).";
+      if (ler().config.ouvidoNuvem && e.erro_nuvem) situacao.textContent += ` A nuvem falhou da última vez (${e.erro_nuvem}); entendi no PC.`;
       situacaoOuvido = situacao.textContent ?? "";
     };
     const atualizar = () => estadoOuvido().then(mostrar).catch(() => {});
     atualizar();
     const vigia = window.setInterval(() => (raiz.isConnected ? atualizar() : window.clearInterval(vigia)), 1500);
+    const avisoNuvem = raiz.querySelector<HTMLElement>(".aviso-nuvem")!;
+    const conferirChaveNuvem = () => {
+      if (!ler().config.ouvidoNuvem) return void (avisoNuvem.hidden = true);
+      temChave("elevenlabs")
+        .then((tem) => {
+          avisoNuvem.hidden = tem;
+          avisoNuvem.textContent = "Falta guardar a chave da ElevenLabs (em Chaves de IA, mais abaixo). Até lá, ele entende no PC.";
+        })
+        .catch(() => {});
+    };
+    conferirChaveNuvem();
     aoClicar(raiz, "ouvido-jeito", (b) => {
-      const preciso = b.dataset.preciso === "sim";
-      mudar((d) => (d.config.ouvidoPreciso = preciso));
+      const jeito = b.dataset.jeito;
+      const preciso = jeito === "preciso";
+      const nuvem = jeito === "nuvem";
+      mudar((d) => {
+        d.config.ouvidoPreciso = preciso;
+        d.config.ouvidoNuvem = nuvem;
+      });
       raiz.querySelectorAll<HTMLElement>('[data-acao="ouvido-jeito"]').forEach((x) => x.setAttribute("aria-checked", String(x === b)));
       // Se o modelo escolhido ainda não foi baixado, a ilha baixa (a voz espera terminar).
-      escolherOuvido(preciso).catch(() => {});
+      escolherOuvido(preciso, nuvem).catch(() => {});
+      conferirChaveNuvem();
       window.setTimeout(atualizar, 500);
     });
     tentar.addEventListener("click", () => {

@@ -44,7 +44,8 @@ pub fn bom() -> &'static Modelo {
 
 /// Rápido ou mais preciso. Se faltar o modelo escolhido, baixa (a voz espera).
 #[tauri::command]
-pub async fn escolher_ouvido(app: AppHandle, preciso: bool) {
+pub async fn escolher_ouvido(app: AppHandle, preciso: bool, nuvem: Option<bool>) {
+    super::nuvem::LIGADA.store(nuvem.unwrap_or(false), Ordering::Relaxed);
     let antes = QUER_PRECISO.swap(preciso, Ordering::Relaxed);
     if antes != preciso {
         log::info!("Ouvido: {}", if preciso { "mais preciso" } else { "rápido" });
@@ -211,6 +212,8 @@ pub struct EstadoOuvido {
     pub fala_ms: u64,
     /// Fios (núcleos) que o Whisper usa neste PC.
     pub nucleos: usize,
+    /// Último problema do ouvido na nuvem (`None` = funcionou ou não usado).
+    pub erro_nuvem: Option<String>,
 }
 
 fn falta() -> Vec<&'static Modelo> {
@@ -229,6 +232,7 @@ pub fn estado_ouvido() -> EstadoOuvido {
         ultimo_ms: ULTIMO_PEDIDO_MS.load(Ordering::Relaxed),
         fala_ms: ULTIMA_FALA_MS.load(Ordering::Relaxed),
         nucleos: nucleos_do_whisper(),
+        erro_nuvem: super::nuvem::ULTIMO_ERRO.lock().ok().and_then(|e| e.clone()),
     }
 }
 
@@ -715,6 +719,52 @@ impl Conversor {
 
 // ---------- Ouvir um pedido ----------
 
+/// Manda para a nuvem só o som de quando a pessoa está falando (com 0,4 s de
+/// antes, para não cortar o começo). O silêncio de espera não gasta crédito.
+struct EnvioNuvem {
+    nuvem: Option<super::nuvem::Nuvem>,
+    antes: std::collections::VecDeque<f32>,
+}
+
+impl EnvioNuvem {
+    fn novo() -> Self {
+        EnvioNuvem { nuvem: super::nuvem::abrir(), antes: std::collections::VecDeque::new() }
+    }
+
+    /// Chamar depois de empurrar o som no cortador: `falava` é como estava antes.
+    fn som(&mut self, som: &[f32], falava: bool, fala_agora: bool, terminou: bool) {
+        let Some(n) = &self.nuvem else { return };
+        if !falava && (fala_agora || terminou) {
+            let antes: Vec<f32> = self.antes.drain(..).collect();
+            n.enviar(&antes);
+        }
+        if falava || fala_agora || terminou {
+            n.enviar(som);
+        } else {
+            self.antes.extend(som.iter().copied());
+            while self.antes.len() > TAXA * 2 / 5 {
+                self.antes.pop_front();
+            }
+        }
+    }
+
+    /// Texto da nuvem; se falhar (sem internet, sem chave, cota), entende no PC.
+    fn entender(self, fala: &[f32]) -> Result<String, String> {
+        if let Some(n) = self.nuvem {
+            let inicio = Instant::now();
+            match n.terminar() {
+                Ok(t) if !t.trim().is_empty() => {
+                    log::info!("Ouvido: pedido entendido na nuvem em {} ms depois da fala", inicio.elapsed().as_millis());
+                    return Ok(t.trim().to_string());
+                }
+                Ok(_) => log::info!("Ouvido: a nuvem não devolveu texto; entendendo no PC"),
+                Err(e) => log::warn!("Ouvido: nuvem falhou ({e}); entendendo no PC"),
+            }
+        }
+        transcrever(bom(), fala, None)
+    }
+}
+
 /// Grava até a pessoa parar de falar (1,4 s de silêncio: dá para pensar no
 /// meio da frase sem ser cortado) e devolve o texto. `parar`: botão Parar.
 pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, String> {
@@ -722,6 +772,7 @@ pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, Strin
     let _ = app.emit("ilha:microfone-aberto", ());
     preparar_bom();
     let mut cortador = Cortador::new(1_400, 20_000);
+    let mut nuvem = EnvioNuvem::novo();
     let comeco = Instant::now();
     let fala = loop {
         if parar.load(Ordering::Relaxed) {
@@ -732,7 +783,10 @@ pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, Strin
         }
         match microfone.chegando.recv_timeout(Duration::from_millis(200)) {
             Ok(som) => {
-                if let Some(f) = cortador.empurrar(&som).into_iter().next() {
+                let falava = cortador.falando();
+                let pronta = cortador.empurrar(&som).into_iter().next();
+                nuvem.som(&som, falava, cortador.falando(), pronta.is_some());
+                if let Some(f) = pronta {
                     break f;
                 }
             }
@@ -743,7 +797,7 @@ pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, Strin
     drop(microfone);
     let _ = app.emit("ilha:entendendo", ());
     let inicio = Instant::now();
-    let texto = transcrever(bom(), &fala, None)?;
+    let texto = nuvem.entender(&fala)?;
     ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
     ULTIMA_FALA_MS.store((fala.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
     log::info!("Ouvido: pedido entendido em {} ms ({} letras, fala de {} ms)", inicio.elapsed().as_millis(), texto.chars().count(), fala.len() * 1000 / TAXA);
@@ -786,7 +840,11 @@ fn pedido_junto(fala: &[f32], nome: &str, resto: String) -> String {
     if !tem(bom()) {
         return resto;
     }
-    match transcrever(bom(), fala, None).ok().filter(|t| !t.is_empty()) {
+    let nuvem = EnvioNuvem::novo();
+    if let Some(n) = &nuvem.nuvem {
+        n.enviar(fala);
+    }
+    match nuvem.entender(fala).ok().filter(|t| !t.is_empty()) {
         Some(t) => match achar_nome(&t, nome) {
             Some(r) if !r.is_empty() => r,
             Some(_) => resto,
@@ -811,24 +869,36 @@ fn chamou(fala: &[f32], nome: &str) -> Option<(String, String)> {
 
 /// Depois do nome sozinho: o MESMO microfone já ouve o pedido (sem fechar e
 /// abrir outro, que perdia o começo da frase). Espera até 8 s a pessoa começar.
-fn ouvir_continuacao(microfone: &Microfone, fila: &mut std::collections::VecDeque<Vec<f32>>) -> Result<Vec<f32>, String> {
+fn ouvir_continuacao(
+    microfone: &Microfone,
+    fila: &mut std::collections::VecDeque<Vec<f32>>,
+) -> Result<(Vec<f32>, EnvioNuvem), String> {
     if let Some(f) = fila.pop_front() {
-        return Ok(f);
+        // Já gravada: vai para a nuvem de uma vez (ou é entendida no PC).
+        let nuvem = EnvioNuvem::novo();
+        if let Some(n) = &nuvem.nuvem {
+            n.enviar(&f);
+        }
+        return Ok((f, nuvem));
     }
     let parar = &super::voz::PARAR;
     let mut cortador = Cortador::new(1_400, 20_000);
+    let mut nuvem = EnvioNuvem::novo();
     let comeco = Instant::now();
     loop {
         if parar.load(Ordering::Relaxed) {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), EnvioNuvem { nuvem: None, antes: Default::default() }));
         }
         if !cortador.falando() && comeco.elapsed() > Duration::from_secs(8) {
             return Err("Não ouvi o pedido depois do nome. Chame de novo e fale logo depois do bip.".into());
         }
         match microfone.chegando.recv_timeout(Duration::from_millis(100)) {
             Ok(som) => {
-                if let Some(f) = cortador.empurrar(&som).into_iter().next() {
-                    return Ok(f);
+                let falava = cortador.falando();
+                let pronta = cortador.empurrar(&som).into_iter().next();
+                nuvem.som(&som, falava, cortador.falando(), pronta.is_some());
+                if let Some(f) = pronta {
+                    return Ok((f, nuvem));
                 }
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
@@ -863,13 +933,13 @@ fn atender(
     } else {
         // Uma palavra que veio colada no nome ("Robozinho, que… horas são?") entra no pedido.
         let comeco_do_pedido = resto.clone();
-        ouvir_continuacao(microfone, fila).and_then(|f| {
+        ouvir_continuacao(microfone, fila).and_then(|(f, nuvem)| {
             if f.is_empty() {
                 return Ok(String::new());
             }
             let _ = app.emit("ilha:entendendo", ());
             let inicio = Instant::now();
-            let t = transcrever(bom(), &f, None);
+            let t = nuvem.entender(&f);
             ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
             ULTIMA_FALA_MS.store((f.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
             log::info!("Ouvido: pedido entendido em {} ms (fala de {} ms)", inicio.elapsed().as_millis(), f.len() * 1000 / TAXA);

@@ -34,6 +34,11 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 # Ouvido próprio: entende a fala no próprio PC (whisper.cpp).
 whisper-rs = "0.16"
+# Ouvido na nuvem (ElevenLabs em tempo real, por WebSocket).
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+tokio = { version = "1", features = ["sync", "macros", "time", "rt"] }
+rustls = "0.23"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2.7"

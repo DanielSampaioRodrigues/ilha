@@ -446,12 +446,14 @@ export interface EstadoOuvido {
   fala_ms: number;
   /** Fios (núcleos) que o Whisper usa neste PC. */
   nucleos: number;
+  /** Último problema do ouvido na nuvem (null = funcionou). */
+  erro_nuvem: string | null;
 }
 export const estadoOuvido = () =>
-  pedir<EstadoOuvido>("estado_ouvido", undefined, { pequeno: false, bom: false, baixando: true, baixado: 120_000_000, total: 249_793_112, erro: null, ultimo_ms: 0, fala_ms: 0, nucleos: 4 });
+  pedir<EstadoOuvido>("estado_ouvido", undefined, { pequeno: false, bom: false, baixando: true, baixado: 120_000_000, total: 249_793_112, erro: null, ultimo_ms: 0, fala_ms: 0, nucleos: 4, erro_nuvem: null });
 export const baixarOuvido = () => pedir<void>("baixar_ouvido");
 /** Ouvido rápido (padrão) ou mais preciso (mais lento). Baixa o que faltar. */
-export const escolherOuvido = (preciso: boolean) => pedir<void>("escolher_ouvido", { preciso });
+export const escolherOuvido = (preciso: boolean, nuvem = false) => pedir<void>("escolher_ouvido", { preciso, nuvem });
 /** Conserta um item ("fala_online", "microfone", "abrir_microfone", "pacote"). Só depois de o Dan confirmar. */
 export const consertarVoz = (item: string) => pedir<void>("consertar_voz", { item });
 

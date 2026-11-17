@@ -105,6 +105,8 @@ export interface Config {
   rostoNaIlha?: "rosto" | "corpo";
   /** Ouvido da ilha: "rápido" (padrão, modelo small) ou "preciso" (turbo, mais lento). */
   ouvidoPreciso?: boolean;
+  /** Ouvido na nuvem (ElevenLabs em tempo real): bem mais rápido; gasta créditos dela. */
+  ouvidoNuvem?: boolean;
   corBochechas: string;
   acessorio: "nenhum" | "chapeu" | "coroa" | "laco" | "oculos" | "fones" | "antena";
   /** Qual personagem (robô, gato, urso…). */

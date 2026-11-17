@@ -7,6 +7,7 @@ pub mod copiados;
 pub mod ditado;
 pub mod integracoes;
 pub mod midia;
+pub mod nuvem;
 pub mod ouvido;
 pub mod pc;
 pub mod programas;
