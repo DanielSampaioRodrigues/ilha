@@ -123,6 +123,7 @@ pub fn run() {
             maos::ouvido::estado_ouvido,
             maos::ouvido::baixar_ouvido,
             maos::ouvido::falando_agora,
+            maos::ouvido::escolher_ouvido,
             maos::volume::volume_atual,
             maos::volume::definir_volume,
             maos::pc::diagnostico_pc,

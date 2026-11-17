@@ -62,6 +62,8 @@ export function abrirComPedido(texto: string): void {
  * chamando o nome) e mostra "ouvindo"; o texto chega por "ilha:pedido-ouvido".
  */
 let esperandoPedido = false;
+/** Quando o Dan apertou Parar por último (resultados de antes disso são descartados). */
+let paradoAgora = 0;
 let pedidoOuvido: { texto?: string; erro?: string } | null = null;
 let aoChegarPedido: () => void = () => {};
 export function abrirEsperandoPedido(etapa: "ouvindo" | "entendendo"): void {
@@ -154,6 +156,12 @@ async function enviarAgora(texto: string, ctx: Contexto, porVoz: boolean): Promi
     aoMudar();
     responderEmVoz(local);
     return;
+  }
+  // Pode ter sido instalado depois de a ilha ligar: confere de novo antes de reclamar.
+  if (disponiveis[c.motor] === false) {
+    await motoresDisponiveis()
+      .then((l) => l.forEach((m) => (disponiveis[m.motor] = m.encontrado)))
+      .catch(() => {});
   }
   if (disponiveis[c.motor] === false) {
     c.mensagens.push(
@@ -310,6 +318,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
   // Falar: ouve uma frase, manda, e lê a resposta em voz alta.
   const escutar = async (continuando = false) => {
     if (ouvindo || rodando) return;
+    const comecou = Date.now();
     calar();
     ouvindo = true;
     microfoneAberto = false;
@@ -320,11 +329,14 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     try {
       const texto = (await ouvir()).trim();
       ouvindo = false;
+      // Apertou Parar enquanto ouvia/entendia: descarta.
+      if (paradoAgora > comecou) return desenhar();
       if (texto) await enviar(texto, ctx, true);
       // Silêncio na conversa contínua: só para de ouvir, sem erro.
       else if (!continuando) erroVoz = "Não ouvi nada. Aperte o microfone e fale de novo.";
     } catch (e) {
       ouvindo = false;
+      if (paradoAgora > comecou) return desenhar();
       // Silêncio na conversa contínua: só para de ouvir, sem erro.
       if (!(continuando && /não chegou som|nenhuma palavra/.test(String(e)))) erroVoz = String(e);
     }
@@ -337,6 +349,13 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
   };
   aoClicar(raiz, "parar-ouvir", () => {
     pararDeOuvir().catch(() => {});
+    // Para na hora (inclusive o "entendendo"): nada do que foi ouvido é mandado.
+    ouvindo = false;
+    entendendo = false;
+    esperandoPedido = false;
+    pedidoOuvido = null;
+    paradoAgora = Date.now();
+    desenhar();
   });
   // Pedido ouvido depois do nome: manda (ou mostra o erro).
   const tratarPedido = () => {

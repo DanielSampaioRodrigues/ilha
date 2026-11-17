@@ -17,6 +17,7 @@ import {
   listarProgramas,
   perceberAtividade,
   atenderPeloNome,
+  escolherOuvido,
   copiadosLigar,
   midiaAtual,
   PROGRAMAS_COM_ABAS,
@@ -72,6 +73,8 @@ async function iniciar(): Promise<void> {
   // Calendário da Apple: manda o que mudou (se estiver conectado).
   import("./dados/calendario").then((m) => m.sincronizarSempre());
   // Chamou pelo nome: abre a conversa já ouvindo o pedido.
+  // Ouvido rápido (padrão) ou mais preciso: o Rust baixa o que faltar.
+  escolherOuvido(!!ler().config.ouvidoPreciso).catch(() => {});
   // O ouvido terminou de se preparar (primeira vez): avisa uma vez.
   ouvir("ouvido:tudo-pronto", () =>
     ilha.notificar({

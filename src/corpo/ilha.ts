@@ -681,19 +681,19 @@ export class Ilha {
   }
 
   private redesenhar(): void {
-    const d = caminho(
-      {
-        largura: this.largura.valor,
-        altura: this.altura.valor,
-        raio: this.raio.valor,
-        gota: this.gota,
-        ombro: this.ombro.valor,
-      },
-      this.centro,
-    );
+    const medidas = {
+      largura: this.largura.valor,
+      altura: this.altura.valor,
+      raio: this.raio.valor,
+      gota: this.gota,
+      ombro: this.ombro.valor,
+    };
+    const d = caminho(medidas, this.centro);
     this.forma.setAttribute("d", d);
-    this.brilho.setAttribute("d", d);
-    this.contorno.setAttribute("d", d);
+    // O brilho colorido não passa na linha de cima, a que encosta na borda da tela.
+    const semTopo = caminho(medidas, this.centro, true);
+    this.brilho.setAttribute("d", semTopo);
+    this.contorno.setAttribute("d", semTopo);
     // O conteúdo é recortado no formato da ilha: nada aparece para fora do preto.
     this.camada.style.clipPath = `path("${d}")`;
     this.posicionarConteudo();

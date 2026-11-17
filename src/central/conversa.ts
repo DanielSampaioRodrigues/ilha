@@ -722,7 +722,7 @@ export function montarConversa(): HTMLElement {
         ${selo(SELO[c.motor], 22)}
         <div class="coluna">
           <span class="principal">${escapar(c.titulo || "Conversa nova")}</span>
-          <span class="secundario">${perfil ? `${escapar(perfil.nome)} · ` : ""}${NOMES_MOTORES[c.motor]}${c.modelo ? ` (${escapar(nomeDoModelo(c.motor, c.modelo))})` : ""}${c.esforco ? ` · raciocínio ${escapar(nomeDoEsforco(c.motor, c.esforco).toLowerCase())}` : ""}${projeto ? ` · ${escapar(projeto.nome)}` : c.pasta ? ` · ${escapar(c.pasta)}` : ""}${EDITAM.includes(c.motor) ? ` · ${c.modo === "editar" ? "pode editar arquivos" : "só conversa e lê"}` : ""}${c.custo ? ` · US$ ${c.custo.toFixed(2)}` : ""}</span>
+          <span class="secundario">${perfil ? `${escapar(perfil.nome)} · ` : ""}${NOMES_MOTORES[c.motor]}${c.modelo ? ` (${escapar(nomeDoModelo(c.motor, c.modelo))})` : ""}${c.esforco ? ` · raciocínio ${escapar(nomeDoEsforco(c.motor, c.esforco).toLowerCase())}` : ""}${projeto ? ` · ${escapar(projeto.nome)}` : c.pasta ? ` · ${escapar(c.pasta)}` : ""}${EDITAM.includes(c.motor) ? ` · ${c.modo === "editar" ? "pode editar arquivos" : "só conversa e lê"}` : ""}${c.custo ? (c.motor === "claude" ? ` · equivale a US$ ${c.custo.toFixed(2)} (sai da assinatura, não é cobrado à parte)` : ` · US$ ${c.custo.toFixed(2)}`) : ""}</span>
         </div>
         <details class="menu-ajustes"><summary class="botao">Ajustes</summary><div class="opcoes-ajustes">${campoEscolhas(escolhas, d)}</div></details>
         ${c.motor !== "deepseek" && c.sessao ? '<button type="button" class="botao" data-acao="terminal">Abrir no terminal</button>' : ""}

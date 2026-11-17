@@ -30,8 +30,29 @@ pub struct Modelo {
 
 /// Pequeno e rápido: fica procurando o nome do robô.
 pub const PEQUENO: Modelo = Modelo { arquivo: "ggml-base-q5_1.bin", tamanho: 59_707_625 };
-/// Bom: entende o pedido (quase igual ao maior do Whisper, bem mais rápido).
-pub const BOM: Modelo = Modelo { arquivo: "ggml-large-v3-turbo-q5_0.bin", tamanho: 574_041_195 };
+/// Mais preciso: entende o pedido quase como o maior do Whisper (uns 4 s por frase num PC comum).
+pub const PRECISO: Modelo = Modelo { arquivo: "ggml-large-v3-turbo-q5_0.bin", tamanho: 574_041_195 };
+/// Rápido (padrão): uns 5× mais rápido que o preciso, e acerta bem frases comuns em português.
+pub const RAPIDO: Modelo = Modelo { arquivo: "ggml-small-q5_1.bin", tamanho: 190_085_487 };
+/// O Dan escolhe em Ajustes › Voz (a tela avisa ao ligar).
+static QUER_PRECISO: AtomicBool = AtomicBool::new(false);
+
+/// O modelo que entende os pedidos (o escolhido).
+pub fn bom() -> &'static Modelo {
+    if QUER_PRECISO.load(Ordering::Relaxed) { &PRECISO } else { &RAPIDO }
+}
+
+/// Rápido ou mais preciso. Se faltar o modelo escolhido, baixa (a voz espera).
+#[tauri::command]
+pub async fn escolher_ouvido(app: AppHandle, preciso: bool) {
+    let antes = QUER_PRECISO.swap(preciso, Ordering::Relaxed);
+    if antes != preciso {
+        log::info!("Ouvido: {}", if preciso { "mais preciso" } else { "rápido" });
+    }
+    if PASTA.lock().ok().is_some_and(|p| p.is_some()) && !falta().is_empty() {
+        let _ = baixar_o_que_falta(&app).await;
+    }
+}
 const ENDERECO: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/";
 
 /// Taxa que o Whisper usa: 16 mil amostras por segundo, um canal.
@@ -49,6 +70,8 @@ pub fn falando_agora(sim: bool) {
 /// Folga da janela de áudio do Whisper (-1 = janela inteira). Só muda em teste.
 static JANELA: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(128);
 static BAIXANDO: AtomicBool = AtomicBool::new(false);
+/// Quanto o último pedido levou para ser entendido (ms), para mostrar nos Ajustes.
+static ULTIMO_PEDIDO_MS: AtomicU64 = AtomicU64::new(0);
 static BAIXADO: AtomicU64 = AtomicU64::new(0);
 static ERRO_BAIXAR: Mutex<Option<String>> = Mutex::new(None);
 
@@ -65,7 +88,7 @@ pub fn tem(m: &Modelo) -> bool {
 /// pela metade (o pequeno sozinho entende mal os pedidos e confundia): a
 /// ilha só avisa que está se preparando.
 pub fn pronto() -> bool {
-    tem(&PEQUENO) && tem(&BOM)
+    tem(&PEQUENO) && tem(bom())
 }
 
 pub fn pronto_para_nome() -> bool {
@@ -132,21 +155,24 @@ pub struct EstadoOuvido {
     pub baixado: u64,
     pub total: u64,
     pub erro: Option<String>,
+    /// Quanto o último pedido levou para ser entendido (ms; 0 = nenhum ainda).
+    pub ultimo_ms: u64,
 }
 
 fn falta() -> Vec<&'static Modelo> {
-    [&PEQUENO, &BOM].into_iter().filter(|m| !tem(m)).collect()
+    [&PEQUENO, bom()].into_iter().filter(|m| !tem(m)).collect()
 }
 
 #[tauri::command]
 pub fn estado_ouvido() -> EstadoOuvido {
     EstadoOuvido {
         pequeno: tem(&PEQUENO),
-        bom: tem(&BOM),
+        bom: tem(bom()),
         baixando: BAIXANDO.load(Ordering::Relaxed),
         baixado: BAIXADO.load(Ordering::Relaxed),
         total: falta().iter().map(|m| m.tamanho).sum(),
         erro: ERRO_BAIXAR.lock().ok().and_then(|e| e.clone()),
+        ultimo_ms: ULTIMO_PEDIDO_MS.load(Ordering::Relaxed),
     }
 }
 
@@ -276,7 +302,7 @@ fn contexto(m: &Modelo) -> Result<Arc<WhisperContext>, String> {
 /// Solta da memória o modelo bom se ficou 5 minutos sem uso (ele ocupa ~600 MB).
 pub fn aliviar_memoria() {
     if let Ok(mut lista) = CARREGADOS.lock() {
-        lista.retain(|c| c.arquivo != BOM.arquivo || c.usado.elapsed() < Duration::from_secs(300));
+        lista.retain(|c| c.arquivo == PEQUENO.arquivo || c.usado.elapsed() < Duration::from_secs(300));
     }
 }
 
@@ -303,6 +329,9 @@ pub fn transcrever(m: &Modelo, audio: &[f32], dica: Option<&str>) -> Result<Stri
     // lógico): com 8 ou mais lógicos, usa a metade.
     let logicos = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
     let nucleos = if logicos >= 8 { logicos / 2 } else { logicos }.clamp(1, 8);
+    // O pequeno (procurar o nome) roda o tempo todo: usa só 2 fios, para não
+    // pesar no computador nem atrasar o modelo bom.
+    let nucleos = if m.arquivo == PEQUENO.arquivo { nucleos.min(2) } else { nucleos };
     p.set_n_threads(nucleos as i32);
     p.set_no_context(true);
     p.set_single_segment(true);
@@ -657,7 +686,8 @@ pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, Strin
     drop(microfone);
     let _ = app.emit("ilha:entendendo", ());
     let inicio = Instant::now();
-    let texto = transcrever(&BOM, &fala, None)?;
+    let texto = transcrever(bom(), &fala, None)?;
+    ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
     log::info!("Ouvido: pedido entendido em {} ms ({} letras)", inicio.elapsed().as_millis(), texto.chars().count());
     if texto.is_empty() {
         return Err("Chegou som, mas não entendi nenhuma palavra. Fale de novo, um pouco mais perto do microfone.".into());
@@ -667,9 +697,9 @@ pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, Strin
 
 /// Carrega o modelo bom em segundo plano (leva uns segundos), enquanto a pessoa fala.
 pub fn preparar_bom() {
-    if tem(&BOM) {
+    if tem(bom()) {
         std::thread::spawn(|| {
-            let _ = contexto(&BOM);
+            let _ = contexto(bom());
         });
     }
 }
@@ -680,10 +710,10 @@ pub fn preparar_bom() {
 /// O modelo bom escuta de novo para entender direito (sem dica: com o nome de
 /// dica, ele às vezes repete ou some com o nome).
 fn pedido_junto(fala: &[f32], nome: &str, resto: String) -> String {
-    if !tem(&BOM) {
+    if !tem(bom()) {
         return resto;
     }
-    match transcrever(&BOM, fala, None).ok().filter(|t| !t.is_empty()) {
+    match transcrever(bom(), fala, None).ok().filter(|t| !t.is_empty()) {
         Some(t) => match achar_nome(&t, nome) {
             Some(r) if !r.is_empty() => r,
             Some(_) => resto,
@@ -697,7 +727,11 @@ fn pedido_junto(fala: &[f32], nome: &str, resto: String) -> String {
 /// Vê se a fala chama o robô (modelo pequeno, rápido). Devolve (o que ouviu,
 /// o que veio depois do nome).
 fn chamou(fala: &[f32], nome: &str) -> Option<(String, String)> {
-    let texto = transcrever(&PEQUENO, fala, Some(nome)).ok().filter(|t| !t.is_empty())?;
+    // O nome vem no começo: só os primeiros 2,5 s são conferidos (uma conversa
+    // comprida perto do microfone não vira trabalho pesado).
+    let comeco = &fala[..fala.len().min(TAXA * 5 / 2)];
+    // Sem dica: com o nome como dica, o Whisper acha que ele já foi dito e o tira da frase.
+    let texto = transcrever(&PEQUENO, comeco, None).ok().filter(|t| !t.is_empty())?;
     let resto = achar_nome(&texto, nome)?;
     Some((texto, resto))
 }
@@ -736,7 +770,7 @@ fn ouvir_continuacao(microfone: &Microfone, fila: &mut std::collections::VecDequ
 /// microfone) e manda o texto ("ilha:pedido-ouvido"). Devolve `true`.
 pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl Fn(String)) -> Result<bool, String> {
     let microfone = abrir_microfone()?;
-    let mut cortador = Cortador::new(600, 8_000);
+    let mut cortador = Cortador::new(500, 8_000);
     let mut fila: std::collections::VecDeque<Vec<f32>> = std::collections::VecDeque::new();
     let mut ultimo_alivio = Instant::now();
     while continuar() {
@@ -779,7 +813,8 @@ pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl F
                     }
                     let _ = app.emit("ilha:entendendo", ());
                     let inicio = Instant::now();
-                    let t = transcrever(&BOM, &f, None);
+                    let t = transcrever(bom(), &f, None);
+                    ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
                     log::info!("Ouvido: pedido entendido em {} ms", inicio.elapsed().as_millis());
                     t.map(|t| if comeco_do_pedido.is_empty() || t.is_empty() { t } else { format!("{comeco_do_pedido} {t}") })
                 })
@@ -862,11 +897,11 @@ mod testes {
             let mut falas: std::collections::VecDeque<Vec<f32>> = c.empurrar(&som).into();
             for f in &falas {
                 println!("{nome}: fala {:.2}s: {:?}", f.len() as f32 / TAXA as f32, transcrever(&PEQUENO, f, None));
-                if tem(&BOM) {
+                if tem(bom()) {
                     for j in [128i64] {
                         JANELA.store(j, Ordering::Relaxed);
                         let t = Instant::now();
-                        println!("  bom janela {j}: {:?} ({} ms)", transcrever(&BOM, f, None), t.elapsed().as_millis());
+                        println!("  bom janela {j}: {:?} ({} ms)", transcrever(bom(), f, None), t.elapsed().as_millis());
                     }
                     JANELA.store(128, Ordering::Relaxed);
                 }
@@ -877,7 +912,7 @@ mod testes {
                 let pedido = if resto.split_whitespace().count() >= 2 {
                     pedido_junto(&primeira, "Robozinho", resto)
                 } else {
-                    falas.pop_front().and_then(|f| transcrever(&BOM, &f, None).ok()).unwrap_or(resto)
+                    falas.pop_front().and_then(|f| transcrever(bom(), &f, None).ok()).unwrap_or(resto)
                 };
                 (texto, pedido)
             });

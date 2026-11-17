@@ -19,7 +19,7 @@ import {
   PROGRAMAS_COM_ABAS,
   situacaoAvisos,
   type ProgramaIA,
-  type SituacaoAviso, atenderPeloNome, baixarOuvido, conferirVoz, consertarVoz, estadoChamado, estadoOuvido, vozesNaturais, type EstadoChamado, type EstadoOuvido, type EstadoVoz } from "../../maos/sistema";
+  type SituacaoAviso, atenderPeloNome, baixarOuvido, escolherOuvido, conferirVoz, consertarVoz, estadoChamado, estadoOuvido, vozesNaturais, type EstadoChamado, type EstadoOuvido, type EstadoVoz } from "../../maos/sistema";
 import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
 import { procurar, type Novidade } from "../../atualizacao";
@@ -104,6 +104,13 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         <div class="item">
           <div class="coluna"><span class="principal">Ouvido da ilha</span><span class="secundario situacao-ouvido">Conferindo…</span></div>
           <button type="button" class="botao" data-acao="baixar-ouvido" hidden>Tentar de novo</button>
+        </div>
+        <div class="item">
+          <div class="coluna"><span class="principal">Jeito de entender</span><span class="secundario">Rápido: responde em cerca de 1 s e acerta bem o dia a dia. Mais preciso: entende melhor frases difíceis, mas leva uns 4 s.</span></div>
+          <div class="segmentos" role="radiogroup" aria-label="Jeito de entender">
+            <button type="button" class="segmento" role="radio" aria-checked="${!dados.config.ouvidoPreciso}" data-acao="ouvido-jeito" data-preciso="nao">Rápido</button>
+            <button type="button" class="segmento" role="radio" aria-checked="${!!dados.config.ouvidoPreciso}" data-acao="ouvido-jeito" data-preciso="sim">Mais preciso</button>
+          </div>
         </div>
         <div class="item">
           <div class="coluna"><span class="principal">Atender quando eu chamar pelo nome</span><span class="secundario">Diga “${escapar(dados.config.nomeRobo)}” (ou “${escapar(dados.config.nomeRobo)}, que horas são?”) e ele responde, com a ilha aberta ou fechada. O microfone fica ligado, mas tudo é entendido no próprio PC: nada sai do computador e só o que vem depois do nome vira pedido.</span></div>
@@ -443,16 +450,25 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     const mostrar = (e: EstadoOuvido) => {
       ouvidoPronto = e.pequeno && e.bom;
       tentar.hidden = !(e.erro && !e.baixando);
-      if (e.pequeno && e.bom) situacao.textContent = "Pronto. Entende o que você fala no próprio PC, sem internet, com a ilha aberta ou fechada.";
+      if (e.pequeno && e.bom)
+        situacao.textContent = `Pronto. Entende o que você fala no próprio PC, sem internet, com a ilha aberta ou fechada.${e.ultimo_ms ? ` O último pedido foi entendido em ${(e.ultimo_ms / 1000).toFixed(1).replace(".", ",")} s.` : ""}`;
       else if (e.baixando)
         situacao.textContent = `Preparando sozinho (${mb(e.baixado)} de ${mb(e.total)})… Quando terminar, a ilha avisa e a voz passa a funcionar. Pode continuar usando o computador.`;
       else if (e.erro) situacao.textContent = e.erro;
-      else situacao.textContent = "Vai se preparar sozinho em instantes (cerca de 630 MB, uma vez só; as atualizações não baixam de novo).";
+      else situacao.textContent = "Vai se preparar sozinho em instantes (uma vez só; as atualizações não baixam de novo).";
       situacaoOuvido = situacao.textContent ?? "";
     };
     const atualizar = () => estadoOuvido().then(mostrar).catch(() => {});
     atualizar();
     const vigia = window.setInterval(() => (raiz.isConnected ? atualizar() : window.clearInterval(vigia)), 1500);
+    aoClicar(raiz, "ouvido-jeito", (b) => {
+      const preciso = b.dataset.preciso === "sim";
+      mudar((d) => (d.config.ouvidoPreciso = preciso));
+      raiz.querySelectorAll<HTMLElement>('[data-acao="ouvido-jeito"]').forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+      // Se o modelo escolhido ainda não foi baixado, a ilha baixa (a voz espera terminar).
+      escolherOuvido(preciso).catch(() => {});
+      window.setTimeout(atualizar, 500);
+    });
     tentar.addEventListener("click", () => {
       tentar.hidden = true;
       situacao.textContent = "Tentando de novo…";

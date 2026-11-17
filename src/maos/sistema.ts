@@ -440,10 +440,14 @@ export interface EstadoOuvido {
   baixado: number;
   total: number;
   erro: string | null;
+  /** Quanto o último pedido levou para ser entendido (ms; 0 = nenhum ainda). */
+  ultimo_ms: number;
 }
 export const estadoOuvido = () =>
-  pedir<EstadoOuvido>("estado_ouvido", undefined, { pequeno: false, bom: false, baixando: true, baixado: 120_000_000, total: 633_748_820, erro: null });
+  pedir<EstadoOuvido>("estado_ouvido", undefined, { pequeno: false, bom: false, baixando: true, baixado: 120_000_000, total: 249_793_112, erro: null, ultimo_ms: 0 });
 export const baixarOuvido = () => pedir<void>("baixar_ouvido");
+/** Ouvido rápido (padrão) ou mais preciso (mais lento). Baixa o que faltar. */
+export const escolherOuvido = (preciso: boolean) => pedir<void>("escolher_ouvido", { preciso });
 /** Conserta um item ("fala_online", "microfone", "abrir_microfone", "pacote"). Só depois de o Dan confirmar. */
 export const consertarVoz = (item: string) => pedir<void>("consertar_voz", { item });
 

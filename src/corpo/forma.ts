@@ -16,7 +16,11 @@ export interface Forma {
 
 const n = (v: number) => v.toFixed(2);
 
-export function caminho(f: Forma, centro: number): string {
+/**
+ * `aberto`: sem a linha de cima (a que encosta na borda da tela) e sem fechar
+ * o desenho. É o caminho do brilho colorido: só o contorno de fora brilha.
+ */
+export function caminho(f: Forma, centro: number, aberto = false): string {
   const OMBRO = Math.max(1, f.ombro ?? OMBRO_PADRAO);
   const largura = Math.max(f.largura, 8);
   const altura = Math.max(f.altura, OMBRO + 2);
@@ -36,8 +40,7 @@ export function caminho(f: Forma, centro: number): string {
   const fundo = altura + (gota * 4) / 3;
 
   return [
-    `M ${n(x0)} 0`,
-    `H ${n(x3)}`,
+    ...(aberto ? [`M ${n(x3)} 0`] : [`M ${n(x0)} 0`, `H ${n(x3)}`]),
     `A ${n(OMBRO)} ${n(OMBRO)} 0 0 0 ${n(x2)} ${n(OMBRO)}`,
     `V ${n(altura - raio)}`,
     `A ${n(raio)} ${n(raio)} 0 0 1 ${n(inicioBase)} ${n(altura)}`,
@@ -45,6 +48,6 @@ export function caminho(f: Forma, centro: number): string {
     `A ${n(raio)} ${n(raio)} 0 0 1 ${n(x1)} ${n(altura - raio)}`,
     `V ${n(OMBRO)}`,
     `A ${n(OMBRO)} ${n(OMBRO)} 0 0 0 ${n(x0)} 0`,
-    "Z",
+    ...(aberto ? [] : ["Z"]),
   ].join(" ");
 }

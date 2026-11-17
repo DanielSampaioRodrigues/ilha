@@ -48,7 +48,8 @@ export function selo(tipo: TipoIA, tamanho = 16, letra = "?"): string {
       return `${abrir}<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4C8DFF"/><stop offset="1" stop-color="#B78CFF"/></linearGradient></defs><path fill="url(#${id})" d="M12 1c.8 5.8 5.2 10.2 11 11-5.8.8-10.2 5.2-11 11-.8-5.8-5.2-10.2-11-11C6.8 11.2 11.2 6.8 12 1z"/></svg>`;
     }
     case "deepseek":
-      return `${abrir}<circle cx="12" cy="12" r="11" fill="#4D6BFE"/><text x="12" y="16.5" text-anchor="middle" font-size="13" font-weight="700" fill="#fff" font-family="Segoe UI, sans-serif">D</text></svg>`;
+      // Baleia, azul da DeepSeek.
+      return `${abrir}<path fill="#4D6BFE" d="M2.5 12.5C3 8.5 8 7 12.5 8c3 .6 5.1 2.2 6.3 3.6l3-4.2c.8 1.4 1 3.2-.2 5 1.3.5 1.8 1.6 1.6 2.6-1.6-.4-2.8-.7-4-.4-1.8 3.4-5.7 5-9.7 4.4-4.3-.6-7.3-3.2-7-6.5z"/><circle cx="7" cy="12" r="1" fill="#fff"/><path d="M5 15.2c2.6 1.3 6 1.4 8.6.2" fill="none" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".7"/></svg>`;
     default:
       return `${abrir}<circle cx="12" cy="12" r="11" fill="var(--ciano)"/><text x="12" y="16.5" text-anchor="middle" font-size="13" font-weight="700" fill="#0b0d10" font-family="Segoe UI, sans-serif">${letra}</text></svg>`;
   }
