@@ -144,6 +144,11 @@ Produto vendido por R$ 89,90 (pagamento único), Windows e Mac. Inspirar nas ide
 - Microfone sempre ligado: vira opção (ver Ativação).
 - IA grátis de reserva: o Dan não precisa (usa as assinaturas e APIs); só pensar nisso para a versão comercial.
 
+## Ilhota (aparelho com o robô dentro, ideia para a Noelia)
+- Placa pensada: Waveshare ESP32-S3 com tela AMOLED de toque, microfones e alto-falante.
+- **Ponto de partida (visto em 17/11/2026, pelo Troko que o Dan mandou):** o firmware de código aberto **xiaozhi-esp32** (github.com/78/xiaozhi-esp32, licença MIT, uso comercial liberado). Já faz: palavra de ativação no próprio aparelho (ESP-SR, personalizável), tela com expressões, conversa por voz enviando o áudio (Opus) a um servidor por WebSocket ou MQTT+UDP, e MCP no aparelho e na nuvem. Suporta mais de 130 placas, entre elas a **Waveshare ESP32-S3-Touch-AMOLED-1.8** (a 1.75 redonda não aparece na lista: preferir a 1.8 ou adaptar). O Troko (trokotec.com) é um robô de mesa feito em cima dele; o código do Troko em si não está publicado.
+- Ideia: a própria Ilha no PC ser o servidor da Ilhota (mesmo ouvido Whisper, mesmas IAs, mesma voz ElevenLabs, mesmos personagens), em vez de usar o servidor chinês. O português não aparece na lista de idiomas do xiaozhi: a interface e a palavra de ativação teriam de ser feitas por nós.
+
 ## Pendências a conferir
 - Termos de uso das assinaturas via CLI para uso pessoal.
 - Se o app do Claude para desktop mostra sessões do Claude Code iniciadas pela ilha.
