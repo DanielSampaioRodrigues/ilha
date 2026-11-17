@@ -64,9 +64,21 @@ static PASTA: Mutex<Option<PathBuf>> = Mutex::new(None);
 /// nome; aí só vale o nome dito no começo da fala (alguém interrompendo).
 static FALANDO: AtomicBool = AtomicBool::new(false);
 
+/// O que o robô está falando agora tem o próprio nome (ex.: "Eu sou o Broto"):
+/// nessa hora o nome ouvido pode ser a voz dele mesmo, e não vale para interromper.
+static FALA_COM_NOME: AtomicBool = AtomicBool::new(false);
+
 #[tauri::command]
 pub fn falando_agora(sim: bool) {
     FALANDO.store(sim, Ordering::Relaxed);
+    if !sim {
+        FALA_COM_NOME.store(false, Ordering::Relaxed);
+    }
+}
+
+#[tauri::command]
+pub fn fala_com_nome() {
+    FALA_COM_NOME.store(true, Ordering::Relaxed);
 }
 /// Folga da janela de áudio do Whisper (-1 = janela inteira). Só muda em teste.
 static JANELA: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(128);
@@ -612,12 +624,6 @@ pub fn achar_nome(texto: &str, nome: &str) -> Option<String> {
     None
 }
 
-/// O nome está nas duas primeiras palavras ("Robozinho, para" / "Ei, Robozinho").
-pub fn nome_no_comeco(texto: &str, nome: &str) -> bool {
-    let comeco: Vec<&str> = texto.split_whitespace().take(3).collect();
-    achar_nome(&comeco.join(" "), nome).is_some()
-}
-
 // ---------- Microfone ----------
 
 /// Som do microfone, já em 16 kHz e um canal, chegando aos pedaços.
@@ -831,25 +837,110 @@ fn ouvir_continuacao(microfone: &Microfone, fila: &mut std::collections::VecDequ
     }
 }
 
+/// Chamaram pelo nome: avisa a ilha na hora, ouve o pedido (junto com o nome
+/// ou logo depois, no mesmo microfone) e manda o texto.
+fn atender(
+    app: &AppHandle,
+    microfone: &Microfone,
+    fila: &mut std::collections::VecDeque<Vec<f32>>,
+    nome: &str,
+    texto: String,
+    resto: String,
+    fala: &[f32],
+) {
+    preparar_bom();
+    super::voz::PARAR.store(false, Ordering::Relaxed);
+    // A etapa vai junto: a tela pode ainda estar abrindo quando os avisos chegam.
+    let veio_junto = resto.split_whitespace().count() >= 2;
+    let etapa = if veio_junto { "entendendo" } else { "ouvindo" };
+    let _ = app.emit("ilha:chamou", serde_json::json!({ "texto": texto, "esperando": true, "etapa": etapa }));
+    let pedido = if veio_junto {
+        let inicio = Instant::now();
+        let p = pedido_junto(fala, nome, resto);
+        ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
+        ULTIMA_FALA_MS.store((fala.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
+        Ok(p)
+    } else {
+        // Uma palavra que veio colada no nome ("Robozinho, que… horas são?") entra no pedido.
+        let comeco_do_pedido = resto.clone();
+        ouvir_continuacao(microfone, fila).and_then(|f| {
+            if f.is_empty() {
+                return Ok(String::new());
+            }
+            let _ = app.emit("ilha:entendendo", ());
+            let inicio = Instant::now();
+            let t = transcrever(bom(), &f, None);
+            ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
+            ULTIMA_FALA_MS.store((f.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
+            log::info!("Ouvido: pedido entendido em {} ms (fala de {} ms)", inicio.elapsed().as_millis(), f.len() * 1000 / TAXA);
+            t.map(|t| if comeco_do_pedido.is_empty() || t.is_empty() { t } else { format!("{comeco_do_pedido} {t}") })
+        })
+    };
+    let _ = match pedido {
+        Ok(texto) => app.emit("ilha:pedido-ouvido", serde_json::json!({ "texto": texto })),
+        Err(erro) => app.emit("ilha:pedido-ouvido", serde_json::json!({ "erro": erro })),
+    };
+}
+
 /// Fica ouvindo até `continuar` dizer que não. Quando alguém chama pelo nome:
 /// avisa a ilha na hora ("ilha:chamou": ela abre e para de falar, se estava
 /// falando), ouve o pedido (junto com o nome ou logo depois, no mesmo
 /// microfone) e manda o texto ("ilha:pedido-ouvido"). Devolve `true`.
 pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl Fn(String)) -> Result<bool, String> {
     let microfone = abrir_microfone()?;
-    let mut cortador = Cortador::new(500, 8_000);
+    // 400 ms de silêncio já encerram a fala do nome (responde mais rápido; se a
+    // pessoa continuar falando, a continuação vira o pedido).
+    let mut cortador = Cortador::new(400, 8_000);
     let mut fila: std::collections::VecDeque<Vec<f32>> = std::collections::VecDeque::new();
     let mut ultimo_alivio = Instant::now();
+    // Os últimos 2 s de som: com o robô falando, é aqui que se procura o nome.
+    let mut recente: std::collections::VecDeque<f32> = std::collections::VecDeque::with_capacity(TAXA * 2);
+    let mut ultima_olhada = Instant::now();
+    let mut estava_falando = false;
     while continuar() {
         if ultimo_alivio.elapsed() > Duration::from_secs(30) {
             ultimo_alivio = Instant::now();
             aliviar_memoria();
         }
-        match microfone.chegando.recv_timeout(Duration::from_millis(200)) {
-            Ok(som) => fila.extend(cortador.empurrar(&som)),
+        let som = match microfone.chegando.recv_timeout(Duration::from_millis(200)) {
+            Ok(som) => som,
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
             Err(_) => return Err("O microfone parou de mandar som.".into()),
+        };
+        recente.extend(som.iter().copied());
+        while recente.len() > TAXA * 2 {
+            recente.pop_front();
         }
+        let falando = FALANDO.load(Ordering::Relaxed);
+        if falando {
+            // A voz do robô sai na caixa de som e entra no microfone: tudo vira uma
+            // fala só, comprida. Então, enquanto ele fala, a ilha olha os últimos
+            // 2 s a cada 0,7 s procurando o nome (interromper chamando o nome).
+            estava_falando = true;
+            cortador.empurrar(&som);
+            if ultima_olhada.elapsed() < Duration::from_millis(700) || FALA_COM_NOME.load(Ordering::Relaxed) {
+                continue;
+            }
+            ultima_olhada = Instant::now();
+            let pedaco: Vec<f32> = recente.iter().copied().collect();
+            let nome = super::chamado::nome_atual();
+            if let Some((texto, _)) = chamou(&pedaco, &nome) {
+                log::info!("Ouvido: interrompido pelo nome");
+                ouviu(texto.clone());
+                fila.clear();
+                atender(app, &microfone, &mut fila, &nome, texto, String::new(), &pedaco);
+                return Ok(true);
+            }
+            continue;
+        }
+        if estava_falando {
+            // O robô parou: o que sobrou no cortador era a voz dele.
+            estava_falando = false;
+            cortador = Cortador::new(400, 8_000);
+            fila.clear();
+            continue;
+        }
+        fila.extend(cortador.empurrar(&som));
         while let Some(fala) = fila.pop_front() {
             let segundos = fala.len() as f32 / TAXA as f32;
             if !(0.3..=8.0).contains(&segundos) {
@@ -858,43 +949,9 @@ pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl F
             let nome = super::chamado::nome_atual();
             let inicio = Instant::now();
             let Some((texto, resto)) = chamou(&fala, &nome) else { continue };
-            if FALANDO.load(Ordering::Relaxed) && !nome_no_comeco(&texto, &nome) {
-                continue;
-            }
             log::info!("Ouvido: nome reconhecido em {} ms", inicio.elapsed().as_millis());
             ouviu(texto.clone());
-            preparar_bom();
-            super::voz::PARAR.store(false, Ordering::Relaxed);
-            // A etapa vai junto: a tela pode ainda estar abrindo quando os avisos chegam.
-            let veio_junto = resto.split_whitespace().count() >= 2;
-            let etapa = if veio_junto { "entendendo" } else { "ouvindo" };
-            let _ = app.emit("ilha:chamou", serde_json::json!({ "texto": texto, "esperando": true, "etapa": etapa }));
-            let pedido = if veio_junto {
-                let inicio = Instant::now();
-                let p = pedido_junto(&fala, &nome, resto);
-                ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
-                ULTIMA_FALA_MS.store((fala.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
-                Ok(p)
-            } else {
-                // Uma palavra que veio colada no nome ("Robozinho, que… horas são?") entra no pedido.
-                let comeco_do_pedido = resto.clone();
-                ouvir_continuacao(&microfone, &mut fila).and_then(|f| {
-                    if f.is_empty() {
-                        return Ok(String::new());
-                    }
-                    let _ = app.emit("ilha:entendendo", ());
-                    let inicio = Instant::now();
-                    let t = transcrever(bom(), &f, None);
-                    ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
-                    ULTIMA_FALA_MS.store((f.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
-                    log::info!("Ouvido: pedido entendido em {} ms (fala de {} ms)", inicio.elapsed().as_millis(), f.len() * 1000 / TAXA);
-                    t.map(|t| if comeco_do_pedido.is_empty() || t.is_empty() { t } else { format!("{comeco_do_pedido} {t}") })
-                })
-            };
-            let _ = match pedido {
-                Ok(texto) => app.emit("ilha:pedido-ouvido", serde_json::json!({ "texto": texto })),
-                Err(erro) => app.emit("ilha:pedido-ouvido", serde_json::json!({ "erro": erro })),
-            };
+            atender(app, &microfone, &mut fila, &nome, texto, resto, &fala);
             return Ok(true);
         }
     }
@@ -913,8 +970,6 @@ mod testes {
         assert_eq!(achar_nome("Robozinhos.", "Robozinho").as_deref(), Some(""));
         assert_eq!(achar_nome("vamos almoçar agora", "Robozinho"), None);
         assert_eq!(achar_nome("o robô quebrou", "Robozinho"), None);
-        assert!(nome_no_comeco("Ei, Robozinho, para", "Robozinho"));
-        assert!(!nome_no_comeco("Eu sou o seu ajudante, o Robozinho", "Robozinho"));
     }
 
     #[test]

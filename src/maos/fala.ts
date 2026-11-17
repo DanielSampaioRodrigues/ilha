@@ -130,7 +130,16 @@ async function falarComVozNatural(texto: string, aoTerminar?: () => void): Promi
   }
 }
 
+/** O robô vai dizer o próprio nome: o ouvido não deve tomar isso como "chamaram". */
+function avisarSeTemNome(texto: string): void {
+  if (!dentroDoApp) return;
+  const sem = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (!sem(texto).includes(sem(ler().config.nomeRobo))) return;
+  import("@tauri-apps/api/core").then(({ invoke }) => invoke("fala_com_nome")).catch(() => {});
+}
+
 export function falar(texto: string, aoTerminar?: () => void): void {
+  avisarSeTemNome(texto);
   if (!texto.trim()) {
     aoTerminar?.();
     return;
@@ -247,6 +256,7 @@ export function falarEmPartes(aoTerminar?: () => void): FalaEmPartes {
   };
   return {
     parte(texto) {
+      avisarSeTemNome(texto);
       const t = paraFala(texto);
       if (!t.trim() || minhaVez !== vez) return;
       fila.push(preparar(t));

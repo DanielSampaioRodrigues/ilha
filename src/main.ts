@@ -176,7 +176,16 @@ async function iniciar(): Promise<void> {
   }
 
   ouvir("ilha:abrir", () => ilha.abrir());
-  ouvir("ilha:alternar", () => ilha.alternar());
+  // O atalho da ilha também faz o robô parar de falar (sem abrir nem fechar).
+  ouvir("ilha:alternar", () => (falando() ? calar() : ilha.alternar()));
+  // Clicar na ilha enquanto ele fala: para de falar.
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (falando() && (e.target as Element).closest?.(".forma, .camada .estado:not(.aberta)")) calar();
+    },
+    true,
+  );
   ouvir<NomeTela>("ilha:tela", (tela) => ilha.abrir(tela));
   ouvir<NomeEstado>("ilha:estado", (estado) => {
     if (estado === "pronta") ilha.notificar({ titulo: "Claude Code terminou", detalhe: "ilha (teste)", expressao: "feliz" });
