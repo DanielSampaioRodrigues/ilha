@@ -6,7 +6,8 @@ import { emit } from "@tauri-apps/api/event";
 import { ler, mudar, novoId } from "../../dados/armazem";
 import type { Conversa } from "../../dados/conversas";
 import { responder } from "../../dados/pedido";
-import { abrirCentral, motoresDisponiveis, NOMES_MOTORES, ouvir, pararConversa, pararDeOuvir, type Motor } from "../../maos/sistema";
+import { guardarModelosExtras, modelosDe } from "../../dados/modelos";
+import { abrirCentral, listarModelos, motoresDisponiveis, NOMES_MOTORES, ouvir, pararConversa, pararDeOuvir, type Motor } from "../../maos/sistema";
 import { bip, calar, falar, falarEmPartes, frasesProntas } from "../../maos/fala";
 import { ouvir as aoEvento } from "../../ponte";
 import { textoRico } from "../../central/texto-rico";
@@ -84,6 +85,7 @@ aoEvento<{ texto?: string; erro?: string }>("ilha:pedido-ouvido", (r) => {
   aoChegarPedido();
 });
 let aoMudar: () => void = () => {};
+const modelosBuscados = new Set<Motor>();
 let disponiveis: Partial<Record<Motor, boolean>> = {};
 motoresDisponiveis()
   .then((l) => l.forEach((m) => (disponiveis[m.motor] = m.encontrado)))
@@ -104,7 +106,7 @@ function nova(): Conversa {
     pasta: null,
     modo: perfil?.modo ?? "conversar",
     perfilId: perfil?.id ?? null,
-    modelo: perfil?.modelo ?? "",
+    modelo: perfil?.modelo ?? d.config.modelosRapida?.[motor] ?? "",
     esforco: perfil?.esforco ?? "",
     mcps: perfil ? [...perfil.mcps] : [],
     skills: perfil ? [...perfil.skills] : [],
@@ -237,6 +239,9 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
         <label class="secundario">Quem responde
           <select class="entrada curta2" aria-label="Quem responde">${opcoes}</select>
         </label>
+        <label class="secundario campo-modelo-rapida">Modelo
+          <select class="entrada curta2" data-campo="modelo-rapida" aria-label="Modelo"></select>
+        </label>
         <span class="espaco"></span>
         <button type="button" class="redondo" data-acao="memoria" aria-label="Memória" title="O que eu guardei de você">${ICONES.memoria}</button>
         <button type="button" class="botao" data-acao="nova" title="Começar outra conversa">Nova</button>
@@ -261,6 +266,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
   const form = raiz.querySelector<HTMLFormElement>(".rapida-compositor")!;
   const botaoEnviar = raiz.querySelector<HTMLButtonElement>(".enviar-rapida")!;
   const seletor = raiz.querySelector<HTMLSelectElement>(".quem-responde select")!;
+  const seletorModelo = raiz.querySelector<HTMLSelectElement>('[data-campo="modelo-rapida"]')!;
 
   const desenhar = () => {
     const msgs = atual?.mensagens ?? [];
@@ -281,6 +287,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     botaoEnviar.classList.toggle("ciano", !rodando);
     raiz.querySelector<HTMLButtonElement>('[data-acao="central"]')!.disabled = rodando || !atual?.mensagens.length;
     seletor.disabled = rodando;
+    seletorModelo.disabled = rodando;
     raiz.querySelector<HTMLElement>(".rapida-ouvindo")!.hidden = !ouvindo;
     raiz.querySelector<HTMLElement>(".texto-ouvindo")!.textContent = entendendo
       ? "Entendendo o que você disse…"
@@ -297,10 +304,47 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
   aoMudar = desenhar;
   desenhar();
 
+  // Modelo: a lista de cada IA (a mesma da Central). Num perfil, vale o modelo do perfil.
+  const motorEscolhido = (): { motor: Motor; perfil: boolean } => {
+    const [tipo, valor] = ler().config.conversaRapida.split(":");
+    if (tipo === "perfil") {
+      const p = ler().perfis.find((x) => x.id === valor);
+      return { motor: (p?.motor ?? "deepseek") as Motor, perfil: true };
+    }
+    return { motor: (MOTORES.includes(valor as Motor) ? valor : "deepseek") as Motor, perfil: false };
+  };
+  const desenharModelos = () => {
+    const { motor, perfil } = motorEscolhido();
+    const atualModelo = atual?.modelo ?? (perfil ? "" : (ler().config.modelosRapida?.[motor] ?? ""));
+    seletorModelo.innerHTML = modelosDe(motor, atualModelo)
+      .map((o) => `<option value="${escapar(o.valor)}" ${o.valor === atualModelo ? "selected" : ""}>${escapar(o.nome)}</option>`)
+      .join("");
+    seletorModelo.closest<HTMLElement>(".campo-modelo-rapida")!.hidden = perfil;
+    // Antigravity e DeepSeek: a lista vem do próprio programa/API (uma vez).
+    if ((motor === "antigravity" || motor === "deepseek") && !modelosBuscados.has(motor)) {
+      modelosBuscados.add(motor);
+      listarModelos(motor)
+        .then((l) => {
+          if (!l.length) return;
+          guardarModelosExtras(motor, l);
+          if (raiz.isConnected) desenharModelos();
+        })
+        .catch(() => {});
+    }
+  };
+  desenharModelos();
+  seletorModelo.addEventListener("change", () => {
+    const { motor } = motorEscolhido();
+    const valor = seletorModelo.value;
+    mudar((dd) => (dd.config.modelosRapida = { ...(dd.config.modelosRapida ?? {}), [motor]: valor }));
+    // Vale a partir da próxima mensagem desta conversa.
+    if (atual) atual.modelo = valor;
+  });
   seletor.addEventListener("change", () => {
     mudar((dd) => (dd.config.conversaRapida = seletor.value));
     // Trocar quem responde começa outra conversa.
     if (atual?.mensagens.length) atual = null;
+    desenharModelos();
     desenhar();
   });
   const ajustar = () => {

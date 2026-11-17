@@ -1699,6 +1699,16 @@ body.escolhendo #palco {
 
 .tela-rapida .quem-responde {
   gap: 8px;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.tela-rapida .quem-responde label {
+  white-space: nowrap;
+}
+
+.tela-rapida .quem-responde select {
+  max-width: 170px;
 }
 
 .tela-rapida .quem-responde label {

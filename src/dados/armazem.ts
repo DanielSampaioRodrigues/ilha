@@ -132,6 +132,8 @@ export interface Config {
   centralModo: "ilha" | "janela";
   /** Quem responde a conversa rápida da ilha: "motor:deepseek" ou "perfil:<id>". */
   conversaRapida: string;
+  /** Modelo escolhido para a conversa rápida, por IA ("" = o padrão do programa). */
+  modelosRapida?: Partial<Record<string, string>>;
   /** Mandar as memórias para as IAs. */
   usarMemoria: boolean;
   /** A carinha reage ao que o Dan faz (digitando, música, vídeo…). */
