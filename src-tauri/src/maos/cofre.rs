@@ -5,7 +5,7 @@
 const PREFIXO: &str = "Ilha/";
 
 /// Provedores aceitos (nome usado no cofre).
-pub const PROVEDORES: [&str; 2] = ["deepseek", "elevenlabs"];
+pub const PROVEDORES: [&str; 3] = ["deepseek", "elevenlabs", "gemini"];
 
 fn validar(provedor: &str) -> Result<(), String> {
     if PROVEDORES.contains(&provedor) {

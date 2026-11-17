@@ -315,6 +315,13 @@ pub fn transcrever(m: &Modelo, audio: &[f32], dica: Option<&str>) -> Result<Stri
     }
     // O Whisper precisa de pelo menos 1 s de áudio.
     let mut audio = audio.to_vec();
+    // Microfone baixo (comum em notebook): sobe o volume até um nível bom
+    // (no máximo 8×, para não transformar chiado em "palavra").
+    let pico = audio.iter().fold(0.0f32, |m, x| m.max(x.abs()));
+    if pico > 0.0 && pico < 0.5 {
+        let ganho = (0.9 / pico).min(8.0);
+        audio.iter_mut().for_each(|x| *x *= ganho);
+    }
     if audio.len() < TAXA {
         audio.resize(TAXA, 0.0);
     }

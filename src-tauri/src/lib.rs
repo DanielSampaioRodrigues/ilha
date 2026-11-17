@@ -85,6 +85,8 @@ pub fn run() {
             cerebro::motores::motores_disponiveis,
             cerebro::motores::abrir_no_terminal,
             cerebro::motores::instalar_motor,
+            cerebro::motores::entrar_motor,
+            cerebro::motores::conta_motor,
             cerebro::motores::listar_modelos,
             cerebro::skills::skills_do_claude,
             maos::ditado::ditado,

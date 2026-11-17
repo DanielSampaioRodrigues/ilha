@@ -372,8 +372,12 @@ export async function escolherArquivos(): Promise<string[]> {
 }
 
 export const pararConversa = (conversaId: string) => pedir<void>("parar_conversa", { conversaId });
-/** Instala o Claude Code ou o Codex (janela do PowerShell visível). Só depois de o Dan confirmar. */
+/** Instala o Claude Code ou o Codex por trás (1 a 3 minutos). Só depois de o Dan confirmar. */
 export const instalarMotor = (motor: Motor) => pedir<void>("instalar_motor", { motor });
+/** Abre o login da conta no navegador (Claude Code / Codex). */
+export const entrarMotor = (motor: Motor) => pedir<void>("entrar_motor", { motor });
+/** Já entrou na conta? (Gemini CLI: tem a chave paga.) `null` = não deu para saber. */
+export const contaMotor = (motor: Motor) => pedir<boolean | null>("conta_motor", { motor }, motor !== "gemini");
 export const abrirNoTerminal = (motor: Motor, sessao: string | null, pasta: string | null) =>
   pedir<void>("abrir_no_terminal", { motor, sessao, pasta });
 

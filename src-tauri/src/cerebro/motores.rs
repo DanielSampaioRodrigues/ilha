@@ -629,6 +629,10 @@ fn rodar_programa(pedido: &Pedido, canal: &Channel<Evento>, andamento: &Andament
     // perguntar). A pasta é a do projeto escolhido pelo Dan ou a pessoal dele.
     if pedido.motor == "gemini" {
         cmd.env("GEMINI_CLI_TRUST_WORKSPACE", "true");
+        // A chave paga da API do Gemini, se o Dan guardou nos Ajustes.
+        if let Some(chave) = crate::maos::cofre::ler("gemini") {
+            cmd.env("GEMINI_API_KEY", chave);
+        }
     }
     if let Some(p) = pedido.pasta.as_deref().filter(|p| Path::new(p).is_dir()) {
         cmd.current_dir(p);
@@ -823,35 +827,96 @@ pub fn parar_conversa(conversa_id: String, andamento: State<'_, Andamento>) {
     }
 }
 
-/// Instala o Claude Code ou o Codex pelo instalador oficial de cada um, numa
-/// janela do PowerShell que o Dan vê (com o andamento). No fim, abre o
-/// programa para o Dan entrar com a conta dele. A ilha só chama isto depois
-/// de o Dan confirmar.
+/// Instala o Claude Code ou o Codex pelo instalador oficial de cada um, sem
+/// janela (a ilha mostra o andamento). A ilha só chama isto depois de o Dan
+/// confirmar. Leva de 1 a 3 minutos.
 #[tauri::command]
-pub fn instalar_motor(motor: String) -> Result<(), String> {
-    // Depois de instalar, o PATH desta janela está velho: lê de novo do Windows.
-    let recarregar = "$env:Path = [Environment]::GetEnvironmentVariable('Path','User') + ';' + [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + \"$env:USERPROFILE\\.local\\bin\"";
-    let roteiro = match motor.as_str() {
-        "claude" => format!(
-            "Write-Host 'Instalando o Claude Code...' -ForegroundColor Cyan; irm https://claude.ai/install.ps1 | iex; {recarregar}; \
-             Write-Host ''; Write-Host 'Pronto! Agora entre com a sua conta da Claude (escolha a assinatura). Depois pode fechar esta janela.' -ForegroundColor Green; claude"
-        ),
-        "codex" => format!(
-            "Write-Host 'Instalando o Codex...' -ForegroundColor Cyan; \
-             try {{ irm https://chatgpt.com/codex/install.ps1 | iex }} catch {{ if (Get-Command npm -ErrorAction SilentlyContinue) {{ npm install -g @openai/codex }} else {{ Write-Host 'Nao consegui instalar. Mande uma foto desta janela para o Claude.' -ForegroundColor Red }} }}; {recarregar}; \
-             Write-Host ''; Write-Host 'Pronto! Agora escolha Sign in with ChatGPT para usar a sua assinatura. Depois pode fechar esta janela.' -ForegroundColor Green; codex login"
-        ),
+pub async fn instalar_motor(motor: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || instalar_motor_agora(&motor))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn instalar_motor_agora(motor: &str) -> Result<(), String> {
+    let roteiro = match motor {
+        "claude" => "$ErrorActionPreference='Stop'; irm https://claude.ai/install.ps1 | iex",
+        "codex" => {
+            "$ErrorActionPreference='Stop'; try { irm https://chatgpt.com/codex/install.ps1 | iex } \
+             catch { if (Get-Command npm -ErrorAction SilentlyContinue) { npm install -g @openai/codex } else { throw } }"
+        }
         _ => return Err("A ilha não sabe instalar esse.".into()),
     };
     let mut c = Command::new("powershell.exe");
-    c.args(["-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &roteiro]);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
-        c.creation_flags(CREATE_NEW_CONSOLE);
+    c.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", roteiro]);
+    sem_janela(&mut c);
+    let saida = c.output().map_err(|e| format!("Não consegui abrir o instalador: {e}"))?;
+    let nome = nome_do_programa(motor).unwrap_or(motor);
+    // O PATH é relido do Windows: o programa recém-instalado já aparece.
+    if executavel(nome).is_some() {
+        log::info!("{nome} instalado pela ilha");
+        return Ok(());
     }
-    c.spawn().map(|_| ()).map_err(|e| format!("Não consegui abrir o PowerShell: {e}"))
+    let texto = format!("{}\n{}", String::from_utf8_lossy(&saida.stdout), String::from_utf8_lossy(&saida.stderr));
+    let fim: String = texto.trim().chars().rev().take(300).collect::<Vec<_>>().into_iter().rev().collect();
+    log::warn!("Instalar {nome}: {texto}");
+    Err(if fim.is_empty() {
+        format!("O instalador terminou, mas não achei o {nome}. Tente de novo.")
+    } else {
+        format!("O instalador não terminou: {fim}")
+    })
+}
+
+/// Abre o login da conta no navegador (Claude: `claude auth login`; Codex:
+/// `codex login`). O programa fica esperando o Dan entrar no navegador e sai
+/// sozinho; a ilha confere com `conta_motor`.
+#[tauri::command]
+pub fn entrar_motor(motor: String) -> Result<(), String> {
+    let nome = nome_do_programa(&motor).ok_or("Esse não tem conta para entrar.")?;
+    let exe = executavel(nome).ok_or_else(|| format!("Não encontrei o {nome}."))?;
+    let args: Vec<String> = match motor.as_str() {
+        "claude" => vec!["auth".into(), "login".into()],
+        "codex" => vec!["login".into()],
+        _ => return Err("Esse não tem conta para entrar.".into()),
+    };
+    let mut c = comando(&exe, &args);
+    if motor == "claude" {
+        c.env_remove("ANTHROPIC_API_KEY");
+    }
+    c.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    c.spawn().map(|_| ()).map_err(|e| format!("Não consegui abrir o login: {e}"))
+}
+
+/// Já entrou na conta? `None` = não dá para saber (programa sem esse comando).
+#[tauri::command]
+pub async fn conta_motor(motor: String) -> Option<bool> {
+    tauri::async_runtime::spawn_blocking(move || conta_motor_agora(&motor)).await.ok().flatten()
+}
+
+fn conta_motor_agora(motor: &str) -> Option<bool> {
+    let args: Vec<String> = match motor {
+        "claude" => vec!["auth".into(), "status".into()],
+        "codex" => vec!["login".into(), "status".into()],
+        // Gemini CLI: só funciona com a chave paga da API (guardada no cofre).
+        "gemini" => return Some(crate::maos::cofre::ler("gemini").is_some() || std::env::var_os("GEMINI_API_KEY").is_some()),
+        _ => return None,
+    };
+    let exe = executavel(nome_do_programa(motor)?)?;
+    let mut c = comando(&exe, &args);
+    if motor == "claude" {
+        c.env_remove("ANTHROPIC_API_KEY");
+    }
+    let mut filho = c.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn().ok()?;
+    let comeco = std::time::Instant::now();
+    loop {
+        if let Ok(Some(s)) = filho.try_wait() {
+            return Some(s.success());
+        }
+        if comeco.elapsed() > std::time::Duration::from_secs(20) {
+            let _ = filho.kill();
+            return None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(150));
+    }
 }
 
 /// Abre a sessão no terminal, para continuar lá (Windows Terminal, se houver).

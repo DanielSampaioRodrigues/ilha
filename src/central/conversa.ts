@@ -22,6 +22,10 @@ import {
   listarModelos,
   motoresDisponiveis,
   instalarMotor,
+  entrarMotor,
+  contaMotor,
+  salvarChave,
+  abrirPrograma,
   NOMES_MOTORES,
   pararConversa,
   type Motor,
@@ -101,28 +105,83 @@ export function anexar(caminhos: string[]): void {
 }
 /** Programas que a ilha sabe instalar (pelo instalador oficial de cada um). */
 const INSTALAVEIS: Motor[] = ["claude", "codex"];
-let instalando: Motor | null = null;
-let confirmandoInstalar = false;
+/**
+ * Preparar um programa para usar, tudo por dentro da ilha: instalar (por trás,
+ * sem janela), entrar na conta (pelo navegador) ou guardar a chave (Gemini CLI).
+ */
+type Etapa = "explica" | "confirma" | "instalando" | "entrar" | "esperando" | "chave-gemini";
+let preparando: Motor | null = null;
+let etapa: Etapa = "explica";
 let recadoInstalar = "";
+let redesenharPreparo: () => void = () => {};
+/** Resultado de "já entrou na conta?" (para o cartão dizer "falta entrar"). */
+const contaOk = new Map<Motor, boolean>();
+let vigiaLogin = 0;
+
+const CONTA: Partial<Record<Motor, string>> = {
+  claude: "a sua conta da Claude (assinatura Pro ou Max)",
+  codex: "a sua conta do ChatGPT (assinatura Plus ou Pro)",
+};
+
+function preparar(m: Motor, e: Etapa, recado = ""): void {
+  preparando = m;
+  etapa = e;
+  recadoInstalar = recado;
+  redesenharPreparo();
+}
+
+function terminarPreparo(m: Motor, recado: string): void {
+  window.clearInterval(vigiaLogin);
+  contaOk.set(m, true);
+  preparando = null;
+  recadoInstalar = "";
+  nova.motor = m;
+  nova.modelo = "";
+  nova.esforco = "";
+  recadoPronto = recado;
+  redesenharPreparo();
+}
+/** Recado curto depois de preparar ("Pronto! …"). */
+let recadoPronto = "";
+
+/** Confere se já entrou na conta; se não, abre o passo de entrar (ou da chave). */
+function conferirConta(m: Motor): void {
+  if (!["claude", "codex", "gemini"].includes(m)) return;
+  contaMotor(m)
+    .then((ok) => {
+      if (ok === null) return;
+      contaOk.set(m, ok);
+      if (!ok && nova.motor === m && !preparando) preparar(m, m === "gemini" ? "chave-gemini" : "entrar");
+      else redesenharPreparo();
+    })
+    .catch(() => {});
+}
 
 function caixaInstalar(m: Motor): string {
-  const sobre: Partial<Record<Motor, string>> = {
-    claude:
-      "O Claude Code não está instalado neste computador. Ele usa a sua assinatura da Claude (Pro ou Max), sem chave e sem custo extra. A instalação é a oficial da Anthropic e não precisa de administrador.",
-    codex:
-      "O Codex não está instalado neste computador. Ele usa a sua assinatura do ChatGPT (Plus ou Pro), sem chave e sem custo extra. A instalação é a oficial da OpenAI.",
-  };
-  return `
-    <div class="caixa-instalar">
-      <p>${sobre[m] ?? ""}</p>
-      ${
-        confirmandoInstalar
-          ? `<p class="principal">Posso instalar o ${NOMES_MOTORES[m]}? Vai abrir uma janela do PowerShell mostrando a instalação.</p>
-             <div class="linha"><button type="button" class="botao" data-acao="instalar-nao">Agora não</button><button type="button" class="botao ciano" data-acao="instalar-sim">Sim, pode instalar</button></div>`
-          : `<div class="linha"><button type="button" class="botao ciano" data-acao="instalar">Instalar ${NOMES_MOTORES[m]}</button><button type="button" class="botao" data-acao="procurar-motores">Já instalei, procurar de novo</button><button type="button" class="botao" data-acao="instalar-nao">Fechar</button></div>`
-      }
-      ${recadoInstalar ? `<p class="secundario">${escapar(recadoInstalar)}</p>` : ""}
-    </div>`;
+  const nome = NOMES_MOTORES[m];
+  const recado = recadoInstalar ? `<p class="secundario">${escapar(recadoInstalar)}</p>` : "";
+  const fechar = `<button type="button" class="botao" data-acao="instalar-nao">Fechar</button>`;
+  let corpo = "";
+  if (etapa === "explica")
+    corpo = `<p>O ${nome} não está instalado neste computador. Ele usa ${CONTA[m] ?? "a sua conta"}, sem chave e sem custo extra. A ilha instala sozinha (instalador oficial, sem precisar de administrador) e depois abre o navegador para você entrar na conta, uma vez só.</p>
+      <div class="linha"><button type="button" class="botao ciano" data-acao="instalar">Instalar e conectar</button>${fechar}</div>`;
+  else if (etapa === "confirma")
+    corpo = `<p class="principal">Posso instalar o ${nome}? Leva de 1 a 3 minutos e acontece por trás, sem janelas. Depois eu abro o navegador para você entrar na sua conta.</p>
+      <div class="linha"><button type="button" class="botao" data-acao="instalar-nao">Agora não</button><button type="button" class="botao ciano" data-acao="instalar-sim">Sim, pode instalar</button></div>`;
+  else if (etapa === "instalando")
+    corpo = `<p class="linha"><span class="ponto gravando esperando"></span><span class="principal">Instalando o ${nome}… (1 a 3 minutos)</span></p><p class="secundario">Pode continuar usando o computador.</p>`;
+  else if (etapa === "entrar")
+    corpo = `<p>O ${nome} está instalado. Falta entrar com ${CONTA[m] ?? "a sua conta"} (uma vez só). Vou abrir o navegador: entre na conta e volte aqui, eu percebo sozinho.</p>
+      <div class="linha"><button type="button" class="botao ciano" data-acao="entrar-conta">Entrar com a minha conta</button>${fechar}</div>`;
+  else if (etapa === "esperando")
+    corpo = `<p class="linha"><span class="ponto gravando esperando"></span><span class="principal">Abri o navegador: entre na sua conta e volte aqui.</span></p>
+      <p class="secundario">Se o navegador não abriu, clique de novo em “Entrar”.</p>
+      <div class="linha"><button type="button" class="botao" data-acao="entrar-conta">Entrar de novo</button>${fechar}</div>`;
+  else if (etapa === "chave-gemini")
+    corpo = `<p>Desde junho de 2026, o Gemini CLI só funciona com a <strong>chave paga da API do Gemini</strong> (o login com a conta Google deixou de valer nele). Se você tem a assinatura Google AI Pro, use o <strong>Antigravity</strong>, que já funciona com ela.</p>
+      <form class="linha form-chave-gemini"><input class="entrada" type="password" placeholder="Cole aqui a chave da API do Gemini" autocomplete="off" spellcheck="false" aria-label="Chave da API do Gemini"><button type="submit" class="botao ciano">Guardar</button></form>
+      <div class="linha"><button type="button" class="botao" data-acao="usar-antigravity">Usar o Antigravity</button><button type="button" class="link" data-acao="como-chave-gemini">Como pegar a chave</button>${fechar}</div>`;
+  return `<div class="caixa-instalar">${corpo}${recado}</div>`;
 }
 
 // Escolhas para a próxima conversa nova.
@@ -395,10 +454,22 @@ export function montarConversa(): HTMLElement {
         <div class="motores">
           ${MOTORES.map(
             (m) => `
-            <button type="button" class="cartao-motor ${m === motor ? "ativo" : ""} ${!disponiveis[m] && INSTALAVEIS.includes(m) ? "faltando" : ""} ${m === instalando ? "ativo" : ""}" data-acao="${!disponiveis[m] && INSTALAVEIS.includes(m) ? "como-instalar" : "motor"}" data-motor="${m}" ${disponiveis[m] || INSTALAVEIS.includes(m) ? "" : "disabled"}>
+            <button type="button" class="cartao-motor ${m === motor ? "ativo" : ""} ${(!disponiveis[m] && INSTALAVEIS.includes(m)) || contaOk.get(m) === false ? "faltando" : ""} ${m === preparando ? "ativo" : ""}" data-acao="${!disponiveis[m] && INSTALAVEIS.includes(m) ? "como-instalar" : "motor"}" data-motor="${m}" ${disponiveis[m] || INSTALAVEIS.includes(m) ? "" : "disabled"}>
               ${selo(SELO[m], 22)}
               <span class="principal">${NOMES_MOTORES[m]}</span>
-              <span class="secundario">${disponiveis[m] ? DESCRICOES[m] : m === "deepseek" ? "Falta a chave (Ajustes › Chaves de IA)" : INSTALAVEIS.includes(m) ? "Não está instalado · clique para instalar" : "Não encontrei instalado"}</span>
+              <span class="secundario">${
+                !disponiveis[m]
+                  ? m === "deepseek"
+                    ? "Falta a chave (Ajustes › Chaves de IA)"
+                    : INSTALAVEIS.includes(m)
+                      ? "Não está instalado · clique para instalar"
+                      : "Não encontrei instalado"
+                  : contaOk.get(m) === false
+                    ? m === "gemini"
+                      ? "Falta a chave paga da API · clique"
+                      : "Instalado · falta entrar na conta"
+                    : DESCRICOES[m]
+              }</span>
             </button>`,
           ).join("")}
         </div>
@@ -420,7 +491,7 @@ export function montarConversa(): HTMLElement {
           }
         </div>
         <p class="secundario dica-nova">${dica[motor]}</p>
-        ${instalando ? caixaInstalar(instalando) : ""}
+        ${preparando ? caixaInstalar(preparando) : recadoPronto ? `<p class="secundario recado-pronto">${escapar(recadoPronto)}</p>` : ""}
       </div>`;
     const refazer = () => {
       desenharNova();
@@ -436,6 +507,9 @@ export function montarConversa(): HTMLElement {
       refazer();
     });
     aoClicar(painel, "motor", (b) => {
+      recadoPronto = "";
+      if (preparando && preparando !== b.dataset.motor) preparando = null;
+      conferirConta(b.dataset.motor as Motor);
       if (nova.motor !== b.dataset.motor) {
         // Trocar de motor sai do perfil (e das ferramentas que vieram dele).
         if (novoPerfil) Object.assign(nova, { mcps: [], skills: [] });
@@ -450,46 +524,64 @@ export function montarConversa(): HTMLElement {
       novoModo = b.dataset.modo as "conversar" | "editar";
       refazer();
     });
-    // Claude Code e Codex que faltam: explica, pergunta e instala.
-    aoClicar(painel, "como-instalar", (b) => {
-      instalando = b.dataset.motor as Motor;
-      confirmandoInstalar = false;
-      refazer();
-    });
-    aoClicar(painel, "instalar", () => {
-      confirmandoInstalar = true;
-      refazer();
-    });
+    // Preparar Claude Code / Codex / Gemini CLI: instalar, entrar na conta, chave.
+    redesenharPreparo = () => painel.isConnected && refazer();
+    aoClicar(painel, "como-instalar", (b) => preparar(b.dataset.motor as Motor, "explica"));
+    aoClicar(painel, "instalar", () => preparar(preparando!, "confirma"));
     aoClicar(painel, "instalar-nao", () => {
-      instalando = null;
-      confirmandoInstalar = false;
+      window.clearInterval(vigiaLogin);
+      preparando = null;
+      recadoInstalar = "";
       refazer();
     });
     aoClicar(painel, "instalar-sim", () => {
-      const m = instalando;
+      const m = preparando;
       if (!m) return;
-      confirmandoInstalar = false;
-      recadoInstalar = "Abri uma janela azul do PowerShell: acompanhe por lá. No fim ela pede para você entrar com a sua conta.";
+      preparar(m, "instalando");
       instalarMotor(m)
-        .catch((e) => (recadoInstalar = String(e)))
-        .finally(refazer);
-      refazer();
-    });
-    aoClicar(painel, "procurar-motores", () => {
-      recadoInstalar = "Procurando…";
-      refazer();
-      motoresDisponiveis()
+        .then(() => motoresDisponiveis())
         .then((l) => {
           l.forEach((x) => (disponiveis[x.motor] = x.encontrado));
-          if (instalando && disponiveis[instalando]) {
-            nova.motor = instalando;
-            instalando = null;
-            recadoInstalar = "";
-          } else recadoInstalar = "Ainda não encontrei. Se a janela do PowerShell ainda estiver trabalhando, espere ela terminar.";
+          return contaMotor(m);
         })
-        .catch(() => (recadoInstalar = "Não consegui procurar agora."))
-        .finally(() => painel.isConnected && refazer());
+        .then((ok) => {
+          if (ok) terminarPreparo(m, `Pronto! O ${NOMES_MOTORES[m]} já está funcionando.`);
+          else preparar(m, "entrar");
+        })
+        .catch((e) => preparar(m, "explica", String(e)));
     });
+    aoClicar(painel, "entrar-conta", () => {
+      const m = preparando;
+      if (!m) return;
+      entrarMotor(m)
+        .then(() => {
+          preparar(m, "esperando");
+          window.clearInterval(vigiaLogin);
+          const comeco = Date.now();
+          vigiaLogin = window.setInterval(() => {
+            if (Date.now() - comeco > 10 * 60_000) {
+              window.clearInterval(vigiaLogin);
+              return preparar(m, "entrar", "Não percebi o login. Tente de novo.");
+            }
+            contaMotor(m)
+              .then((ok) => ok && terminarPreparo(m, `Pronto! Você entrou na sua conta e o ${NOMES_MOTORES[m]} já está funcionando.`))
+              .catch(() => {});
+          }, 3000);
+        })
+        .catch((e) => preparar(m, "entrar", String(e)));
+    });
+    painel.querySelector<HTMLFormElement>(".form-chave-gemini")?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const campo = (e.target as HTMLFormElement).querySelector("input")!;
+      if (!campo.value.trim()) return;
+      salvarChave("gemini", campo.value.trim())
+        .then(() => terminarPreparo("gemini", "Chave guardada no cofre do Windows. O Gemini CLI já pode responder."))
+        .catch((erro) => preparar("gemini", "chave-gemini", String(erro)));
+    });
+    aoClicar(painel, "como-chave-gemini", () => {
+      abrirPrograma("https://aistudio.google.com/apikey").catch(() => {});
+    });
+    aoClicar(painel, "usar-antigravity", () => terminarPreparo("antigravity", ""));
     painel.querySelector<HTMLSelectElement>('[data-campo="projeto"]')!.addEventListener("change", (e) => {
       novoProjeto = (e.target as HTMLSelectElement).value || null;
     });
@@ -671,6 +763,15 @@ export function montarConversa(): HTMLElement {
       l.forEach((m) => (disponiveis[m.motor] = m.encontrado));
       if (!disponiveis[nova.motor]) nova.motor = MOTORES.find((m) => disponiveis[m]) ?? "deepseek";
       if (!atualId) desenharTudo();
+      // Instalados, mas sem conta (ou sem chave): o cartão avisa "falta entrar".
+      for (const m of ["claude", "codex", "gemini"] as Motor[])
+        if (disponiveis[m])
+          contaMotor(m)
+            .then((ok) => {
+              if (ok !== null) contaOk.set(m, ok);
+              if (!atualId) redesenharPreparo();
+            })
+            .catch(() => {});
     })
     .catch(() => {});
   desenharTudo();
