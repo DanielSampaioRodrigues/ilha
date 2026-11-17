@@ -19,7 +19,7 @@ import {
   PROGRAMAS_COM_ABAS,
   situacaoAvisos,
   type ProgramaIA,
-  type SituacaoAviso, atenderPeloNome, baixarOuvido, escolherOuvido, conferirVoz, consertarVoz, estadoChamado, estadoOuvido, vozesNaturais, type EstadoChamado, type EstadoOuvido, type EstadoVoz } from "../../maos/sistema";
+  type SituacaoAviso, atenderPeloNome, baixarOuvido, escolherOuvido, testarOuvido, conferirVoz, consertarVoz, estadoChamado, estadoOuvido, vozesNaturais, type EstadoChamado, type EstadoOuvido, type EstadoVoz } from "../../maos/sistema";
 import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
 import { procurar, type Novidade } from "../../atualizacao";
@@ -104,6 +104,12 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         <div class="item">
           <div class="coluna"><span class="principal">Ouvido da ilha</span><span class="secundario situacao-ouvido">Conferindo…</span></div>
           <button type="button" class="botao" data-acao="baixar-ouvido" hidden>Tentar de novo</button>
+        </div>
+        <div class="item coluna-item">
+          <div class="linha">
+            <div class="coluna"><span class="principal">Testar o ouvido</span><span class="secundario resultado-teste-ouvido">Clique em Testar, espere o bip e fale uma frase. Mostra o microfone usado, o volume, o que ele entendeu e quanto demorou.</span></div>
+            <button type="button" class="botao" data-acao="testar-ouvido">Testar</button>
+          </div>
         </div>
         <div class="item coluna-item">
           <div class="coluna"><span class="principal">Jeito de entender</span><span class="secundario">No PC, rápido: grátis e sem internet. No PC, mais preciso: entende melhor frases difíceis, mas demora mais. Na nuvem: entende enquanto você fala (o mais rápido), pela ElevenLabs; gasta uns centavos por hora de fala e só o que vem depois do nome sai do PC. Sem internet, volta para o PC sozinho.</span><span class="secundario aviso-nuvem" hidden></span></div>
@@ -499,6 +505,26 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       situacao.textContent = "Tentando de novo…";
       baixarOuvido().catch(() => {}).finally(atualizar);
       window.setTimeout(atualizar, 800);
+    });
+  }
+
+  // Teste do ouvido: microfone usado, volume, o que entendeu e quanto demorou.
+  {
+    const resultado = raiz.querySelector<HTMLElement>(".resultado-teste-ouvido")!;
+    const fmt = (ms: number) => `${(ms / 1000).toFixed(1).replace(".", ",")} s`;
+    aoClicar(raiz, "testar-ouvido", (b) => {
+      b.setAttribute("disabled", "");
+      resultado.textContent = "Ouvindo… fale uma frase depois do bip.";
+      testarOuvido()
+        .then((t) => {
+          const volume =
+            t.pico < 0.02 ? "quase nada (o microfone certo está escolhido no Windows?)" : t.pico < 0.1 ? "baixo (fale mais perto)" : t.pico > 0.95 ? "alto demais (estourando)" : "bom";
+          resultado.textContent = !t.fala_ms
+            ? `Microfone: ${t.microfone || "?"}. Não chegou voz em 8 s. Volume ${volume}.`
+            : `Microfone: ${t.microfone || "?"}. Volume ${volume}. Entendeu: “${t.texto || "(nada)"}” em ${fmt(t.ms)} ${t.pela_nuvem ? "na nuvem" : "no PC"}, para uma fala de ${fmt(t.fala_ms)}.${t.erro_nuvem && ler().config.ouvidoNuvem ? ` A nuvem falhou: ${t.erro_nuvem}.` : ""}`;
+        })
+        .catch((e) => (resultado.textContent = String(e)))
+        .finally(() => b.removeAttribute("disabled"));
     });
   }
 

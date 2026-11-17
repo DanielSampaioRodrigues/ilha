@@ -454,6 +454,18 @@ export interface EstadoOuvido {
 export const estadoOuvido = () =>
   pedir<EstadoOuvido>("estado_ouvido", undefined, { pequeno: false, bom: false, baixando: true, baixado: 120_000_000, total: 249_793_112, erro: null, ultimo_ms: 0, fala_ms: 0, nucleos: 4, erro_nuvem: null, pela_nuvem: false });
 export const baixarOuvido = () => pedir<void>("baixar_ouvido");
+/** Resultado do teste do ouvido (Ajustes › Voz). */
+export interface TesteOuvido {
+  microfone: string;
+  pico: number;
+  fala_ms: number;
+  texto: string;
+  ms: number;
+  pela_nuvem: boolean;
+  erro_nuvem: string | null;
+}
+export const testarOuvido = () =>
+  pedir<TesteOuvido>("testar_ouvido", undefined, { microfone: "Microfone (teste)", pico: 0.4, fala_ms: 2100, texto: "teste de microfone", ms: 900, pela_nuvem: false, erro_nuvem: null });
 /** Ouvido rápido (padrão) ou mais preciso (mais lento). Baixa o que faltar. */
 export const escolherOuvido = (preciso: boolean, nuvem = false) => pedir<void>("escolher_ouvido", { preciso, nuvem });
 /** Conserta um item ("fala_online", "microfone", "abrir_microfone", "pacote"). Só depois de o Dan confirmar. */

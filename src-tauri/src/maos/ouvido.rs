@@ -640,6 +640,8 @@ pub struct Microfone {
     #[cfg(windows)]
     _fluxo: cpal::Stream,
     pub chegando: std::sync::mpsc::Receiver<Vec<f32>>,
+    /// Nome do microfone que o Windows escolheu (para o teste do ouvido).
+    pub nome: String,
 }
 
 #[cfg(windows)]
@@ -648,6 +650,7 @@ pub fn abrir_microfone() -> Result<Microfone, String> {
     use cpal::SampleFormat;
     let host = cpal::default_host();
     let aparelho = host.default_input_device().ok_or("Não achei microfone ligado no Windows.")?;
+    let nome = aparelho.description().map(|d| d.name().to_string()).unwrap_or_default();
     let config = aparelho
         .default_input_config()
         .map_err(|e| format!("Não consegui abrir o microfone: {e}"))?;
@@ -680,7 +683,7 @@ pub fn abrir_microfone() -> Result<Microfone, String> {
     }
     .map_err(|e| format!("Não consegui abrir o microfone: {e}"))?;
     fluxo.play().map_err(|e| format!("Não consegui ligar o microfone: {e}"))?;
-    Ok(Microfone { _fluxo: fluxo, chegando })
+    Ok(Microfone { _fluxo: fluxo, chegando, nome })
 }
 
 #[cfg(not(windows))]
@@ -773,6 +776,48 @@ impl EnvioNuvem {
     }
 }
 
+/// Palavras que não terminam um pedido ("abre o…", "manda para…"): se a fala
+/// acaba numa delas (ou em vírgula), a pessoa só parou para pensar.
+const NAO_TERMINA: [&str; 40] = [
+    "e", "ou", "mas", "que", "de", "do", "da", "dos", "das", "em", "no", "na", "nos", "nas", "para", "pra", "pro", "por",
+    "com", "sem", "o", "a", "os", "as", "um", "uma", "meu", "minha", "seu", "sua", "se", "quando", "porque", "como",
+    "sobre", "ate", "entre", "pelo", "pela", "tipo",
+];
+
+pub fn parece_incompleta(texto: &str) -> bool {
+    let t = texto.trim();
+    if t.is_empty() {
+        return false;
+    }
+    if t.ends_with([',', ';', ':', '-', '—', '–']) {
+        return true;
+    }
+    let ultima = t.split_whitespace().last().map(normalizar).unwrap_or_default();
+    NAO_TERMINA.contains(&ultima.as_str())
+}
+
+/// Se o pedido parece não ter terminado, ouve um pouco mais (até 2,5 s para a
+/// pessoa voltar a falar) e junta. Até 3 vezes.
+fn completar(app: &AppHandle, microfone: &Microfone, fila: &mut std::collections::VecDeque<Vec<f32>>, mut texto: String) -> String {
+    for _ in 0..3 {
+        if !parece_incompleta(&texto) {
+            break;
+        }
+        log::info!("Ouvido: a frase parece não ter terminado; ouvindo mais");
+        let _ = app.emit("ilha:ouvindo-texto", format!("{texto}…"));
+        let Ok(Some((fala, nuvem))) = proxima_fala(app, microfone, fila, Duration::from_millis(2_500)) else { break };
+        if fala.is_empty() {
+            break;
+        }
+        let _ = app.emit("ilha:entendendo", ());
+        match nuvem.entender(&fala) {
+            Ok(mais) if !mais.trim().is_empty() => texto = format!("{} {}", texto.trim(), mais.trim()),
+            _ => break,
+        }
+    }
+    texto
+}
+
 /// Grava até a pessoa parar de falar (1,4 s de silêncio: dá para pensar no
 /// meio da frase sem ser cortado) e devolve o texto. `parar`: botão Parar.
 pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, String> {
@@ -802,10 +847,12 @@ pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, Strin
             Err(_) => return Err("O microfone parou de mandar som.".into()),
         }
     };
-    drop(microfone);
     let _ = app.emit("ilha:entendendo", ());
     let inicio = Instant::now();
     let texto = nuvem.entender(&fala)?;
+    let mut fila = std::collections::VecDeque::new();
+    let texto = completar(app, &microfone, &mut fila, texto);
+    drop(microfone);
     ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
     ULTIMA_FALA_MS.store((fala.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
     log::info!("Ouvido: pedido entendido em {} ms ({} letras, fala de {} ms)", inicio.elapsed().as_millis(), texto.chars().count(), fala.len() * 1000 / TAXA);
@@ -813,6 +860,83 @@ pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, Strin
         return Err("Chegou som, mas não entendi nenhuma palavra. Fale de novo, um pouco mais perto do microfone.".into());
     }
     Ok(texto)
+}
+
+#[derive(Serialize)]
+pub struct TesteOuvido {
+    pub microfone: String,
+    /// Volume mais alto que chegou (0 a 1).
+    pub pico: f32,
+    pub fala_ms: u64,
+    pub texto: String,
+    pub ms: u64,
+    pub pela_nuvem: bool,
+    pub erro_nuvem: Option<String>,
+}
+
+/// Teste do ouvido (Ajustes › Voz): grava uma fala de até 8 s e mostra o
+/// microfone usado, o volume, o texto e quanto demorou.
+#[tauri::command]
+pub async fn testar_ouvido(app: AppHandle) -> Result<TesteOuvido, String> {
+    // A escuta do nome pausa durante o teste (os dois não disputam a mesma fala).
+    super::chamado::OCUPADO.fetch_add(1, Ordering::Relaxed);
+    let r = testar_ouvido_agora(app).await;
+    super::chamado::OCUPADO.fetch_sub(1, Ordering::Relaxed);
+    r
+}
+
+async fn testar_ouvido_agora(app: AppHandle) -> Result<TesteOuvido, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if !pronto() {
+            return Err(aviso_instalando().unwrap_or_else(|| "O ouvido ainda não está pronto.".into()));
+        }
+        super::voz::PARAR.store(false, Ordering::Relaxed);
+        let microfone = abrir_microfone()?;
+        let _ = app.emit("ilha:microfone-aberto", ());
+        let mut cortador = Cortador::new(1_400, 8_000);
+        let mut nuvem = EnvioNuvem::novo(Some(&app));
+        let mut pico = 0.0f32;
+        let comeco = Instant::now();
+        let fala = loop {
+            if !cortador.falando() && comeco.elapsed() > Duration::from_secs(8) {
+                return Ok(TesteOuvido {
+                    microfone: microfone.nome.clone(),
+                    pico,
+                    fala_ms: 0,
+                    texto: String::new(),
+                    ms: 0,
+                    pela_nuvem: false,
+                    erro_nuvem: None,
+                });
+            }
+            match microfone.chegando.recv_timeout(Duration::from_millis(200)) {
+                Ok(som) => {
+                    pico = som.iter().fold(pico, |m, x| m.max(x.abs()));
+                    let falava = cortador.falando();
+                    let pronta = cortador.empurrar(&som).into_iter().next();
+                    nuvem.som(&som, falava, cortador.falando(), pronta.is_some());
+                    if let Some(f) = pronta {
+                        break f;
+                    }
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                Err(_) => return Err("O microfone parou de mandar som.".into()),
+            }
+        };
+        let inicio = Instant::now();
+        let texto = nuvem.entender(&fala).unwrap_or_default();
+        Ok(TesteOuvido {
+            microfone: microfone.nome.clone(),
+            pico,
+            fala_ms: (fala.len() * 1000 / TAXA) as u64,
+            texto,
+            ms: inicio.elapsed().as_millis() as u64,
+            pela_nuvem: ULTIMO_PELA_NUVEM.load(Ordering::Relaxed),
+            erro_nuvem: super::nuvem::ULTIMO_ERRO.lock().ok().and_then(|e| e.clone()),
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Deixa os modelos carregados e "aquecidos" (a primeira conta do Whisper é a
@@ -882,13 +1006,24 @@ fn ouvir_continuacao(
     microfone: &Microfone,
     fila: &mut std::collections::VecDeque<Vec<f32>>,
 ) -> Result<(Vec<f32>, EnvioNuvem), String> {
+    proxima_fala(app, microfone, fila, Duration::from_secs(8))?
+        .ok_or_else(|| "Não ouvi o pedido depois do nome. Chame de novo e fale logo depois do bip.".to_string())
+}
+
+/// A próxima fala no microfone, se a pessoa começar a falar dentro do `prazo`.
+fn proxima_fala(
+    app: &AppHandle,
+    microfone: &Microfone,
+    fila: &mut std::collections::VecDeque<Vec<f32>>,
+    prazo: Duration,
+) -> Result<Option<(Vec<f32>, EnvioNuvem)>, String> {
     if let Some(f) = fila.pop_front() {
         // Já gravada: vai para a nuvem de uma vez (ou é entendida no PC).
         let nuvem = EnvioNuvem::novo(None);
         if let Some(n) = &nuvem.nuvem {
             n.enviar(&f);
         }
-        return Ok((f, nuvem));
+        return Ok(Some((f, nuvem)));
     }
     let parar = &super::voz::PARAR;
     let mut cortador = Cortador::new(1_400, 20_000);
@@ -896,10 +1031,10 @@ fn ouvir_continuacao(
     let comeco = Instant::now();
     loop {
         if parar.load(Ordering::Relaxed) {
-            return Ok((Vec::new(), EnvioNuvem { nuvem: None, antes: Default::default() }));
+            return Ok(Some((Vec::new(), EnvioNuvem { nuvem: None, antes: Default::default() })));
         }
-        if !cortador.falando() && comeco.elapsed() > Duration::from_secs(8) {
-            return Err("Não ouvi o pedido depois do nome. Chame de novo e fale logo depois do bip.".into());
+        if !cortador.falando() && comeco.elapsed() > prazo {
+            return Ok(None);
         }
         match microfone.chegando.recv_timeout(Duration::from_millis(100)) {
             Ok(som) => {
@@ -907,7 +1042,7 @@ fn ouvir_continuacao(
                 let pronta = cortador.empurrar(&som).into_iter().next();
                 nuvem.som(&som, falava, cortador.falando(), pronta.is_some());
                 if let Some(f) = pronta {
-                    return Ok((f, nuvem));
+                    return Ok(Some((f, nuvem)));
                 }
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
@@ -953,6 +1088,7 @@ fn atender(
             ULTIMA_FALA_MS.store((f.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
             log::info!("Ouvido: pedido entendido em {} ms (fala de {} ms)", inicio.elapsed().as_millis(), f.len() * 1000 / TAXA);
             t.map(|t| if comeco_do_pedido.is_empty() || t.is_empty() { t } else { format!("{comeco_do_pedido} {t}") })
+                .map(|t| completar(app, microfone, fila, t))
         })
     };
     let _ = match pedido {
@@ -1049,6 +1185,17 @@ mod testes {
         assert_eq!(achar_nome("Robozinhos.", "Robozinho").as_deref(), Some(""));
         assert_eq!(achar_nome("vamos almoçar agora", "Robozinho"), None);
         assert_eq!(achar_nome("o robô quebrou", "Robozinho"), None);
+    }
+
+    #[test]
+    fn percebe_frase_incompleta() {
+        assert!(parece_incompleta("abre o"));
+        assert!(parece_incompleta("manda uma mensagem para"));
+        assert!(parece_incompleta("quero saber sobre o clima e"));
+        assert!(parece_incompleta("anota isso,"));
+        assert!(!parece_incompleta("que horas são"));
+        assert!(!parece_incompleta("abre o Spotify"));
+        assert!(!parece_incompleta(""));
     }
 
     #[test]
