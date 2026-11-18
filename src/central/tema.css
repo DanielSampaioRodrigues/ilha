@@ -1,0 +1,261 @@
+/* ============================================================
+   Tema "Aurora": a Central com fundo vivo, vidro e brilho.
+   Tudo nasce da cor de destaque escolhida (--ciano) e de duas
+   cores vizinhas no círculo de cores, então muda junto com ela.
+   ============================================================ */
+
+body.modo-central {
+  --cor-2: oklch(from var(--ciano) 0.74 0.17 calc(h + 75));
+  --cor-3: oklch(from var(--ciano) 0.7 0.19 calc(h + 150));
+  --vidro-painel: rgba(10, 12, 16, 0.52);
+  --borda-vidro: rgba(255, 255, 255, 0.07);
+  --gradiente: linear-gradient(135deg, var(--ciano), var(--cor-2));
+}
+
+/* ---------- Fundo vivo (aurora) ---------- */
+body.modo-central .ilha-grande {
+  position: relative;
+  isolation: isolate;
+  background: #06070a;
+}
+
+body.modo-central .ilha-grande::before,
+body.modo-central .ilha-grande::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body.modo-central .ilha-grande::before {
+  inset: -25%;
+  background:
+    radial-gradient(36% 32% at 18% 12%, color-mix(in oklab, var(--ciano) 30%, transparent), transparent 70%),
+    radial-gradient(32% 38% at 86% 18%, color-mix(in oklab, var(--cor-2) 26%, transparent), transparent 70%),
+    radial-gradient(42% 36% at 62% 96%, color-mix(in oklab, var(--cor-3) 20%, transparent), transparent 70%),
+    radial-gradient(26% 26% at 30% 70%, color-mix(in oklab, var(--ciano) 12%, transparent), transparent 70%);
+  filter: blur(46px) saturate(1.25);
+  animation: aurora 26s ease-in-out infinite alternate;
+}
+
+/* Grade fininha por cima da aurora: dá textura de "tela de comando". */
+body.modo-central .ilha-grande::after {
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(120% 80% at 50% 0%, #000 30%, transparent 80%);
+}
+
+@keyframes aurora {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  50% { transform: translate3d(4%, -3%, 0) rotate(9deg) scale(1.08); }
+  100% { transform: translate3d(-4%, 3%, 0) rotate(-7deg) scale(1.03); }
+}
+
+/* ---------- Menu lateral de vidro ---------- */
+body.modo-central .menu-central {
+  background: var(--vidro-painel);
+  backdrop-filter: blur(26px) saturate(1.5);
+  border-right: 1px solid var(--borda-vidro);
+}
+
+body.modo-central .marca-carinha {
+  background: radial-gradient(circle at 50% 120%, color-mix(in oklab, var(--ciano) 35%, #000), #000 70%);
+  box-shadow: 0 0 0 1px var(--borda-vidro), 0 8px 24px -10px color-mix(in oklab, var(--ciano) 70%, transparent);
+}
+
+body.modo-central .grupo-menu {
+  background: linear-gradient(90deg, var(--apagado), color-mix(in oklab, var(--ciano) 60%, var(--apagado)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  opacity: 0.9;
+}
+
+body.modo-central .item-menu {
+  position: relative;
+  transition: background 0.18s, color 0.18s, transform 0.18s;
+}
+
+body.modo-central .item-menu:hover {
+  transform: translateX(2px);
+}
+
+body.modo-central .item-menu.ativo {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--ciano) 24%, transparent), color-mix(in oklab, var(--cor-2) 6%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ciano) 22%, transparent);
+}
+
+body.modo-central .item-menu.ativo::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--gradiente);
+  box-shadow: 0 0 12px var(--ciano);
+}
+
+body.modo-central .item-menu.ativo svg {
+  filter: drop-shadow(0 0 6px color-mix(in oklab, var(--ciano) 80%, transparent));
+}
+
+/* ---------- Páginas: entram deslizando ---------- */
+body.modo-central .pagina,
+body.modo-central .conteudo-central > * {
+  animation: pagina-entrar 0.38s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes pagina-entrar {
+  from { opacity: 0; transform: translateY(10px); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+
+/* Títulos grandes em gradiente. */
+body.modo-central .pagina-tela .titulo-tela,
+body.modo-central .topo-pagina h1 {
+  background: linear-gradient(100deg, #ffffff 10%, color-mix(in oklab, var(--ciano) 75%, white) 55%, var(--cor-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+body.modo-central .titulo-secao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body.modo-central .titulo-secao::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gradiente);
+  box-shadow: 0 0 10px var(--ciano);
+}
+
+/* ---------- Cartões de vidro com luz que segue o mouse ---------- */
+body.modo-central .item,
+body.modo-central .cartao-motor,
+body.modo-central .cartao-acao {
+  position: relative;
+  border: 1px solid var(--borda-vidro);
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(14px);
+  transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+body.modo-central .item:hover,
+body.modo-central .cartao-motor:hover {
+  border-color: color-mix(in oklab, var(--ciano) 32%, transparent);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 10px 30px -18px color-mix(in oklab, var(--ciano) 80%, transparent);
+}
+
+/* A luz: um círculo suave onde o mouse está (posição vem do central.ts). */
+body.modo-central .item::after,
+body.modo-central .cartao-motor::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(260px circle at var(--mx, -400px) var(--my, -400px), color-mix(in oklab, var(--ciano) 12%, transparent), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+}
+
+body.modo-central .item:hover::after,
+body.modo-central .cartao-motor:hover::after {
+  opacity: 1;
+}
+
+body.modo-central .bolha.robo,
+body.modo-central .compositor,
+body.modo-central .chip-perfil,
+body.modo-central .opcoes-ajustes,
+body.modo-central .opcoes-passar,
+body.modo-central .pergunta-central {
+  background: rgba(18, 20, 26, 0.62);
+  backdrop-filter: blur(18px) saturate(1.3);
+  border: 1px solid var(--borda-vidro);
+}
+
+body.modo-central .compositor:focus-within {
+  border-color: color-mix(in oklab, var(--ciano) 45%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--ciano) 12%, transparent), 0 18px 40px -20px color-mix(in oklab, var(--ciano) 70%, transparent);
+}
+
+/* ---------- Botões, chaves e escolhas com gradiente ---------- */
+.botao.ciano {
+  background: linear-gradient(135deg, var(--ciano), oklch(from var(--ciano) 0.74 0.17 calc(h + 75)));
+  color: #05070a;
+  box-shadow: 0 6px 22px -8px color-mix(in oklab, var(--ciano) 85%, transparent);
+  transition: transform 120ms, box-shadow 0.2s, filter 0.2s;
+}
+
+.botao.ciano:hover {
+  filter: brightness(1.08) saturate(1.1);
+  box-shadow: 0 10px 28px -8px color-mix(in oklab, var(--ciano) 95%, transparent);
+}
+
+.chave[aria-checked="true"] {
+  background: linear-gradient(135deg, var(--ciano), oklch(from var(--ciano) 0.74 0.17 calc(h + 75)));
+  box-shadow: 0 0 16px -2px color-mix(in oklab, var(--ciano) 70%, transparent);
+}
+
+.segmento[aria-checked="true"] {
+  background: linear-gradient(135deg, var(--ciano), oklch(from var(--ciano) 0.74 0.17 calc(h + 75)));
+  box-shadow: 0 4px 16px -6px color-mix(in oklab, var(--ciano) 90%, transparent);
+}
+
+body.modo-central .entrada:focus,
+body.modo-central .campo input:focus,
+body.modo-central .campo select:focus {
+  outline: none;
+  border-color: color-mix(in oklab, var(--ciano) 70%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--ciano) 16%, transparent);
+}
+
+/* Rolagem fininha na cor de destaque. */
+body.modo-central * {
+  scrollbar-color: color-mix(in oklab, var(--ciano) 35%, rgba(255, 255, 255, 0.15)) transparent;
+}
+
+/* Quem prefere menos movimento: sem aurora andando, sem deslizar. */
+@media (prefers-reduced-motion: reduce) {
+  body.modo-central .ilha-grande::before,
+  body.modo-central .pagina,
+  body.modo-central .conteudo-central > * {
+    animation: none;
+  }
+}
+
+/* O cartão da IA escolhida brilha. */
+body.modo-central .cartao-motor.ativo {
+  border-color: color-mix(in oklab, var(--ciano) 75%, transparent);
+  background: linear-gradient(160deg, color-mix(in oklab, var(--ciano) 16%, transparent), color-mix(in oklab, var(--cor-2) 6%, transparent));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--ciano) 35%, transparent), 0 16px 40px -20px color-mix(in oklab, var(--ciano) 90%, transparent);
+}
+
+body.modo-central .cartao-motor.faltando {
+  border-style: dashed;
+}
+
+body.modo-central .titulo-comeco {
+  background: linear-gradient(100deg, #ffffff 15%, color-mix(in oklab, var(--ciano) 75%, white) 60%, var(--cor-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}

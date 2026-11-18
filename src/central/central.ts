@@ -4,6 +4,7 @@
 // clicar fora (a não ser que esteja presa com o alfinete); fechar só esconde,
 // então as conversas continuam rodando e a ilha pequena avisa quando terminam.
 import "./central.css";
+import "./tema.css";
 import { emit, listen } from "@tauri-apps/api/event";
 import { aoMudarDeFora, carregar, ler, mudar } from "../dados/armazem";
 import { carregarConversas } from "../dados/conversas";
@@ -192,6 +193,18 @@ export async function iniciarCentral(): Promise<void> {
 
   palco.querySelectorAll<HTMLElement>(".item-menu").forEach((b) =>
     b.addEventListener("click", () => ir(b.dataset.secao as Secao)),
+  );
+  // Luz que segue o mouse nos cartões (o tema.css desenha onde --mx/--my mandam).
+  palco.addEventListener(
+    "pointermove",
+    (e) => {
+      const cartao = (e.target as HTMLElement).closest?.<HTMLElement>(".item, .cartao-motor");
+      if (!cartao) return;
+      const r = cartao.getBoundingClientRect();
+      cartao.style.setProperty("--mx", `${e.clientX - r.left}px`);
+      cartao.style.setProperty("--my", `${e.clientY - r.top}px`);
+    },
+    { passive: true },
   );
 
   // Outra janela mudou os dados: redesenha (menos a conversa e as notas, para não atrapalhar quem digita).

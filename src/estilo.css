@@ -2564,3 +2564,64 @@ body.soltando:not(.modo-central) .forma {
   opacity: 0.5;
   cursor: progress;
 }
+
+/* ============================================================
+   Toques do tema "Aurora" na ilha aberta (a ilha continua preta,
+   a identidade dela; a cor de destaque ganha gradiente e brilho).
+   ============================================================ */
+:root {
+  --cor-2: oklch(from var(--ciano) 0.74 0.17 calc(h + 75));
+}
+
+.saudacao {
+  background: linear-gradient(100deg, #ffffff 20%, color-mix(in oklab, var(--ciano) 70%, white) 70%, var(--cor-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  letter-spacing: -0.015em;
+}
+
+.deslizante {
+  background:
+    linear-gradient(to right, var(--ciano), var(--cor-2)) 0 0 / var(--nivel, 50%) 100% no-repeat,
+    rgba(255, 255, 255, 0.14);
+}
+
+.deslizante::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--ciano) 22%, transparent), 0 0 14px color-mix(in oklab, var(--ciano) 70%, transparent);
+}
+
+.barra-cheia {
+  background: linear-gradient(90deg, var(--ciano), var(--cor-2));
+  box-shadow: 0 0 10px color-mix(in oklab, var(--ciano) 55%, transparent);
+}
+
+.atalho-tela {
+  position: relative;
+  border: 1px solid transparent;
+  transition: background 0.18s, border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+}
+
+.atalho-tela:hover {
+  border-color: color-mix(in oklab, var(--ciano) 35%, transparent);
+  background: color-mix(in oklab, var(--ciano) 10%, rgba(255, 255, 255, 0.06));
+  box-shadow: 0 6px 18px -10px color-mix(in oklab, var(--ciano) 90%, transparent);
+  transform: translateY(-1px);
+}
+
+.atalho-tela:hover svg {
+  filter: drop-shadow(0 0 5px color-mix(in oklab, var(--ciano) 90%, transparent));
+}
+
+.app-icone {
+  transition: background 0.18s, box-shadow 0.18s, transform 0.18s;
+}
+
+.app:hover .app-icone {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--ciano) 40%, transparent), 0 8px 20px -10px color-mix(in oklab, var(--ciano) 90%, transparent);
+  transform: translateY(-2px);
+}
+
+.redondo.grande.vermelho {
+  box-shadow: 0 0 0 4px rgba(212, 42, 37, 0.16), 0 8px 22px -8px rgba(255, 70, 60, 0.8);
+}
