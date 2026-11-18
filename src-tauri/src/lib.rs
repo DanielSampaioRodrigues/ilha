@@ -137,6 +137,8 @@ pub fn run() {
             maos::ouvido::testar_ouvido,
             maos::ouvido::som_do_microfone,
             maos::atualizar::procurar_versao,
+            maos::pastas::procurar_pastas,
+            maos::pastas::renovar_pastas,
             maos::atualizar::instalar_versao,
             maos::volume::volume_atual,
             maos::volume::definir_volume,
@@ -165,6 +167,7 @@ pub fn run() {
             maos::copiados::iniciar(app.clone());
             // Ouvido próprio: baixa sozinho o que faltar, em segundo plano.
             maos::ouvido::iniciar(app);
+            maos::pastas::iniciar();
             corpo::tela_cheia::vigiar(app.clone());
             maos::volume::vigiar(app.clone());
             maos::pc::vigiar(app.clone());

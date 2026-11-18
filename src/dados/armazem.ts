@@ -90,6 +90,16 @@ export interface Timer {
   minutos: number;
 }
 
+export interface PastaConhecida {
+  nome: string;
+  caminho: string;
+  /** Quantas vezes foi aberta pela ilha. */
+  usos: number;
+  /** Fixada pelo Dan: sempre na lista. */
+  fixa?: boolean;
+  ultima: number;
+}
+
 export interface Nota {
   id: string;
   texto: string;
@@ -138,6 +148,8 @@ export interface Config {
   modelosRapida?: Partial<Record<string, string>>;
   /** Conversa rápida: só conversar, ou fazer tudo no PC (pedindo "Posso?" no que não tem volta). */
   modoRapida?: "conversar" | "editar";
+  /** Pastas que o Dan usa (abertas pela ilha ou fixadas): a IA sempre sabe onde ficam. */
+  pastas?: PastaConhecida[];
   /** Microfone com cancelamento de eco (interromper sem fone). Ligado se não houver nada. */
   microfoneComEco?: boolean;
   /** Mandar as memórias para as IAs. */

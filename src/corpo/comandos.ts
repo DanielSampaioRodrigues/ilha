@@ -158,6 +158,25 @@ export async function tentarComando(texto: string, ctx: Contexto): Promise<strin
     }
   }
 
+  // Abrir pasta pelo nome: "abre a pasta clientes arcano 3" (procura em todos os discos).
+  m = semCortesia(t).match(/^(?:abre|abrir|abra|mostra|mostrar|mostre|acha|achar|ache|encontra|encontrar)(?: a| minha| as)? pastas? (?:d[oa]s? )?(.+)$/);
+  if (m) {
+    const { acharPasta, abrirPasta } = await import("../dados/pastas");
+    const { melhor, outras } = await acharPasta(m[1]);
+    if (!melhor) {
+      return outras.length
+        ? `Não achei uma pasta com esse nome certinho. Parecidas: ${outras.slice(0, 3).map((o) => o.caminho).join("; ")}.`
+        : `Não achei nenhuma pasta parecida com "${m[1]}". Se ela é nova, peça "procurar pastas de novo" e tente outra vez.`;
+    }
+    await abrirPasta(melhor.caminho);
+    return `Abrindo a pasta ${melhor.nome} (${melhor.caminho}).`;
+  }
+  if (/^(?:procura|procurar|atualiza|atualizar|renova|renovar) (?:as )?pastas(?: de novo)?$/.test(semCortesia(t))) {
+    const { renovarPastas } = await import("../maos/sistema");
+    await renovarPastas();
+    return "Pronto, reli as pastas de todos os discos.";
+  }
+
   // Abrir programa ou site: "abre o spotify".
   m = semCortesia(t).match(/^(?:abre|abrir|abra|abri|abriu|inicia|iniciar|executa|executar|roda|rodar)(?: o| a| os| as| no| na)? (.+)$/);
   if (m) {

@@ -195,6 +195,25 @@ export async function executarAcao(a: AcaoPedida, ctx: Contexto): Promise<string
       return lerAgenda(e.de as string | undefined, e.ate as string | undefined);
     case "ilha_agenda_criar":
       return criarNaAgenda(e);
+    case "ilha_achar_pasta": {
+      const { acharPasta, pastasConhecidas } = await import("../dados/pastas");
+      const { melhor, outras } = await acharPasta(texto || String(e.nome ?? ""));
+      const lista = [melhor, ...outras].filter(Boolean).map((p) => `- ${p!.caminho}${p === melhor ? " (a mais provável)" : ""}`);
+      if (lista.length) return `Pastas achadas:\n${lista.join("\n")}`;
+      const conhecidas = pastasConhecidas().map((p) => `- ${p.caminho}`);
+      return `Não achei pasta com esse nome nos discos.${conhecidas.length ? ` Pastas que o Dan usa:\n${conhecidas.join("\n")}` : ""}`;
+    }
+    case "ilha_abrir_pasta": {
+      const { acharPasta, abrirPasta } = await import("../dados/pastas");
+      let caminho = String(e.caminho ?? "").trim();
+      if (!caminho) {
+        const { melhor } = await acharPasta(String(e.nome ?? texto));
+        if (!melhor) return "Não achei essa pasta. Use ilha_achar_pasta para ver as parecidas.";
+        caminho = melhor.caminho;
+      }
+      await abrirPasta(caminho);
+      return `Abri no Explorador: ${caminho}`;
+    }
     case "ilha_abrir_tela": {
       const tela = String(e.tela ?? "") as NomeTela;
       if (!TELAS_LIVRES.includes(tela)) return `Não conheço a tela "${tela}".`;

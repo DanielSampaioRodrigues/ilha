@@ -1,6 +1,7 @@
 // Monta o pedido para uma IA a partir de uma conversa e roda a resposta.
 // Usado pela Central e pela conversa rápida da ilha, para as duas falarem
 // com as IAs do mesmo jeito (instruções, perfil, skills, memória, MCPs).
+import { pastasConhecidas } from "./pastas";
 import { ler, type Dados } from "./armazem";
 import type { Conversa, MensagemConversa } from "./conversas";
 import { conversar, type Motor } from "../maos/sistema";
@@ -48,7 +49,14 @@ function sobreAIlha(c: Conversa, d: Dados): string {
       "e ilha_agenda / ilha_agenda_criar para LER e criar compromissos no Calendário da Apple (iCloud) do Dan, que é a agenda principal dele. " +
       "Quando o pedido for sobre algo que a Ilha faz, prefira essas ferramentas a comandos do Windows."
     : " Se pedirem algo que a Ilha faz (timer, foco, volume, abrir programa), diga a frase curta para o Dan falar à Ilha (ex.: \"timer 10 min\").";
-  return `Você está rodando dentro da Ilha, o assistente de ${d.config.nome} no Windows (o robô se chama "${d.config.nomeRobo}"). ${recursos}${ferramentas}`;
+  const pastas = pastasConhecidas(d);
+  const textoPastas = pastas.length
+    ? `\nPastas que ${d.config.nome} usa (quando ele falar delas, é aqui; procure arquivos dentro delas):\n${pastas.map((p) => `- ${p.nome}: ${p.caminho}`).join("\n")}`
+    : "";
+  const comoAcharPastas = comFerramentas
+    ? " Para achar uma pasta pelo nome (o nome pode vir com erro de transcrição, ex.: \"três\" por \"3\"), use ilha_achar_pasta (procura em todos os discos, nome aproximado) e ilha_abrir_pasta para abrir no Explorador; não fique varrendo os discos com comandos."
+    : "";
+  return `Você está rodando dentro da Ilha, o assistente de ${d.config.nome} no Windows (o robô se chama "${d.config.nomeRobo}"). ${recursos}${ferramentas}${comoAcharPastas}${textoPastas}`;
 }
 
 export function instrucoesExtras(c: Conversa, d: Dados = ler()): string {

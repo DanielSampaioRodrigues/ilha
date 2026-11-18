@@ -301,6 +301,16 @@ fn ferramentas_da_ilha() -> Value {
             "inputSchema": { "type": "object", "properties": { "titulo": { "type": "string" }, "inicio": { "type": "string" }, "duracao_minutos": { "type": "number" }, "alerta_minutos": { "type": "number", "description": "minutos antes (padrão 15; dia inteiro: às 9h do dia)" }, "notas": { "type": "string" } }, "required": ["titulo", "inicio"] }
         },
         {
+            "name": "ilha_achar_pasta",
+            "description": "Acha pastas do computador pelo nome, em TODOS os discos (C:, E:…), mesmo com o nome aproximado ou com erro de transcrição (\"três\" = \"3\", \"arcanos\" = \"arcano\"). Muito mais rápido que procurar com comandos. Devolve os caminhos, o mais provável primeiro.",
+            "inputSchema": { "type": "object", "properties": { "nome": { "type": "string" } }, "required": ["nome"] }
+        },
+        {
+            "name": "ilha_abrir_pasta",
+            "description": "Abre uma pasta no Explorador do Windows para o Dan ver (pelo caminho, ou pelo nome, que a ilha procura). A ilha passa a lembrar dessa pasta.",
+            "inputSchema": { "type": "object", "properties": { "caminho": { "type": "string" }, "nome": { "type": "string" } } }
+        },
+        {
             "name": "ilha_abrir_tela",
             "description": "Abre uma tela da Ilha para o Dan ver.",
             "inputSchema": { "type": "object", "properties": { "tela": { "type": "string", "enum": ["inicio", "tarefas", "notas", "habitos", "timers", "foco", "pc", "memoria", "rotinas", "calendario", "copiados", "textos", "apps", "tabela", "traducoes", "ajustes"] } }, "required": ["tela"] }

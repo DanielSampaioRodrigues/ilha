@@ -498,3 +498,12 @@ export interface VozNatural {
   descricao: string;
 }
 export const vozesNaturais = () => pedir<VozNatural[]>("vozes_naturais", undefined, []);
+
+export interface PastaAchada {
+  caminho: string;
+  nome: string;
+  nota: number;
+}
+/** Procura pastas pelo nome (aproximado) em todos os discos. */
+export const procurarPastas = (nome: string) => pedir<PastaAchada[]>("procurar_pastas", { nome }, []);
+export const renovarPastas = () => pedir<void>("renovar_pastas");

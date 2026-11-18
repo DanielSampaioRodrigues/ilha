@@ -1,6 +1,7 @@
 //! Mãos: ferramentas que mexem no computador.
 pub mod atualizar;
 pub mod chamado;
+pub mod pastas;
 pub mod calendario;
 pub mod cofre;
 pub mod conferir_voz;
