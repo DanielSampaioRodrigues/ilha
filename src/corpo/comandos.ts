@@ -25,6 +25,21 @@ export const normalizar = (t: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+/**
+ * Tira a educação e os enfeites da fala, para os comandos simples entenderem
+ * "pode abrir o gemini pra mim, por favor?" como "abrir o gemini".
+ */
+export function semCortesia(t: string): string {
+  let r = t.replace(/[,?!.]/g, " ").replace(/\s+/g, " ").trim();
+  for (let i = 0; i < 3; i++)
+    r = r
+      .replace(/^(?:ei|oi|ola|entao|por favor|por gentileza|tipo|agora|so|e)\s+/, "")
+      .replace(/^(?:(?:voce|vc|tu) )?(?:pode|poderia|podia|consegue|conseguiria|da pra|dava pra|quero que (?:voce|vc) |preciso que (?:voce|vc) |queria que (?:voce|vc) |vai la e )\s*(?:me )?/, "")
+      .replace(/\s+(?:por favor|pra mim|para mim|pra gente|ai|agora|ja|rapidinho|por gentileza|obrigado|obrigada)$/, "")
+      .trim();
+  return r;
+}
+
 function minutosDe(numero: string, unidade = "min"): number {
   const n = Number(numero.replace(",", "."));
   if (/^h/.test(unidade)) return n * 60;
@@ -144,7 +159,7 @@ export async function tentarComando(texto: string, ctx: Contexto): Promise<strin
   }
 
   // Abrir programa ou site: "abre o spotify".
-  m = t.match(/^(?:abre|abrir|abra|abri|inicia|executa)(?: o| a| os| as)? (.+)$/);
+  m = semCortesia(t).match(/^(?:abre|abrir|abra|abri|abriu|inicia|iniciar|executa|executar|roda|rodar)(?: o| a| os| as| no| na)? (.+)$/);
   if (m) {
     const alvo = m[1];
     const app = d.apps.find((a) => normalizar(a.nome) === alvo) ?? d.apps.find((a) => normalizar(a.nome).includes(alvo));

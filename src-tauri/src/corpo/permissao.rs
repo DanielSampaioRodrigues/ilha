@@ -210,35 +210,109 @@ fn perguntar_a_ilha(conversa: &str, ferramenta: &str, entrada: &Value) -> Result
     Ok(v["permitir"].as_bool().unwrap_or(false))
 }
 
-/// Comandos que só olham (não mudam nada no PC). Bem conservador: qualquer
-/// redirecionamento, encadeamento ou execução embutida faz perguntar.
-const SO_OLHAM: [&str; 34] = [
-    "ls", "dir", "pwd", "cd", "echo", "cat", "type", "head", "tail", "wc", "find", "findstr", "grep", "rg", "where", "which",
-    "tree", "date", "whoami", "hostname", "systeminfo", "tasklist", "ipconfig", "ping", "get-childitem", "get-content",
-    "get-item", "get-location", "get-date", "get-process", "test-path", "resolve-path", "select-string", "get-computerinfo",
-];
-const GIT_QUE_OLHA: [&str; 7] = ["status", "log", "diff", "show", "branch", "remote", "blame"];
+// ---------- O que pede confirmação ----------
+//
+// O Dan quer a ilha livre para fazer tudo no PC (abrir programas, procurar,
+// instalar, editar arquivos, rodar comandos) sem perguntar a cada passo. Só o
+// que não tem volta pede o "Posso…?" (regra do CLAUDE.md): apagar, enviar ou
+// publicar, pagar e mudar configurações do Windows. Na dúvida sobre um comando
+// escondido (codificado), pergunta.
 
+/// Comandos que apagam, desligam ou mexem no Windows (nome do comando, minúsculo).
+const SEM_VOLTA: [&str; 52] = [
+    // apagar
+    "rm", "rmdir", "rd", "del", "erase", "ri", "remove-item", "clear-content", "clear-recyclebin", "format", "format-volume",
+    "clear-disk", "initialize-disk", "diskpart", "cipher", "remove-partition",
+    // desligar
+    "shutdown", "stop-computer", "restart-computer", "logoff",
+    // configurações do Windows
+    "reg", "regedit", "set-itemproperty", "new-itemproperty", "remove-itemproperty", "rename-itemproperty",
+    "set-executionpolicy", "set-winuserlanguagelist", "setx", "netsh", "bcdedit", "powercfg", "sc", "set-service",
+    "new-service", "schtasks", "register-scheduledtask", "set-mppreference", "add-mppreference", "new-netfirewallrule",
+    "set-netfirewallrule", "set-netfirewallprofile", "takeown", "icacls", "new-localuser", "set-localuser",
+    "add-localgroupmember", "dism", "set-timezone", "set-date", "wmic", "set-winsystemlocale",
+];
+/// Começos de comando do PowerShell que desfazem ou desligam algo.
+const COMECOS_SEM_VOLTA: [&str; 4] = ["remove-", "uninstall-", "unregister-", "disable-"];
+/// Programas que enviam algo para fora (internet), quando usados para mandar dados.
+const MANDAM_PELA_INTERNET: [&str; 7] = ["curl", "wget", "invoke-webrequest", "iwr", "invoke-restmethod", "irm", "send-mailmessage"];
+
+fn palavras(comando: &str) -> Vec<String> {
+    comando
+        .to_lowercase()
+        .split(|c: char| c.is_whitespace() || "|;&(){}'\"`,=".contains(c))
+        .filter(|p| !p.is_empty())
+        .map(|p| p.trim_end_matches(".exe").to_string())
+        .collect()
+}
+
+/// O comando faz algo que não tem volta? (apagar, enviar/publicar, mudar o Windows)
+pub fn comando_sem_volta(comando: &str) -> bool {
+    let p = palavras(comando);
+    let tem = |w: &str| p.iter().any(|x| x == w);
+    let depois = |a: &str, bs: &[&str]| p.windows(2).any(|j| j[0] == a && bs.contains(&j[1].as_str()));
+    // Comando escondido (codificado): não dá para saber o que faz.
+    if p.iter().any(|x| matches!(x.as_str(), "-encodedcommand" | "-enc" | "-ec" | "-e")) && (tem("powershell") || tem("pwsh")) {
+        return true;
+    }
+    if p.iter().any(|x| SEM_VOLTA.contains(&x.as_str()) || (COMECOS_SEM_VOLTA.iter().any(|c| x.starts_with(c)))) {
+        return true;
+    }
+    // Registro do Windows (HKLM:, HKCU:) sendo mudado.
+    if p.iter().any(|x| x.starts_with("hklm:") || x.starts_with("hkcu:") || x.starts_with("registry::"))
+        && p.iter().any(|x| x.starts_with("set-") || x.starts_with("new-") || x.starts_with("remove-"))
+    {
+        return true;
+    }
+    // git: enviar ou jogar fora alterações.
+    if depois("git", &["push", "clean", "restore", "rm"])
+        || (tem("git") && (tem("--hard") || tem("--force") || tem("-d") || tem("drop") || tem("clear")))
+        || (tem("git") && tem("checkout") && tem("--"))
+    {
+        return true;
+    }
+    // Publicar pacotes, sites e programas.
+    if tem("publish") || tem("deploy") || depois("docker", &["push"]) || depois("twine", &["upload"]) {
+        return true;
+    }
+    // GitHub pela linha de comando: criar, juntar, apagar, comentar.
+    if tem("gh") && p.iter().any(|x| matches!(x.as_str(), "create" | "merge" | "delete" | "close" | "comment" | "edit" | "release" | "review")) {
+        return true;
+    }
+    // Mandar dados pela internet (baixar é livre; enviar, não).
+    if p.iter().any(|x| MANDAM_PELA_INTERNET.contains(&x.as_str())) {
+        let envia = tem("send-mailmessage")
+            || p.iter().any(|x| {
+                matches!(
+                    x.as_str(),
+                    "post" | "put" | "delete" | "patch" | "-d" | "--data" | "--data-raw" | "--data-binary" | "--form" | "--upload-file" | "-t" | "-body" | "-infile"
+                )
+            });
+        if envia {
+            return true;
+        }
+    }
+    // Copiar arquivos para outro computador.
+    p.iter().any(|x| matches!(x.as_str(), "scp" | "sftp" | "ftp" | "rsync"))
+}
+
+/// Ferramentas de conectores (Gmail, GitHub…) que mandam, apagam ou pagam.
+fn ferramenta_sem_volta(nome: &str) -> bool {
+    let n = nome.to_lowercase();
+    [
+        "send", "delete", "remove", "trash", "publish", "pay", "purchase", "buy", "checkout", "merge", "push", "post", "reply",
+        "forward", "share", "archive", "transfer", "cancel", "create_pull", "comment", "invite", "spam", "unsubscribe",
+    ]
+    .iter()
+    .any(|v| n.contains(v))
+}
+
+/// Pode fazer sem perguntar? Tudo, menos o que não tem volta.
 pub fn seguro_sem_perguntar(ferramenta: &str, entrada: &Value) -> bool {
     match ferramenta {
-        "Read" | "Glob" | "Grep" | "LS" | "WebSearch" | "WebFetch" | "TodoWrite" | "NotebookRead" => true,
-        "Bash" | "PowerShell" => {
-            let comando = entrada["command"].as_str().unwrap_or_default().trim();
-            if comando.is_empty() || comando.contains(['>', ';', '&', '`', '\n']) || comando.contains("$(") {
-                return false;
-            }
-            // Cada parte de um "|" precisa ser só de olhar.
-            comando.split('|').all(|parte| {
-                let mut palavras = parte.split_whitespace();
-                let primeira = palavras.next().unwrap_or_default().to_lowercase();
-                let primeira = primeira.trim_end_matches(".exe");
-                if primeira == "git" {
-                    return palavras.next().is_some_and(|sub| GIT_QUE_OLHA.contains(&sub.to_lowercase().as_str()));
-                }
-                SO_OLHAM.contains(&primeira) || primeira == "select-object" || primeira == "sort-object" || primeira == "measure-object"
-            })
-        }
-        _ => false,
+        "Bash" | "PowerShell" => !comando_sem_volta(entrada["command"].as_str().unwrap_or_default()),
+        f if f.starts_with("mcp__") => !ferramenta_sem_volta(f),
+        _ => true,
     }
 }
 
@@ -360,31 +434,52 @@ mod testes {
         assert!(responder_mcp(&json!({"jsonrpc":"2.0","method":"notifications/initialized"}), "c", &sim).is_none());
         let lista = responder_mcp(&json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}), "c", &sim).unwrap();
         assert_eq!(lista["result"]["tools"][0]["name"], "aprovar");
-        let chamada = json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"aprovar","arguments":{"tool_name":"Bash","input":{"command":"npm install"}}}});
+        let chamada = json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"aprovar","arguments":{"tool_name":"Bash","input":{"command":"npm publish"}}}});
         let r = responder_mcp(&chamada, "c", &sim).unwrap();
         let texto: Value = serde_json::from_str(r["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(texto["behavior"], "allow");
-        assert_eq!(texto["updatedInput"]["command"], "npm install");
+        assert_eq!(texto["updatedInput"]["command"], "npm publish");
         let nao = |_: &str, _: &Value| Ok(false);
         let r = responder_mcp(&chamada, "c", &nao).unwrap();
         assert!(r["result"]["content"][0]["text"].as_str().unwrap().contains("deny"));
     }
 
     #[test]
-    fn so_olhar_nao_pergunta() {
+    fn so_o_que_nao_tem_volta_pergunta() {
         use serde_json::json;
         let b = |c: &str| super::seguro_sem_perguntar("Bash", &json!({ "command": c }));
+        // Livre: olhar, abrir, instalar, rodar.
         assert!(b("ls -la"));
         assert!(b("git status"));
-        assert!(b("Get-ChildItem C:\\Users | Select-Object Name"));
+        assert!(b("Get-StartApps | Where-Object { $_.Name -match 'gemini' }"));
+        assert!(b("Start-Process 'shell:AppsFolder\\Google.Gemini'"));
+        assert!(b("npm install"));
+        assert!(b("winget install Spotify.Spotify"));
+        assert!(b("git add . && git commit -m 'x'"));
+        assert!(b("curl -L https://exemplo.com/arquivo.zip -o a.zip"));
+        assert!(b("ls > lista.txt"));
+        assert!(b("Stop-Process -Name chrome"));
+        assert!(b("Clear-Host"));
+        // Pergunta: apagar, enviar/publicar, mudar o Windows.
         assert!(!b("rm -rf pasta"));
+        assert!(!b("Remove-Item x -Recurse"));
+        assert!(!b("cmd /c del /q arquivo.txt"));
         assert!(!b("git push"));
-        assert!(!b("ls > lista.txt"));
-        assert!(!b("ls; rm x"));
-        assert!(!b("echo $(rm x)"));
-        assert!(!b("Remove-Item x"));
-        assert!(super::seguro_sem_perguntar("WebSearch", &json!({})));
-        assert!(!super::seguro_sem_perguntar("Write", &json!({})));
+        assert!(!b("git reset --hard HEAD~1"));
+        assert!(!b("npm publish"));
+        assert!(!b("curl -X POST https://api.x.com -d '{}'"));
+        assert!(!b("Invoke-RestMethod -Method Post -Uri https://x -Body $b"));
+        assert!(!b("Set-ItemProperty -Path HKCU:\\Software\\X -Name a -Value 1"));
+        assert!(!b("reg add HKCU\\Software\\X"));
+        assert!(!b("shutdown /s /t 0"));
+        assert!(!b("Uninstall-Package x"));
+        assert!(!b("powershell -enc ZQBjAGgAbwA="));
+        assert!(!b("gh pr create --title x"));
+        let t = |n: &str| super::seguro_sem_perguntar(n, &json!({}));
+        assert!(t("WebSearch") && t("Write") && t("Edit") && t("Read"));
+        assert!(t("mcp__Gmail__search_threads"));
+        assert!(!t("mcp__Gmail__send_message"));
+        assert!(!t("mcp__github__merge_pull_request"));
     }
 
     #[test]
