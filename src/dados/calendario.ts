@@ -1,10 +1,11 @@
-// O que vai para o Calendário da Apple: vencimentos das assinaturas,
+// O que vai para a agenda (Calendário da Apple ou Google Agenda): vencimentos das assinaturas,
 // redefinições das IAs e tarefas com data — com alerta, para tocar no iPhone.
 // Só manda o que mudou (cada evento tem uma "impressão digital") e apaga do
 // calendário o que sumiu da ilha. Só mexe nos eventos criados pela ilha.
 import { ler, mudar, type Dados } from "./armazem";
 import { paraISO, vencimento } from "./datas";
-import { icloudEnviar, type EventoCalendario } from "../maos/sistema";
+import type { EventoCalendario } from "../maos/sistema";
+import { agendaConectada, agendaEscolhida, chaveDaAgenda, gravarEventos } from "./agenda";
 
 const NOVE_DA_MANHA = 9 * 60;
 
@@ -64,8 +65,8 @@ export const situacaoCalendario = () => ({ ultimoErro, ultimaVez, enviando });
 /** Manda para o iCloud o que mudou. Devolve quantos eventos foram mexidos. */
 export async function sincronizarCalendario(): Promise<number> {
   const d = ler();
-  const { icloudEmail: email, icloudCalendario: calendario } = d.config;
-  if (!email || !calendario || enviando) return 0;
+  if (!agendaConectada(d) || !agendaEscolhida(d).id || enviando) return 0;
+  const chave = chaveDaAgenda(d);
   const desejados = eventosDesejados(d);
   const enviados = d.config.calendarioEnviados;
   const mudados = desejados.filter((e) => enviados[e.uid] !== impressao(e));
@@ -73,9 +74,9 @@ export async function sincronizarCalendario(): Promise<number> {
   if (!mudados.length && !apagar.length) return 0;
   enviando = true;
   try {
-    const feitos = new Set(await icloudEnviar(email, calendario, mudados, apagar));
-    // Trocou de calendário ou de conta no meio do envio: não anota (manda de novo depois).
-    if (ler().config.icloudCalendario !== calendario || ler().config.icloudEmail !== email) return 0;
+    const feitos = new Set(await gravarEventos(mudados, apagar));
+    // Trocou de agenda ou de conta no meio do envio: não anota (manda de novo depois).
+    if (chaveDaAgenda() !== chave) return 0;
     mudar((dd) => {
       const novo = { ...dd.config.calendarioEnviados };
       for (const e of mudados) if (feitos.has(e.uid)) novo[e.uid] = impressao(e);

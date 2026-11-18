@@ -166,7 +166,7 @@ fn dobrar(linha: &str) -> String {
     saida
 }
 
-fn data_ics(inicio: &str) -> Option<(String, bool)> {
+pub(crate) fn data_ics(inicio: &str) -> Option<(String, bool)> {
     let (data, hora) = match inicio.split_once('T') {
         Some((d, h)) => (d, Some(h)),
         None => (inicio, None),
@@ -182,6 +182,27 @@ fn data_ics(inicio: &str) -> Option<(String, bool)> {
             Some((format!("{d}T{h}"), false))
         }
         None => Some((d, true)),
+    }
+}
+
+/// A regra de repetição (RRULE) a partir de "diario", "semanal", "mensal" ou
+/// "anual" e da data do início ("AAAAMMDD…"). Serve ao iCloud e ao Google.
+pub(crate) fn regra_repeticao(repete: &str, inicio: &str) -> Option<String> {
+    match repete {
+        "diario" => Some("FREQ=DAILY".to_string()),
+        "semanal" => Some("FREQ=WEEKLY".into()),
+        "mensal" => {
+            let dia: u32 = inicio.get(6..8).and_then(|d| d.parse().ok()).unwrap_or(1);
+            // Dia 29+ não existe em todo mês: pega o maior dia possível até ele
+            // (ex.: dia 30 → 28 em fevereiro, 30 nos outros meses).
+            Some(match dia {
+                1..=28 => format!("FREQ=MONTHLY;BYMONTHDAY={dia}"),
+                31 => "FREQ=MONTHLY;BYMONTHDAY=-1".into(),
+                _ => format!("FREQ=MONTHLY;BYMONTHDAY={};BYSETPOS=-1", (28..=dia).map(|d| d.to_string()).collect::<Vec<_>>().join(",")),
+            })
+        }
+        "anual" => Some("FREQ=YEARLY".into()),
+        _ => None,
     }
 }
 
@@ -206,23 +227,7 @@ pub fn ics(e: &Evento, agora_utc: &str) -> Result<String, String> {
     if !e.notas.trim().is_empty() {
         l.push(dobrar(&format!("DESCRIPTION:{}", escapar_ics(&e.notas))));
     }
-    let regra = match e.repete.as_str() {
-        "diario" => Some("FREQ=DAILY".to_string()),
-        "semanal" => Some("FREQ=WEEKLY".into()),
-        "mensal" => {
-            let dia: u32 = inicio[6..8].parse().unwrap_or(1);
-            // Dia 29+ não existe em todo mês: pega o maior dia possível até ele
-            // (ex.: dia 30 → 28 em fevereiro, 30 nos outros meses).
-            Some(match dia {
-                1..=28 => format!("FREQ=MONTHLY;BYMONTHDAY={dia}"),
-                31 => "FREQ=MONTHLY;BYMONTHDAY=-1".into(),
-                _ => format!("FREQ=MONTHLY;BYMONTHDAY={};BYSETPOS=-1", (28..=dia).map(|d| d.to_string()).collect::<Vec<_>>().join(",")),
-            })
-        }
-        "anual" => Some("FREQ=YEARLY".into()),
-        _ => None,
-    };
-    if let Some(r) = regra {
+    if let Some(r) = regra_repeticao(&e.repete, &inicio) {
         l.push(format!("RRULE:{r}"));
     }
     if let Some(min) = e.alerta_minutos {
@@ -339,7 +344,7 @@ fn agora_utc() -> String {
     format!("{y:04}{m:02}{d:02}T{:02}{:02}{:02}Z", resto / 3600, resto % 3600 / 60, resto % 60)
 }
 
-fn uid_valido(uid: &str) -> bool {
+pub(crate) fn uid_valido(uid: &str) -> bool {
     uid.starts_with("ilha-") && uid.len() <= 80 && uid.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 

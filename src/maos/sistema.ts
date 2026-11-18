@@ -334,6 +334,14 @@ export const icloudEventos = (email: string, inicio: string, fim: string) => ped
 export const icloudConectar = (email: string, senha: string) =>
   pedir<Calendario[]>("icloud_conectar", { email, senha }, [{ url: "https://exemplo/cal/home/", nome: "Casa" }]);
 export const icloudCalendarios = (email: string) => pedir<Calendario[]>("icloud_calendarios", { email }, []);
+export const googleDisponivel = () => pedir<boolean>("google_disponivel", undefined, true);
+export const googleConectado = () => pedir<string | null>("google_conectado", undefined, null);
+export const googleEntrar = () => pedir<string>("google_entrar", undefined, "voce@gmail.com");
+export const googleSair = () => pedir<void>("google_sair");
+export const googleCalendarios = () => pedir<Calendario[]>("google_calendarios", undefined, [{ url: "primary", nome: "Pessoal" }]);
+export const googleEventos = (inicio: string, fim: string) => pedir<EventoLido[]>("google_eventos", { inicio, fim }, []);
+export const googleEnviar = (calendario: string, eventos: EventoCalendario[], apagar: string[], fuso: string) =>
+  pedir<string[]>("google_enviar", { calendario, eventos, apagar, fuso }, [...eventos.map((e) => e.uid), ...apagar]);
 export const icloudDesconectar = () => pedir<void>("icloud_desconectar");
 export const icloudConectado = () => pedir<boolean>("icloud_conectado", undefined, false);
 export const icloudEnviar = (email: string, calendario: string, eventos: EventoCalendario[], apagar: string[]) =>

@@ -54,6 +54,20 @@ pub fn apagar_icloud() -> Result<(), String> {
     sistema::apagar(&format!("{PREFIXO}icloud"))
 }
 
+// ---------- Conta Google (agenda): a permissão de longa duração ----------
+
+pub fn ler_google() -> Option<String> {
+    sistema::ler(&format!("{PREFIXO}google"))
+}
+
+pub fn gravar_google(dados: &str) -> Result<(), String> {
+    sistema::gravar(&format!("{PREFIXO}google"), dados)
+}
+
+pub fn apagar_google() -> Result<(), String> {
+    sistema::apagar(&format!("{PREFIXO}google"))
+}
+
 // ---------- Chaves dos servidores MCP (ex.: GITHUB_TOKEN) ----------
 
 fn alvo_mcp(servidor: &str, nome: &str) -> Result<String, String> {

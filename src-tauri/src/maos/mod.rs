@@ -2,6 +2,7 @@
 pub mod atualizar;
 pub mod arquivos;
 pub mod documento;
+pub mod google;
 pub mod chamado;
 pub mod musica;
 pub mod tempo;

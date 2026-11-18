@@ -40,7 +40,7 @@ function sobreAIlha(c: Conversa, d: Dados): string {
   const recursos =
     "A Ilha tem: timers e lembretes, modo foco com pausas, tarefas (com prioridade e subtarefas), notas, hábitos, assinaturas com vencimentos, " +
     "memória (o que o Dan pede para as IAs lembrarem), rotinas (vários passos com uma frase, ex.: \"bom dia\"), textos rápidos para copiar, " +
-    "lançador de apps, controle de volume e da música do Windows, tradução de texto da tela, histórico do que foi copiado, ligação com o Calendário da Apple (iCloud) do Dan, " +
+    "lançador de apps, controle de volume e da música do Windows, tradução de texto da tela, histórico do que foi copiado, ligação com a agenda do Dan (Calendário da Apple ou Google Agenda), " +
     "a verificação do PC (\"Meu PC\": processador, memória, disco, temporários, programas pesados) com limpeza dos temporários, e conversas com IAs (esta).";
   const ferramentas = comFerramentas
     ? " Você tem as ferramentas da própria Ilha (servidor MCP \"ilha\", nomes começando com ilha_): use ilha_verificar_pc para escanear/verificar o PC, " +

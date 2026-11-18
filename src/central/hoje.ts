@@ -10,6 +10,7 @@ import { conversas } from "../dados/conversas";
 import { NOMES_MOTORES } from "../maos/sistema";
 import { haQuanto, paraISO, pendentes, pertoDeRenovar, prazo, faltaEscrito } from "../dados/datas";
 import { compromissosDeHoje, jeitoDoTempo, tempoAgora } from "../dados/agora";
+import { agendaConectada } from "../dados/agenda";
 import { Carinha } from "../corpo/carinha";
 import { confeteEm } from "../corpo/festa";
 import { ICONES } from "../corpo/icones";
@@ -101,9 +102,9 @@ export function montarHoje(acoes: AcoesHoje, animar: boolean): HTMLElement {
       <section class="cartao-hoje agenda-hoje">
         <p class="titulo-cartao">${ICONES.calendario}Agenda de hoje</p>
         <div class="lista-agenda">${
-          d.config.icloudEmail
+          agendaConectada(d)
             ? '<p class="vazio-hoje">Carregando…</p>'
-            : '<button type="button" class="botao-suave" data-ir="calendario">Conectar o Calendário da Apple</button>'
+            : '<button type="button" class="botao-suave" data-ir="calendario">Conectar sua agenda (Apple ou Google)</button>'
         }</div>
       </section>
 
@@ -181,7 +182,7 @@ export function montarHoje(acoes: AcoesHoje, animar: boolean): HTMLElement {
     const j = jeitoDoTempo(t.codigo, t.dia);
     chips.insertAdjacentHTML("afterbegin", `<span class="chip-heroi">${j.icone}${Math.round(t.temperatura)}° · ${escapar(j.nome)} em ${escapar(t.cidade)}</span>`);
   });
-  if (d.config.icloudEmail) {
+  if (agendaConectada(d)) {
     void compromissosDeHoje().then((lista) => {
       if (!raiz.isConnected) return;
       const caixa = raiz.querySelector<HTMLElement>(".lista-agenda")!;

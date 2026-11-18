@@ -1,5 +1,6 @@
 // Ajustes: nome, cor, atalho, iniciar com o Windows, avisos dos programas de IA.
 // Tudo que liga/desliga usa o mesmo interruptor: à direita, verde/cor = ligado.
+import { agendaEscolhida, nomeDaAgenda } from "../../dados/agenda";
 import { ler, mudar, type ModoDiscreto } from "../../dados/armazem";
 import { arcoIris } from "./personagem";
 import { aoCarregarVozes, erroVozNatural, falar, vozesEmPortugues } from "../../maos/fala";
@@ -96,10 +97,10 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       </section>
 
       <section class="secao" data-aba="geral">
-        <p class="titulo-secao">Calendário da Apple</p>
+        <p class="titulo-secao">Agenda</p>
         <div class="item">
-          <div class="coluna"><span class="principal">Assinaturas, renovações e tarefas no iPhone</span><span class="secundario">${dados.config.icloudCalendario ? `Mandando para “${escapar(dados.config.icloudNomeCalendario)}”.` : "Conecte o iCloud para a ilha colocar tudo no seu calendário."}</span></div>
-          <button type="button" class="botao" data-acao="tela-calendario">${dados.config.icloudCalendario ? "Abrir" : "Conectar"}</button>
+          <div class="coluna"><span class="principal">Calendário da Apple ou Google Agenda</span><span class="secundario">${agendaEscolhida(dados).id ? `${nomeDaAgenda(dados)}: mandando para “${escapar(agendaEscolhida(dados).nome)}”.` : "Conecte sua agenda: a ilha lê seus compromissos e coloca lá vencimentos, renovações e tarefas com data."}</span></div>
+          <button type="button" class="botao" data-acao="tela-calendario">${agendaEscolhida(dados).id ? "Abrir" : "Conectar"}</button>
         </div>
       </section>
 

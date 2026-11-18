@@ -3,7 +3,8 @@
 // devolve um texto curto com o resultado, que a IA usa na resposta.
 import { invoke } from "@tauri-apps/api/core";
 import { ler, mudar, novoId, type Dados } from "../dados/armazem";
-import { diagnosticoPc, icloudEnviar, icloudEventos, limparTemporarios, type EventoLido } from "../maos/sistema";
+import { diagnosticoPc, limparTemporarios, type EventoLido } from "../maos/sistema";
+import { agendaConectada, agendaEscolhida, gravarEventos, lerEventos, nomeDaAgenda } from "../dados/agenda";
 import { normalizar, tentarComando } from "./comandos";
 import type { Contexto, NomeTela } from "./contexto";
 import { dicas } from "./telas/pc";
@@ -90,7 +91,7 @@ async function verificarPc(): Promise<string> {
     .join("\n");
 }
 
-// ---------- Agenda (Calendário da Apple) ----------
+// ---------- Agenda (Calendário da Apple ou Google Agenda) ----------
 
 /** Data local "AAAA-MM-DD" → começo do dia em UTC no formato do CalDAV. */
 export function utc(d: Date): string {
@@ -118,29 +119,27 @@ function linhaDoEvento(e: EventoLido): string {
 }
 
 async function lerAgenda(de?: string, ate?: string): Promise<string> {
-  const email = ler().config.icloudEmail;
-  if (!email) return "O Calendário da Apple não está conectado na ilha (Ajustes › Calendário da Apple).";
+  if (!agendaConectada()) return "A agenda não está conectada na ilha (Ajustes › Calendário: Apple ou Google).";
   const dia = (t?: string) => (t && /^\d{4}-\d{2}-\d{2}$/.test(t) ? new Date(`${t}T00:00:00`) : null);
   const inicio = dia(de) ?? new Date(new Date().setHours(0, 0, 0, 0));
   const ultimo = dia(ate) ?? new Date(inicio.getTime() + 7 * 86_400_000);
   // "até" inclui o dia inteiro; no máximo 62 dias de uma vez.
   const fim = new Date(Math.min(ultimo.getTime() + 86_400_000, inicio.getTime() + 62 * 86_400_000));
-  const eventos = await icloudEventos(email, utc(inicio), utc(fim));
+  const eventos = await lerEventos(utc(inicio), utc(fim));
   const periodo = `${inicio.toLocaleDateString("pt-BR")} a ${new Date(fim.getTime() - 1).toLocaleDateString("pt-BR")}`;
-  if (!eventos.length) return `Nenhum compromisso no Calendário da Apple de ${periodo}.`;
-  return `Compromissos de ${periodo} (Calendário da Apple):\n${eventos.map((e) => `- ${linhaDoEvento(e)}`).join("\n")}`;
+  if (!eventos.length) return `Nenhum compromisso no ${nomeDaAgenda()} de ${periodo}.`;
+  return `Compromissos de ${periodo} (${nomeDaAgenda()}):\n${eventos.map((e) => `- ${linhaDoEvento(e)}`).join("\n")}`;
 }
 
 async function criarNaAgenda(e: Record<string, unknown>): Promise<string> {
-  const { icloudEmail: email, icloudCalendario: calendario } = ler().config;
-  if (!email) return "O Calendário da Apple não está conectado na ilha (Ajustes › Calendário da Apple).";
-  if (!calendario) return "Falta escolher, em Ajustes › Calendário da Apple › Calendário, em qual agenda a ilha grava.";
+  if (!agendaConectada()) return "A agenda não está conectada na ilha (Ajustes › Calendário: Apple ou Google).";
+  if (!agendaEscolhida().id) return "Falta escolher, em Ajustes › Calendário, em qual agenda a ilha grava.";
   const titulo = String(e.titulo ?? "").trim();
   const inicio = String(e.inicio ?? "").trim();
   if (!titulo || !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(inicio)) return "Faltou o título ou a data (AAAA-MM-DD ou AAAA-MM-DDTHH:MM).";
   const diaInteiro = !inicio.includes("T");
   const alerta = typeof e.alerta_minutos === "number" ? e.alerta_minutos : diaInteiro ? -540 : 15;
-  const feitos = await icloudEnviar(email, calendario, [
+  const feitos = await gravarEventos([
     {
       uid: `ilha-ia-${novoId()}`.replace(/[^A-Za-z0-9-]/g, ""),
       titulo,
@@ -151,7 +150,7 @@ async function criarNaAgenda(e: Record<string, unknown>): Promise<string> {
       duracaoMinutos: typeof e.duracao_minutos === "number" ? e.duracao_minutos : 60,
     },
   ], []);
-  return feitos.length ? `Criei no Calendário da Apple: "${titulo}" em ${inicio.replace("T", " às ")}.` : "Não consegui gravar no Calendário da Apple.";
+  return feitos.length ? `Criei no ${nomeDaAgenda()}: "${titulo}" em ${inicio.replace("T", " às ")}.` : `Não consegui gravar no ${nomeDaAgenda()}.`;
 }
 
 export async function executarAcao(a: AcaoPedida, ctx: Contexto): Promise<string> {

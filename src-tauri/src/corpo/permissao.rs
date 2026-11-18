@@ -292,12 +292,12 @@ fn ferramentas_da_ilha() -> Value {
         },
         {
             "name": "ilha_agenda",
-            "description": "Lê a agenda do Dan no Calendário da Apple (iCloud), de todas as agendas dele, com os compromissos que se repetem. Datas em AAAA-MM-DD (hora do Dan); sem datas = hoje e os próximos 7 dias. Use para \"o que tenho amanhã\", \"estou livre sexta?\" etc.",
+            "description": "Lê a agenda do Dan (Calendário da Apple ou Google Agenda, o que estiver conectado na ilha), de todas as agendas dele, com os compromissos que se repetem. Datas em AAAA-MM-DD (hora do Dan); sem datas = hoje e os próximos 7 dias. Use para \"o que tenho amanhã\", \"estou livre sexta?\" etc.",
             "inputSchema": { "type": "object", "properties": { "de": { "type": "string" }, "ate": { "type": "string" } } }
         },
         {
             "name": "ilha_agenda_criar",
-            "description": "Cria um compromisso no Calendário da Apple do Dan (na agenda escolhida nos Ajustes da ilha), com alerta. inicio: \"AAAA-MM-DD\" (dia inteiro) ou \"AAAA-MM-DDTHH:MM\" (hora do Dan).",
+            "description": "Cria um compromisso na agenda do Dan (Apple ou Google, na agenda escolhida nos Ajustes da ilha), com alerta. inicio: \"AAAA-MM-DD\" (dia inteiro) ou \"AAAA-MM-DDTHH:MM\" (hora do Dan).",
             "inputSchema": { "type": "object", "properties": { "titulo": { "type": "string" }, "inicio": { "type": "string" }, "duracao_minutos": { "type": "number" }, "alerta_minutos": { "type": "number", "description": "minutos antes (padrão 15; dia inteiro: às 9h do dia)" }, "notas": { "type": "string" } }, "required": ["titulo", "inicio"] }
         },
         {

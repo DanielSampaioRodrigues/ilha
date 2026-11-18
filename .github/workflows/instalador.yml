@@ -48,6 +48,10 @@ jobs:
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # Login do Google Agenda (identidade da ilha no Google Cloud). Sem
+          # esses segredos, o botão "Entrar com Google" não aparece.
+          ILHA_GOOGLE_CLIENT_ID: ${{ secrets.ILHA_GOOGLE_CLIENT_ID }}
+          ILHA_GOOGLE_CLIENT_SECRET: ${{ secrets.ILHA_GOOGLE_CLIENT_SECRET }}
           # Ouvido (whisper.cpp): compila para qualquer processador com AVX2
           # (de ~2013 para cá), não só para o processador do GitHub.
           GGML_NATIVE: "OFF"

@@ -195,6 +195,12 @@ export interface Config {
   icloudEmail: string;
   icloudCalendario: string;
   icloudNomeCalendario: string;
+  /** Qual agenda a ilha usa: Apple (iCloud) ou Google. Sem: Apple. */
+  agenda?: "icloud" | "google";
+  /** Conta Google conectada (só o e-mail; a permissão fica no cofre do Windows). */
+  googleEmail?: string;
+  googleCalendario?: string;
+  googleNomeCalendario?: string;
   /** O que mandar para o calendário. */
   calendarioItens: { assinaturas: boolean; redefinicoes: boolean; tarefas: boolean };
   /** Eventos já mandados (uid → "impressão digital"), para só mandar o que mudou. */

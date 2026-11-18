@@ -5,7 +5,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { ler } from "./armazem";
 import { dataDoIcs, utc } from "../corpo/acoes-da-ia";
-import { icloudEventos } from "../maos/sistema";
+import { agendaConectada, chaveDaAgenda, lerEventos } from "./agenda";
 import { dentroDoApp } from "../ponte";
 
 export interface Tempo {
@@ -41,13 +41,12 @@ export function tempoAgora(): Promise<Tempo | null> {
 
 /** Os compromissos de hoje (do Calendário da Apple), em ordem; os de dia inteiro primeiro. */
 export function compromissosDeHoje(): Promise<Compromisso[]> {
-  const email = ler().config.icloudEmail;
-  if (!email) return Promise.resolve([]);
-  return comCache(`agenda:${email}:${new Date().toDateString()}`, 10, async () => {
+  if (!agendaConectada()) return Promise.resolve([]);
+  return comCache(`agenda:${chaveDaAgenda()}:${new Date().toDateString()}`, 10, async () => {
     const inicio = new Date();
     inicio.setHours(0, 0, 0, 0);
     const fim = new Date(inicio.getTime() + 86_400_000);
-    const eventos = await icloudEventos(email, utc(inicio), utc(fim)).catch(() => []);
+    const eventos = await lerEventos(utc(inicio), utc(fim)).catch(() => []);
     return eventos
       .map((e) => {
         const d = dataDoIcs(e.inicio);
