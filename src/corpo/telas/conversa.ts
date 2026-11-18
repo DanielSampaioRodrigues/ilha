@@ -103,7 +103,7 @@ let esperandoPedido = false;
 let paradoAgora = 0;
 let pedidoOuvido: { texto?: string; erro?: string } | null = null;
 let aoChegarPedido: () => void = () => {};
-export function abrirEsperandoPedido(etapa: "ouvindo" | "entendendo"): void {
+export function abrirEsperandoPedido(etapa: "ouvindo" | "entendendo", jaBipou = false): void {
   calar();
   esperandoPedido = true;
   pedidoOuvido = null;
@@ -113,7 +113,7 @@ export function abrirEsperandoPedido(etapa: "ouvindo" | "entendendo"): void {
   microfoneAberto = true;
   entendendo = etapa === "entendendo";
   erroVoz = "";
-  if (!entendendo) bip();
+  if (!entendendo && !jaBipou) bip();
   aoAbrirMicrofone();
 }
 aoEvento<{ texto?: string; erro?: string }>("ilha:pedido-ouvido", (r) => {

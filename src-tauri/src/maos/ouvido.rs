@@ -400,9 +400,9 @@ pub fn transcrever(m: &Modelo, audio: &[f32], dica: Option<&str>) -> Result<Stri
     // O Whisper rende mais com um "fio" por núcleo de verdade (não por núcleo
     // lógico): com 8 ou mais lógicos, usa a metade.
     let nucleos = nucleos_do_whisper();
-    // O pequeno (procurar o nome) roda o tempo todo: usa só 2 fios, para não
-    // pesar no computador nem atrasar o modelo bom.
-    let nucleos = if m.arquivo == PEQUENO.arquivo { nucleos.min(2) } else { nucleos };
+    // O pequeno (procurar o nome) roda sempre que alguém fala: até 3 fios
+    // (bip mais rápido) sem pesar no computador.
+    let nucleos = if m.arquivo == PEQUENO.arquivo { nucleos.min(3) } else { nucleos };
     p.set_n_threads(nucleos as i32);
     p.set_no_context(true);
     p.set_single_segment(true);
@@ -489,6 +489,11 @@ pub struct Cortador {
     fim_silencio: usize,
     maximo: usize,
 }
+
+/// Silêncio que encerra a fala na escuta do nome. Era 400 ms; com 250 o bip
+/// vem antes. Se a pessoa faz uma pausa curta ("Broto… abre o Gemini"), o
+/// resto vira o pedido do mesmo jeito (o mesmo microfone continua ouvindo).
+const ESPERA_DEPOIS_DO_NOME_MS: usize = 250;
 
 /// Quadros de 30 ms.
 const QUADRO: usize = TAXA * 30 / 1000;
@@ -1165,9 +1170,9 @@ fn atender(
 pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl Fn(String)) -> Result<bool, String> {
     let mut microfone = abrir_microfone()?;
     let mut ultima_conferida = Instant::now();
-    // 400 ms de silêncio já encerram a fala do nome (responde mais rápido; se a
-    // pessoa continuar falando, a continuação vira o pedido).
-    let mut cortador = Cortador::new(400, 8_000);
+    // Um instante curto de silêncio já encerra a fala do nome (responde mais
+    // rápido; se a pessoa continuar falando, a continuação vira o pedido).
+    let mut cortador = Cortador::new(ESPERA_DEPOIS_DO_NOME_MS, 8_000);
     let mut fila: std::collections::VecDeque<Vec<f32>> = std::collections::VecDeque::new();
     let mut ultimo_alivio = Instant::now();
     // Os últimos 2 s de som: com o robô falando, é aqui que se procura o nome.
@@ -1186,7 +1191,7 @@ pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl F
             if microfone.desatualizado() {
                 microfone = abrir_microfone()?;
                 log::info!("Ouvido: agora ouvindo por \"{}\"", microfone.nome);
-                cortador = Cortador::new(400, 8_000);
+                cortador = Cortador::new(ESPERA_DEPOIS_DO_NOME_MS, 8_000);
                 fila.clear();
                 recente.clear();
             }
@@ -1225,7 +1230,7 @@ pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl F
         if estava_falando {
             // O robô parou: o que sobrou no cortador era a voz dele.
             estava_falando = false;
-            cortador = Cortador::new(400, 8_000);
+            cortador = Cortador::new(ESPERA_DEPOIS_DO_NOME_MS, 8_000);
             fila.clear();
             continue;
         }

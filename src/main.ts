@@ -4,7 +4,7 @@ import { Ilha } from "./corpo/ilha";
 import type { NomeEstado, NomeTela } from "./corpo/contexto";
 import { aoPerderFoco, dentroDoApp, ouvir } from "./ponte";
 import { procurar, versaoAtual } from "./atualizacao";
-import { calar, falando } from "./maos/fala";
+import { bip, calar, falando } from "./maos/fala";
 import { aoMudarDeFora, carregar, ler, mudar } from "./dados/armazem";
 import { ajustarMicrofoneComEco } from "./maos/microfone-eco";
 import { avancar, paraISO } from "./dados/datas";
@@ -102,9 +102,15 @@ async function iniciar(): Promise<void> {
   ouvir<string | { texto: string; pedido?: string | null; esperando?: boolean; etapa?: "ouvindo" | "entendendo" }>("ilha:chamou", (chamou) => {
     const pedido = typeof chamou === "object" ? chamou.pedido?.trim() : "";
     const esperando = typeof chamou === "object" && !!chamou.esperando;
+    const entendendo = typeof chamou === "object" && chamou.etapa === "entendendo";
+    // O bip vem já, antes de carregar a tela da conversa (cada milésimo conta).
+    if (esperando && !entendendo) {
+      calar();
+      bip();
+    }
     import("./corpo/telas/conversa").then((m) => {
       // Ouvido da ilha: ele mesmo já está ouvindo o pedido.
-      if (esperando) m.abrirEsperandoPedido(typeof chamou === "object" && chamou.etapa === "entendendo" ? "entendendo" : "ouvindo");
+      if (esperando) m.abrirEsperandoPedido(entendendo ? "entendendo" : "ouvindo", true);
       else if (pedido) m.abrirComPedido(pedido);
       else m.abrirOuvindo();
       ilha.abrir("conversa");
