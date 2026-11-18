@@ -366,6 +366,11 @@ function contextoPara(c: Conversa, destino: Motor): string {
   return `Estou continuando com você (${NOMES_MOTORES[destino]}) uma conversa que comecei com o ${NOMES_MOTORES[c.motor]}. Aqui está o contexto:\n\n${trecho}\n\n---\n\nContinue a partir daqui: `;
 }
 
+/** O resumo do topo da conversa: perfil, IA, modelo, raciocínio, projeto, modo e custo. */
+function resumoConversa(c: Conversa, perfil?: string, projeto?: string): string {
+  return `${perfil ? `${escapar(perfil)} · ` : ""}${NOMES_MOTORES[c.motor]}${c.modelo ? ` (${escapar(nomeDoModelo(c.motor, c.modelo))})` : ""}${c.esforco ? ` · raciocínio ${escapar(nomeDoEsforco(c.motor, c.esforco).toLowerCase())}` : ""}${projeto ? ` · ${escapar(projeto)}` : c.pasta ? ` · ${escapar(c.pasta)}` : ""}${EDITAM.includes(c.motor) ? ` · ${c.modo === "editar" ? "pode editar arquivos" : "só conversa e lê"}` : ""}${c.custo ? (c.motor === "claude" ? ` · equivale a US$ ${c.custo.toFixed(2)} (sai da assinatura, não é cobrado à parte)` : ` · US$ ${c.custo.toFixed(2)}`) : ""}`;
+}
+
 function bolha(m: MensagemConversa, motor: Motor, ativa: boolean, indice = -1): string {
   if (m.papel === "voce") {
     const anexos = (m.anexos ?? []).map((a) => `<span class="chip-anexo" title="${escapar(a)}">${ICONES.clipe}${escapar(nomeDo(a))}</span>`).join("");
@@ -634,6 +639,67 @@ export function montarConversa(): HTMLElement {
     buscarModelos(motor, () => !atualId && painel.isConnected && refazer());
   };
 
+  /**
+   * Barra embaixo do campo de mensagem: trocar de IA, modelo, raciocínio,
+   * o que ela pode fazer e as ferramentas. Vale a partir da próxima mensagem.
+   */
+  const barraDaConversa = (c: Conversa): string => {
+    const d = ler();
+    const escolhas: Escolhas = { motor: c.motor, modelo: c.modelo ?? "", esforco: c.esforco ?? "", mcps: c.mcps ?? [], skills: c.skills ?? [] };
+    const outros = MOTORES.filter((m) => m !== c.motor && disponiveis[m]);
+    return `
+      <div class="barra-conversa" title="As mudanças valem a partir da próxima mensagem">
+        ${
+          outros.length && c.mensagens.length
+            ? `<details class="chip-barra chip-motor"><summary title="Continuar esta conversa com outra IA">${selo(SELO[c.motor], 14)}${NOMES_MOTORES[c.motor]}<span class="seta-chip">▾</span></summary>
+                <div class="opcoes-passar"><p class="secundario">Continuar com outra IA (abre uma conversa nova com o resumo desta):</p>${outros
+                  .map((m) => `<button type="button" data-passar="${m}">${selo(SELO[m], 14)}${NOMES_MOTORES[m]}</button>`)
+                  .join("")}</div></details>`
+            : `<span class="chip-barra chip-motor sem-seta">${selo(SELO[c.motor], 14)}${NOMES_MOTORES[c.motor]}</span>`
+        }
+        ${campoEscolhas(escolhas, d)}
+        ${
+          EDITAM.includes(c.motor)
+            ? `<button type="button" class="chip-barra chip-modo ${c.modo === "editar" ? "edita" : ""}" data-trocar-modo title="O que a IA pode fazer no seu computador">${c.modo === "editar" ? `${ICONES.lapis}Pode editar arquivos` : `${ICONES.certo}Só conversa e lê`}</button>`
+            : ""
+        }
+      </div>`;
+  };
+
+  const ligarBarra = (caixa: HTMLElement, c: Conversa) => {
+    const barra = caixa.querySelector<HTMLElement>(".barra-conversa");
+    if (!barra) return;
+    const escolhas: Escolhas = { motor: c.motor, modelo: c.modelo ?? "", esforco: c.esforco ?? "", mcps: c.mcps ?? [], skills: c.skills ?? [] };
+    const resumo = () => {
+      const d = ler();
+      const r = painel.querySelector<HTMLElement>(".resumo-conversa");
+      if (r) r.innerHTML = resumoConversa(c, d.perfis.find((p) => p.id === c.perfilId)?.nome, d.projetos.find((p) => p.id === c.projetoId)?.nome);
+      barra.classList.remove("mudou");
+      void barra.offsetWidth;
+      barra.classList.add("mudou");
+    };
+    ligarEscolhas(barra, escolhas, () => {
+      Object.assign(c, { modelo: escolhas.modelo, esforco: escolhas.esforco, mcps: escolhas.mcps, skills: escolhas.skills });
+      salvarConversas();
+      resumo();
+    });
+    barra.querySelectorAll<HTMLElement>("[data-passar]").forEach((b) => b.addEventListener("click", () => passarPara(c, b.dataset.passar as Motor)));
+    barra.querySelector<HTMLElement>("[data-trocar-modo]")?.addEventListener("click", (e) => {
+      const b = e.currentTarget as HTMLElement;
+      c.modo = c.modo === "editar" ? "conversar" : "editar";
+      salvarConversas();
+      b.classList.toggle("edita", c.modo === "editar");
+      b.innerHTML = c.modo === "editar" ? `${ICONES.lapis}Pode editar arquivos` : `${ICONES.certo}Só conversa e lê`;
+      resumo();
+    });
+    // Abrir um menu da barra fecha o outro.
+    barra.querySelectorAll<HTMLDetailsElement>("details").forEach((det) =>
+      det.addEventListener("toggle", () => {
+        if (det.open) barra.querySelectorAll<HTMLDetailsElement>("details").forEach((o) => o !== det && (o.open = false));
+      }),
+    );
+  };
+
   const compositor = (c: Conversa | null): HTMLElement => {
     const ocupado = c ? rodando.has(c.id) : false;
     const caixa = html(`
@@ -645,7 +711,9 @@ export function montarConversa(): HTMLElement {
           <textarea rows="1" placeholder="Escreva para ${escapar(ler().config.nomeRobo)}… (Enter envia, Shift+Enter pula linha)" aria-label="Mensagem">${escapar(rascunho)}</textarea>
           ${ocupado ? '<button type="button" class="botao" data-acao="parar">Parar</button>' : '<button type="submit" class="botao ciano">Enviar</button>'}
         </div>
+        ${c ? barraDaConversa(c) : ""}
       </form>`) as HTMLFormElement;
+    if (c) ligarBarra(caixa, c);
     const campo = caixa.querySelector("textarea")!;
     const listaAnexos = caixa.querySelector<HTMLElement>(".anexos-pendentes")!;
     const desenharAnexos = () => {
@@ -758,24 +826,15 @@ export function montarConversa(): HTMLElement {
     const d = ler();
     const projeto = d.projetos.find((p) => p.id === c.projetoId);
     const perfil = d.perfis.find((p) => p.id === c.perfilId);
-    const escolhas: Escolhas = { motor: c.motor, modelo: c.modelo ?? "", esforco: c.esforco ?? "", mcps: c.mcps ?? [], skills: c.skills ?? [] };
-    const outros = MOTORES.filter((m) => m !== c.motor && disponiveis[m]);
     painel.innerHTML = `
       <header class="topo-conversa">
         ${selo(SELO[c.motor], 22)}
         <div class="coluna">
-          <span class="principal">${escapar(c.titulo || "Conversa nova")}</span>
-          <span class="secundario">${perfil ? `${escapar(perfil.nome)} · ` : ""}${NOMES_MOTORES[c.motor]}${c.modelo ? ` (${escapar(nomeDoModelo(c.motor, c.modelo))})` : ""}${c.esforco ? ` · raciocínio ${escapar(nomeDoEsforco(c.motor, c.esforco).toLowerCase())}` : ""}${projeto ? ` · ${escapar(projeto.nome)}` : c.pasta ? ` · ${escapar(c.pasta)}` : ""}${EDITAM.includes(c.motor) ? ` · ${c.modo === "editar" ? "pode editar arquivos" : "só conversa e lê"}` : ""}${c.custo ? (c.motor === "claude" ? ` · equivale a US$ ${c.custo.toFixed(2)} (sai da assinatura, não é cobrado à parte)` : ` · US$ ${c.custo.toFixed(2)}`) : ""}</span>
+          <span class="principal titulo-editavel" contenteditable="plaintext-only" spellcheck="false" title="Clique para renomear">${escapar(c.titulo || "Conversa nova")}</span>
+          <span class="secundario resumo-conversa">${resumoConversa(c, perfil?.nome, projeto?.nome)}</span>
         </div>
-        <details class="menu-ajustes"><summary class="botao">Ajustes</summary><div class="opcoes-ajustes">${campoEscolhas(escolhas, d)}</div></details>
+        ${c.mensagens.length ? `<button type="button" class="botao" data-acao="conversa-word" title="Salvar a conversa inteira como documento do Word">${ICONES.arquivo}Word</button>` : ""}
         ${c.motor !== "deepseek" && c.sessao ? '<button type="button" class="botao" data-acao="terminal">Abrir no terminal</button>' : ""}
-        ${
-          outros.length && c.mensagens.length
-            ? `<details class="menu-passar"><summary class="botao">Passar para…</summary><div class="opcoes-passar">${outros
-                .map((m) => `<button type="button" data-acao="passar" data-motor="${m}">${selo(SELO[m], 14)}${NOMES_MOTORES[m]}</button>`)
-                .join("")}</div></details>`
-            : ""
-        }
         <button type="button" class="botao" data-acao="apagar">Apagar</button>
       </header>
       <div class="mensagens"></div>`;
@@ -811,17 +870,44 @@ export function montarConversa(): HTMLElement {
     desenharMensagens();
     if (mensagensEl) mensagensEl.scrollTop = mensagensEl.scrollHeight;
 
-    const ajustes = painel.querySelector<HTMLElement>(".opcoes-ajustes")!;
-    ligarEscolhas(ajustes, escolhas, () => {
-      Object.assign(c, { modelo: escolhas.modelo, esforco: escolhas.esforco, mcps: escolhas.mcps, skills: escolhas.skills });
-      salvarConversas();
-    });
-    // Fechar o menu de ajustes atualiza o resumo do topo.
-    painel.querySelector(".menu-ajustes")!.addEventListener("toggle", (e) => {
-      if (!(e.target as HTMLDetailsElement).open) desenharConversa(c);
-    });
     buscarModelos(c.motor, () => atualId === c.id && painel.isConnected && desenharConversa(c));
     aoClicar(painel, "terminal", () => abrirNoTerminal(c.motor, c.sessao, c.pasta).catch(() => {}));
+    // Renomear: clicar no título, escrever e apertar Enter (Esc desiste).
+    const titulo = painel.querySelector<HTMLElement>(".titulo-editavel")!;
+    const original = c.titulo;
+    titulo.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        titulo.blur();
+      } else if (e.key === "Escape") {
+        e.stopPropagation();
+        titulo.textContent = original || "Conversa nova";
+        titulo.blur();
+      }
+    });
+    titulo.addEventListener("blur", () => {
+      const novo = (titulo.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+      if (!novo || novo === c.titulo) return void (titulo.textContent = c.titulo || "Conversa nova");
+      c.titulo = novo;
+      salvarConversas();
+      desenharLista();
+    });
+    // A conversa inteira num documento do Word.
+    aoClicar(painel, "conversa-word", (b) => {
+      const texto = [
+        `# ${c.titulo || "Conversa"}`,
+        ...c.mensagens.map((m) => `**${m.papel === "voce" ? ler().config.nome || "Você" : NOMES_MOTORES[c.motor]}:**\n${m.texto}`),
+      ].join("\n\n");
+      const rotulo = b.innerHTML;
+      (b as HTMLButtonElement).disabled = true;
+      invoke<string>("salvar_word", { texto, titulo: c.titulo || "Conversa", juntoDe: null })
+        .then(() => (b.textContent = "Salvo!"))
+        .catch((erro) => (b.textContent = String(erro).slice(0, 40)))
+        .finally(() => {
+          (b as HTMLButtonElement).disabled = false;
+          window.setTimeout(() => (b.innerHTML = rotulo), 2200);
+        });
+    });
     aoClicar(painel, "apagar", (b) =>
       confirmarAntes(b, "Apagar conversa?", () => {
         apagarConversa(c.id);
@@ -829,16 +915,17 @@ export function montarConversa(): HTMLElement {
         desenharTudo();
       }),
     );
-    aoClicar(painel, "passar", (b) => {
-      const destino = b.dataset.motor as Motor;
-      Object.assign(nova, { motor: destino, modelo: "", esforco: "", mcps: [...(c.mcps ?? [])], skills: [...(c.skills ?? [])] });
-      novoPerfil = null;
-      novoProjeto = c.projetoId;
-      novoModo = c.modo;
-      rascunho = contextoPara(c, destino);
-      atualId = null;
-      desenharTudo();
-    });
+  };
+
+  /** Continuar a conversa com outra IA: começa uma nova, já com o resumo desta escrito. */
+  const passarPara = (c: Conversa, destino: Motor) => {
+    Object.assign(nova, { motor: destino, modelo: "", esforco: "", mcps: [...(c.mcps ?? [])], skills: [...(c.skills ?? [])] });
+    novoPerfil = null;
+    novoProjeto = c.projetoId;
+    novoModo = c.modo;
+    rascunho = contextoPara(c, destino);
+    atualId = null;
+    desenharTudo();
   };
 
   const desenharTudo = () => {

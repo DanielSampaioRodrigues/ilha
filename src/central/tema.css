@@ -313,3 +313,168 @@ body.modo-central .pagina-tela textarea.nota,
 body.modo-central .pagina-tela .area-nota {
   min-height: 52vh;
 }
+
+/* ---------- Barra de controles da conversa (embaixo do campo) ---------- */
+body.modo-central .barra-conversa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+body.modo-central .barra-conversa.mudou {
+  animation: barra-mudou 0.6s ease-out;
+}
+
+@keyframes barra-mudou {
+  30% {
+    box-shadow: 0 -1px 0 color-mix(in oklab, var(--ciano) 60%, transparent);
+  }
+}
+
+/* Cada escolha vira uma pílula. */
+body.modo-central .barra-conversa .chip-barra,
+body.modo-central .barra-conversa .campo-inline,
+body.modo-central .barra-conversa .escolha-ferramentas > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--apagado);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+body.modo-central .barra-conversa .chip-barra:hover,
+body.modo-central .barra-conversa .campo-inline:hover,
+body.modo-central .barra-conversa .escolha-ferramentas > summary:hover {
+  border-color: color-mix(in oklab, var(--ciano) 40%, transparent);
+  background: color-mix(in oklab, var(--ciano) 8%, transparent);
+  color: var(--texto);
+}
+
+body.modo-central .barra-conversa .campo-inline select {
+  height: 26px;
+  max-width: 150px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--texto);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+body.modo-central .barra-conversa .campo-inline select:focus {
+  box-shadow: none;
+}
+
+body.modo-central .barra-conversa .campo-inline option {
+  background: #16181c;
+}
+
+body.modo-central .barra-conversa .chip-motor > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  color: var(--texto);
+}
+
+body.modo-central .barra-conversa .chip-motor > summary::-webkit-details-marker {
+  display: none;
+}
+
+body.modo-central .barra-conversa details.chip-motor {
+  position: relative;
+}
+
+body.modo-central .barra-conversa .sem-seta {
+  cursor: default;
+  color: var(--texto);
+}
+
+.seta-chip {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* Os menus da barra abrem para cima (a barra fica no pé da janela). */
+body.modo-central .barra-conversa .opcoes-passar,
+body.modo-central .barra-conversa .caixa-ferramentas {
+  top: auto;
+  right: auto;
+  left: 0;
+  bottom: 40px;
+  z-index: 8;
+}
+
+body.modo-central .barra-conversa .opcoes-passar {
+  min-width: 260px;
+}
+
+body.modo-central .barra-conversa .opcoes-passar,
+body.modo-central .barra-conversa .caixa-ferramentas {
+  background: #15171c;
+  backdrop-filter: none;
+}
+
+body.modo-central .barra-conversa .opcoes-passar p {
+  margin: 4px 8px 6px;
+  font-size: 12px;
+}
+
+body.modo-central .barra-conversa .chip-modo svg {
+  width: 13px;
+  height: 13px;
+}
+
+body.modo-central .barra-conversa .chip-modo.edita {
+  border-color: color-mix(in oklab, #ffb454 55%, transparent);
+  background: color-mix(in oklab, #ffb454 12%, transparent);
+  color: #ffd29a;
+}
+
+.dica-barra {
+  margin-left: auto;
+  color: var(--apagado);
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+body.modo-central .titulo-editavel {
+  padding: 1px 6px;
+  margin-left: -6px;
+  border-radius: 8px;
+  outline: none;
+  cursor: text;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+body.modo-central .titulo-editavel:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+body.modo-central .titulo-editavel:focus {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ciano) 45%, transparent);
+}
+
+body.modo-central .topo-conversa .botao svg {
+  width: 15px;
+  height: 15px;
+  margin-right: 5px;
+  vertical-align: -3px;
+}
