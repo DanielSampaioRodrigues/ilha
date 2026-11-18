@@ -36,7 +36,7 @@ export function textoDaMemoria(d: Dados = ler()): string {
  * o que existe nela e, para quem tem as ferramentas (Claude Code e Codex), como usar.
  */
 function sobreAIlha(c: Conversa, d: Dados): string {
-  const comFerramentas = c.motor === "claude" || c.motor === "codex";
+  const comFerramentas = c.motor === "claude" || c.motor === "codex" || c.motor === "gemini";
   const recursos =
     "A Ilha tem: timers e lembretes, modo foco com pausas, tarefas (com prioridade e subtarefas), notas, hábitos, assinaturas com vencimentos, " +
     "memória (o que o Dan pede para as IAs lembrarem), rotinas (vários passos com uma frase, ex.: \"bom dia\"), textos rápidos para copiar, " +

@@ -133,6 +133,19 @@ pub fn aplicar(motor: &str, servidores: &[ServidorMcp], da_ilha: &[String], id: 
             }
         }
         "gemini" => {
+            // As ferramentas da própria ilha (verificar o PC, tarefas, agenda…)
+            // vão sempre, como no Claude Code e no Codex.
+            let mut servidores = servidores.clone();
+            if let Some(ilha) = crate::corpo::permissao::configuracao_mcp("gemini") {
+                servidores.push(ServidorMcp {
+                    nome: crate::corpo::permissao::SERVIDOR.to_string(),
+                    tipo: "local".into(),
+                    comando: ilha["command"].as_str().unwrap_or_default().to_string(),
+                    argumentos: ilha["args"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default(),
+                    url: String::new(),
+                    segredos: vec![],
+                });
+            }
             if !servidores.is_empty() {
                 gravar_no_gemini(&servidores)?;
             }
@@ -178,11 +191,15 @@ fn gravar_no_gemini(servidores: &[ServidorMcp]) -> Result<(), String> {
     let mut mudou = false;
     for s in servidores {
         let env: Map<String, Value> = s.segredos.iter().map(|n| (n.clone(), json!(format!("${n}")))).collect();
-        let novo = if s.tipo == "remoto" {
+        let mut novo = if s.tipo == "remoto" {
             json!({ "httpUrl": s.url })
         } else {
             json!({ "command": s.comando, "args": s.argumentos, "env": env })
         };
+        // A ilha é de casa: o Gemini não precisa pedir licença para usar as ferramentas dela.
+        if s.nome == crate::corpo::permissao::SERVIDOR {
+            novo["trust"] = json!(true);
+        }
         if lista.get(&s.nome) != Some(&novo) {
             lista.insert(s.nome.clone(), novo);
             mudou = true;
