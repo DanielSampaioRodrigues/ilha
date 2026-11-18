@@ -11,14 +11,21 @@ import { cabecalho, escapar, html } from "../ui";
 import { abrirCentral } from "../../maos/sistema";
 import { dentroDoApp } from "../../ponte";
 
-/** Os arquivos que chegaram por último (a tela lê daqui). */
+/** Os arquivos que chegaram por último (a tela copia daqui ao abrir). */
 let soltos: string[] = [];
-export function receberArquivos(caminhos: string[]): void {
+/** Algo está sendo feito (diminuir, PDF, renomear): não troca os arquivos nem a tela no meio. */
+let ocupada = false;
+export const arquivosOcupados = () => ocupada;
+/** Guarda os arquivos novos; devolve se mudaram (aí a tela precisa ser montada de novo). */
+export function receberArquivos(caminhos: string[]): boolean {
+  if (ocupada) return false;
+  const mudou = caminhos.length !== soltos.length || caminhos.some((c, i) => c !== soltos[i]);
   soltos = caminhos;
+  return mudou;
 }
 
 const IMAGEM = /\.(jpe?g|png|webp|bmp|gif)$/i;
-const DOCUMENTO = /\.(pdf|docx?|odt|rtf|txt|md)$/i;
+const DOCUMENTO = /\.(pdf|docx|odt|rtf|txt|md)$/i;
 const nome = (c: string) => c.split(/[\\/]/).pop() ?? c;
 const pasta = (c: string) => c.replace(/[\\/][^\\/]*$/, "");
 const extensao = (c: string) => (c.match(/\.([a-z0-9]+)$/i)?.[1] ?? "").toUpperCase();
@@ -148,21 +155,23 @@ function voarPara(bolha: HTMLElement, de: { x: number; y: number }): void {
 }
 
 export function montarArquivos(ctx: Contexto): HTMLElement {
-  const imagens = soltos.filter((c) => IMAGEM.test(c));
-  const documentos = soltos.filter((c) => DOCUMENTO.test(c));
-  const bolhas = bolhasPara(soltos);
+  // Cópia só desta tela: um arraste novo (ou cancelado) não muda o que ela vai usar.
+  let meus = [...soltos];
+  const imagens = () => meus.filter((c) => IMAGEM.test(c));
+  const documentos = () => meus.filter((c) => DOCUMENTO.test(c));
+  const bolhas = bolhasPara(meus);
   const grupos = [...new Set(bolhas.map((b) => b.grupo))];
   const arrastando = document.body.classList.contains("soltando");
   let indice = 0;
   const raiz = html(`
     <div class="estado aberta tela tela-soltar">
-      ${cabecalho(soltos.length === 1 ? "1 arquivo" : `${soltos.length} arquivos`)}
+      ${cabecalho(meus.length === 1 ? "1 arquivo" : `${meus.length} arquivos`)}
       <div class="chips-soltos">
-        ${soltos
+        ${meus
           .slice(0, 4)
           .map((c) => `<span class="chip-solto" title="${escapar(c)}"><b>${escapar(extensao(c) || "ARQ")}</b>${escapar(nome(c))}</span>`)
           .join("")}
-        ${soltos.length > 4 ? `<span class="chip-solto mais">+${soltos.length - 4}</span>` : ""}
+        ${meus.length > 4 ? `<span class="chip-solto mais">+${meus.length - 4}</span>` : ""}
       </div>
       <p class="dica-soltar">${arrastando ? "Solte dentro de uma bolha" : "O que eu faço com isso?"}</p>
       ${grupos
@@ -201,6 +210,7 @@ export function montarArquivos(ctx: Contexto): HTMLElement {
   let ultimaPasta = "";
 
   const trabalhar = async (bolha: HTMLElement, rotulo: string, acao: () => Promise<string[]>) => {
+    ocupada = true;
     portais.forEach((b) => (b.disabled = true));
     bolha.classList.add("trabalhando");
     resultado.textContent = `${rotulo}…`;
@@ -213,6 +223,7 @@ export function montarArquivos(ctx: Contexto): HTMLElement {
     } catch (e) {
       resultado.textContent = String(e);
     } finally {
+      ocupada = false;
       bolha.classList.remove("trabalhando");
       portais.forEach((b) => (b.disabled = false));
     }
@@ -230,21 +241,22 @@ export function montarArquivos(ctx: Contexto): HTMLElement {
     if (de) voarPara(bolha, de);
     const pedido = PEDIDOS[acao];
     if (pedido) {
-      const lista = documentos.length > 1 ? "destes documentos" : "deste documento";
-      abrirCentral("conversa", documentos, undefined, pedido(lista)).catch(() => {});
+      const docs = documentos();
+      const lista = docs.length > 1 ? "destes documentos" : "deste documento";
+      abrirCentral("conversa", docs, undefined, pedido(lista)).catch(() => {});
       resultado.textContent = "Abri na Central: a IA já está fazendo. Lá dá para salvar em Word.";
       window.setTimeout(() => raiz.isConnected && ctx.fechar(), 1600);
       return;
     }
-    if (acao === "diminuir") void trabalhar(bolha, "Diminuindo", () => chamar<string[]>("diminuir_imagens", { caminhos: imagens }));
-    else if (acao === "pdf") void trabalhar(bolha, "Montando o PDF", async () => [await chamar<string>("imagens_para_pdf", { caminhos: imagens })]);
+    if (acao === "diminuir") void trabalhar(bolha, "Diminuindo", () => chamar<string[]>("diminuir_imagens", { caminhos: imagens() }));
+    else if (acao === "pdf") void trabalhar(bolha, "Montando o PDF", async () => [await chamar<string>("imagens_para_pdf", { caminhos: imagens() })]);
     else if (acao === "jpg" || acao === "png")
-      void trabalhar(bolha, "Convertendo", () => chamar<string[]>("converter_imagens", { caminhos: imagens, formato: acao }));
+      void trabalhar(bolha, "Convertendo", () => chamar<string[]>("converter_imagens", { caminhos: imagens(), formato: acao }));
     else if (acao === "renomear") {
       form.hidden = false;
       form.querySelector("input")?.focus();
     } else if (acao === "conversa") {
-      abrirCentral("conversa-atual", soltos).catch(() => {});
+      abrirCentral("conversa-atual", meus).catch(() => {});
       ctx.fechar();
     }
   };
@@ -259,7 +271,9 @@ export function montarArquivos(ctx: Contexto): HTMLElement {
     if (!base) return;
     const bolha = raiz.querySelector<HTMLElement>('[data-portal="renomear"]')!;
     void trabalhar(bolha, "Renomeando", async () => {
-      const novos = await chamar<string[]>("renomear_em_sequencia", { caminhos: soltos, base });
+      const novos = await chamar<string[]>("renomear_em_sequencia", { caminhos: meus, base });
+      // Daqui para frente, as outras bolhas usam os nomes novos.
+      meus = novos;
       soltos = novos;
       return novos;
     });

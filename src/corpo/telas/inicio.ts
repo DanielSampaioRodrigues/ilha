@@ -39,6 +39,19 @@ function anel(fracao: number): string {
   return `<svg class="anel" viewBox="0 0 18 18" width="16" height="16" aria-hidden="true"><circle cx="9" cy="9" r="7" class="anel-fundo"/>${fracao > 0 ? `<circle cx="9" cy="9" r="7" class="anel-cheio" stroke-dasharray="${(c * Math.min(1, fracao)).toFixed(1)} ${c.toFixed(1)}"/>` : ""}</svg>`;
 }
 
+/**
+ * Um só "ouvinte" de teclado para a busca rápida, criado uma vez. Cada tela
+ * inicial montada troca a função; a antiga fica livre para a memória.
+ */
+let aoDigitarNoInicio: ((e: KeyboardEvent) => void) | null = null;
+let ouvinteBusca = false;
+function ligarBusca(f: (e: KeyboardEvent) => void): void {
+  aoDigitarNoInicio = f;
+  if (ouvinteBusca) return;
+  ouvinteBusca = true;
+  document.addEventListener("keydown", (e) => aoDigitarNoInicio?.(e));
+}
+
 function saudacao(): string {
   const hora = new Date().getHours();
   if (hora < 5) return "Boa noite";
@@ -109,9 +122,8 @@ export function montarInicio(ctx: Contexto): HTMLElement {
 
   // Tarefas para hoje (ou atrasadas) e as mais importantes.
   const fimDeHoje = `${paraISO(agora)}T23:59`;
-  const paraHoje = ordenar(dados.tarefas)
-    .filter((t) => !t.feita && ((t.quando && t.quando <= fimDeHoje) || t.prioridade >= 2))
-    .slice(0, 3);
+  const todasParaHoje = ordenar(dados.tarefas).filter((t) => !t.feita && ((t.quando && t.quando <= fimDeHoje) || t.prioridade >= 2));
+  const paraHoje = todasParaHoje.slice(0, 3);
   const secaoTarefas = paraHoje.length
     ? `
       <section class="secao">
@@ -160,7 +172,7 @@ export function montarInicio(ctx: Contexto): HTMLElement {
     timer
       ? `<button type="button" class="pilula" data-acao="tela" data-tela="timers">${ICONES.timer}${escapar(timer.nome)} · ${Math.max(1, Math.ceil((timer.fim - agora.getTime()) / 60_000))} min</button>`
       : "",
-    paraHoje.length ? `<button type="button" class="pilula" data-acao="tela" data-tela="tarefas">${ICONES.tarefas}${paraHoje.length === 3 ? "3+" : paraHoje.length} para hoje</button>` : "",
+    todasParaHoje.length ? `<button type="button" class="pilula" data-acao="tela" data-tela="tarefas">${ICONES.tarefas}${todasParaHoje.length} para hoje</button>` : "",
   ].join("");
 
   const apps = dados.apps
@@ -321,13 +333,13 @@ export function montarInicio(ctx: Contexto): HTMLElement {
     }
   });
   const aoDigitar = (e: KeyboardEvent) => {
-    if (!raiz.isConnected) return document.removeEventListener("keydown", aoDigitar);
+    if (!raiz.isConnected) return;
     const alvo = e.target as HTMLElement;
     if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1 || /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName) || alvo.isContentEditable) return;
     busca.hidden = false;
     campoBusca.focus();
   };
-  document.addEventListener("keydown", aoDigitar);
+  ligarBusca(aoDigitar);
 
   // Brincadeira: clicar no personagem faz ele dar um pulinho (com confete).
   const cabeca = raiz.querySelector<HTMLElement>(".cabeca-carinha, .cabeca");

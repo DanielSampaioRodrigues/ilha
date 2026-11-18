@@ -268,7 +268,8 @@ export class Ilha {
   /** Outra janela (a Central) mudou os dados. */
   dadosMudaram(): void {
     if (this.estado === "aberta") {
-      if (this.tela !== "notas") this.renovar();
+      // Notas (quem digita) e arquivos (trabalho em andamento) não são redesenhados por fora.
+      if (this.tela !== "notas" && this.tela !== "arquivos") this.renovar();
     } else if (this.emDescanso() && this.estadoBase() !== this.estado) {
       this.fechar();
     }

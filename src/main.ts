@@ -244,43 +244,53 @@ async function iniciar(): Promise<void> {
   // fazer (diminuir, PDF, fichamento, resumo…); soltar dentro de uma já faz.
   if (dentroDoApp) {
     const { getCurrentWebview } = await import("@tauri-apps/api/webview");
-    const { arrastarSobre, receberArquivos, soltarEm } = await import("./corpo/telas/arquivos");
-    let abertaPeloArraste = false;
-    let fechar = 0;
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    const { arquivosOcupados, arrastarSobre, receberArquivos, soltarEm } = await import("./corpo/telas/arquivos");
+    // Onde a ilha estava antes do arraste (null = fechada): desistir volta para lá.
+    let antes: NomeTela | null | undefined;
+    let voltar = 0;
     const ponto = (p: { x: number; y: number }) => [p.x / window.devicePixelRatio, p.y / window.devicePixelRatio] as const;
     getCurrentWebview()
       .onDragDropEvent((e) => {
         const p = e.payload;
         if (p.type === "enter") {
-          window.clearTimeout(fechar);
+          window.clearTimeout(voltar);
           document.body.classList.add("soltando");
-          if (!p.paths.length) return;
-          receberArquivos(p.paths);
-          if (ilha.telaAtual !== "arquivos" || !ilha.podeFecharSozinha) {
-            abertaPeloArraste = !ilha.podeFecharSozinha;
+          if (!p.paths.length || arquivosOcupados()) return;
+          const mudou = receberArquivos(p.paths);
+          const naTela = ilha.telaAtual === "arquivos" && ilha.podeFecharSozinha;
+          if (!naTela) {
+            if (antes === undefined) antes = ilha.podeFecharSozinha ? ilha.telaAtual : null;
+            ilha.abrir("arquivos");
+          } else if (mudou) {
             ilha.abrir("arquivos");
           }
         } else if (p.type === "over") {
           arrastarSobre(...ponto(p.position));
         } else if (p.type === "drop") {
           document.body.classList.remove("soltando");
-          abertaPeloArraste = false;
-          if (!p.paths.length) return;
+          antes = undefined;
+          // Soltar não dá foco à ilha: sem isso, clicar fora não fecharia e o teclado não chegaria.
+          void getCurrentWindow().setFocus().catch(() => {});
+          if (!p.paths.length || arquivosOcupados()) return;
           if (ilha.telaAtual !== "arquivos") {
             receberArquivos(p.paths);
             ilha.abrir("arquivos");
           } else if (!soltarEm(...ponto(p.position))) {
             // Soltou fora das bolhas: elas continuam lá para clicar.
-            ilha.abrir("arquivos");
+            if (receberArquivos(p.paths)) ilha.abrir("arquivos");
           }
         } else {
           document.body.classList.remove("soltando");
           arrastarSobre(null);
-          // Desistiu de arrastar: se fui eu que abri, fecho de novo.
-          if (abertaPeloArraste)
-            fechar = window.setTimeout(() => {
-              if (abertaPeloArraste && ilha.telaAtual === "arquivos") ilha.fechar();
-              abertaPeloArraste = false;
+          // Desistiu de arrastar: volta para onde estava (ou fecha, se estava fechada).
+          if (antes !== undefined)
+            voltar = window.setTimeout(() => {
+              const tela = antes;
+              antes = undefined;
+              if (ilha.telaAtual !== "arquivos" || arquivosOcupados()) return;
+              if (tela) ilha.abrir(tela);
+              else ilha.fechar();
             }, 700);
         }
       })

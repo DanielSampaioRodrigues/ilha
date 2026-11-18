@@ -129,11 +129,12 @@ class Bicho {
         return t >= 1;
       });
     } finally {
+      // Mesmo se o Dan pegar o personagem no meio do passo: pés no chão.
       this.el.classList.remove("andando");
+      for (const pe of this.el.querySelectorAll<HTMLElement>(".pes i")) pe.style.transform = "";
     }
     this.x = destino;
     this.el.style.transform = `translate(${this.x}px, ${this.y}px) scale(${this.escala})`;
-    for (const pe of this.el.querySelectorAll<HTMLElement>(".pes i")) pe.style.transform = "";
     this.cara("normal");
     this.olhar(0);
   }

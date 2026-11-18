@@ -183,16 +183,36 @@ pub fn renomear_em_sequencia(caminhos: Vec<String>, base: String) -> Result<Vec<
         return Err("Escolha um nome.".into());
     }
     let digitos = caminhos.len().to_string().len().max(2);
+    // Primeiro confere TODOS os nomes novos: se algum já existir, não mexe em nada.
+    let pares: Vec<(PathBuf, PathBuf)> = caminhos
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            let origem = PathBuf::from(c);
+            let pasta = origem.parent().map(Path::to_path_buf).unwrap_or_default();
+            let ext = origem.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+            let destino = pasta.join(format!("{base} {:0digitos$}{ext}", i + 1));
+            (origem, destino)
+        })
+        .collect();
+    if let Some((_, d)) = pares.iter().find(|(o, d)| d.exists() && o != d) {
+        return Err(format!("Já existe {}; não renomeei nenhum.", d.display()));
+    }
     let mut feitos = Vec::new();
-    for (i, c) in caminhos.iter().enumerate() {
-        let origem = PathBuf::from(c);
-        let pasta = origem.parent().map(Path::to_path_buf).unwrap_or_default();
-        let ext = origem.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
-        let destino = pasta.join(format!("{base} {:0digitos$}{ext}", i + 1));
-        if destino.exists() {
-            return Err(format!("Já existe {}; parei antes de mexer nele.", destino.display()));
+    for (origem, destino) in &pares {
+        if origem == destino {
+            feitos.push(destino.to_string_lossy().to_string());
+            continue;
         }
-        std::fs::rename(&origem, &destino).map_err(|e| format!("Não consegui renomear {}: {e}", origem.display()))?;
+        if let Err(e) = std::fs::rename(origem, destino) {
+            // Desfaz os que já foram, para não ficar pela metade.
+            for (o, d) in pares.iter().take(feitos.len()) {
+                if o != d {
+                    let _ = std::fs::rename(d, o);
+                }
+            }
+            return Err(format!("Não consegui renomear {}: {e}. Deixei os nomes como estavam.", origem.display()));
+        }
         feitos.push(destino.to_string_lossy().to_string());
     }
     Ok(feitos)
