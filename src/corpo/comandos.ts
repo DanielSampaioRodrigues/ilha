@@ -67,6 +67,14 @@ export async function tentarComando(texto: string, ctx: Contexto): Promise<strin
   const rotina = rotinaDaFrase(texto, d);
   if (rotina) return rodarRotina(rotina, ctx);
 
+  // Cidade para o tempo: "minha cidade é Recife", "eu moro em São Paulo".
+  const cidade = texto.trim().match(/^(?:a )?minha cidade (?:é|e|agora é)\s+(.+?)[.!]?$|^(?:eu )?(?:moro|estou morando) (?:em|no|na)\s+(.+?)[.!]?$/i);
+  if (cidade) {
+    const nome = (cidade[1] ?? cidade[2]).trim().replace(/^./, (c) => c.toUpperCase());
+    mudar((x) => (x.config.cidade = nome));
+    return `Anotado: ${nome}. O tempo de lá aparece na tela inicial.`;
+  }
+
   // Lembrete com tempo: "me lembra em 10 min de tirar a pizza".
   let m = t.match(new RegExp(`^(?:me )?(?:avisa|lembra|lembre)(?: me)? (?:em|daqui a?) (\\d+(?:[.,]\\d+)?) ?${UNIDADE}(?: (?:de|para|pra|que) (.+))?$`));
   if (m) {
