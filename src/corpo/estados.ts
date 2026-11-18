@@ -340,7 +340,7 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
           <i data-carinha="ouvindo" data-acessorio></i>
           <div class="coluna">
             <span class="rotulo"><span class="ponto gravando"></span>${d.etapa === "entendendo" ? "Escrevendo…" : "Ditado"}</span>
-            <span class="secundario fala">${texto ? escapar(texto) : "Pode falar. Atalho de novo cola; Esc cancela."}</span>
+            <span class="secundario fala">${texto ? escapar(texto) : "Pode falar… (atalho de novo cola)"}</span>
           </div>
           <div class="onda" aria-hidden="true">${barras}</div>
         </div>`);

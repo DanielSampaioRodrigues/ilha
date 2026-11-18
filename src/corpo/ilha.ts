@@ -556,7 +556,7 @@ export class Ilha {
   mostrar(estado: NomeEstado, imediato = false): void {
     this.relogiosLimpar();
     this.estado = estado;
-    this.svg.classList.toggle("com-brilho", estado === "ouvindo" || estado === "trabalhando");
+    this.svg.classList.toggle("com-brilho", estado === "ouvindo" || estado === "trabalhando" || estado === "ditando");
     this.sinalVerde = temSinalVerde();
 
     const definicao = ESTADOS[estado];

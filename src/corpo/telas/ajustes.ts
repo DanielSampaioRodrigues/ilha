@@ -68,8 +68,14 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   const raiz = html(`
     <div class="estado aberta tela">
       ${cabecalho("Ajustes")}
+      <div class="segmentos abas-ajustes" role="tablist" aria-label="Partes dos ajustes">
+        <button type="button" class="segmento" role="tab" data-acao="aba-ajustes" data-aba="geral">Geral</button>
+        <button type="button" class="segmento" role="tab" data-acao="aba-ajustes" data-aba="voz">Voz</button>
+        <button type="button" class="segmento" role="tab" data-acao="aba-ajustes" data-aba="ias">IAs e chaves</button>
+        <button type="button" class="segmento" role="tab" data-acao="aba-ajustes" data-aba="sobre">Sobre</button>
+      </div>
 
-      <section class="secao">
+      <section class="secao" data-aba="geral">
         <p class="titulo-secao">Você</p>
         <div class="item">
           <div class="coluna"><span class="principal">Nome do robô</span><span class="secundario">Como ele se apresenta. Dá para chamar por esse nome (veja Voz, abaixo).</span></div>
@@ -85,7 +91,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         </div>
       </section>
 
-      <section class="secao">
+      <section class="secao" data-aba="geral">
         <p class="titulo-secao">Calendário da Apple</p>
         <div class="item">
           <div class="coluna"><span class="principal">Assinaturas, renovações e tarefas no iPhone</span><span class="secundario">${dados.config.icloudCalendario ? `Mandando para “${escapar(dados.config.icloudNomeCalendario)}”.` : "Conecte o iCloud para a ilha colocar tudo no seu calendário."}</span></div>
@@ -93,7 +99,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         </div>
       </section>
 
-      <section class="secao">
+      <section class="secao" data-aba="voz">
         <p class="titulo-secao">Voz</p>
         <div class="item">
           <div class="coluna"><span class="principal">Ler a resposta em voz alta</span><span class="secundario">Quando você pergunta falando (microfone vermelho).</span></div>
@@ -198,7 +204,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         </div>
       </section>
 
-      <section class="secao">
+      <section class="secao" data-aba="geral">
         <p class="titulo-secao">Modo discreto</p>
         <div class="item coluna-item">
           <span class="secundario">A ilha em repouso vira um risquinho no topo, para não tampar abas. Passe o mouse nele para ela crescer.</span>
@@ -220,7 +226,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         </div>
       </section>
 
-      <section class="secao">
+      <section class="secao" data-aba="geral">
         <p class="titulo-secao">Atalho para abrir e fechar</p>
         <div class="item coluna-item">
           <span class="secundario">Agora: <strong class="atalho-atual">${atalhoLegivel(ctx.atalho)}</strong></span>
@@ -238,21 +244,21 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         </div>
       </section>
 
-      <section class="secao">
+      <section class="secao" data-aba="geral">
         <p class="titulo-secao">Computador</p>
         ${interruptor("windows", "Abrir a ilha quando o Windows ligar")}
         ${interruptor("telacheia", "Esconder em jogos, vídeos e apresentações em tela cheia")}
         ${interruptor("musica", "Mostrar a música tocando na ilha fechada")}
       </section>
 
-      <section class="secao">
+      <section class="secao" data-aba="ias">
         <p class="titulo-secao">Avisar quando terminar</p>
         ${interruptor("claude", NOMES.claude)}
         ${interruptor("codex", NOMES.codex)}
         ${interruptor("gemini", NOMES.gemini)}
       </section>
 
-      <section class="secao">
+      <section class="secao" data-aba="ias">
         <p class="titulo-secao">Chaves de IA</p>
         <div class="item coluna-item chave-deepseek">
           <div class="linha">
@@ -286,7 +292,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         </div>
       </section>
 
-      <section class="secao">
+      <section class="secao" data-aba="sobre">
         <p class="titulo-secao">Sobre</p>
         <div class="item">
           <div class="coluna"><span class="principal">Ilha versão ${escapar(ctx.versao)}</span><span class="secundario recado-atualizacao">Procura versões novas sozinha a cada 6 horas.</span></div>
@@ -701,7 +707,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     const modo = b.dataset.modo as ModoDiscreto;
     mudar((d) => (d.config.modoDiscreto = modo));
     ctx.definirModoDiscreto(modo);
-    raiz.querySelectorAll(".segmento").forEach((s) => s.setAttribute("aria-checked", String(s === b)));
+    raiz.querySelectorAll('[data-acao="discreto"]').forEach((s) => s.setAttribute("aria-checked", String(s === b)));
     explica.textContent = textoDiscreto[modo];
   });
 
@@ -934,5 +940,26 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   aoClicar(raiz, "registros", () => {
     abrirRegistros().catch(() => {});
   });
+  // Abas: mostra só uma parte dos ajustes de cada vez (lembra a última).
+  const mostrarAba = (aba: string) => {
+    raiz.querySelectorAll<HTMLElement>("section[data-aba]").forEach((sec) => (sec.hidden = sec.dataset.aba !== aba));
+    raiz.querySelectorAll<HTMLElement>('[data-acao="aba-ajustes"]').forEach((b) => {
+      b.setAttribute("aria-selected", String(b.dataset.aba === aba));
+      b.setAttribute("aria-checked", String(b.dataset.aba === aba));
+    });
+    try {
+      localStorage.setItem("ilha-aba-ajustes", aba);
+    } catch {
+      // sem guardar: tudo bem
+    }
+  };
+  let abaInicial = "geral";
+  try {
+    abaInicial = localStorage.getItem("ilha-aba-ajustes") || "geral";
+  } catch {
+    // sem guardar: começa em Geral
+  }
+  mostrarAba(["geral", "voz", "ias", "sobre"].includes(abaInicial) ? abaInicial : "geral");
+  aoClicar(raiz, "aba-ajustes", (b) => mostrarAba(b.dataset.aba ?? "geral"));
   return raiz;
 }

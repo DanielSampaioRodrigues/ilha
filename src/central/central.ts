@@ -51,6 +51,22 @@ const MENU: [Secao, string, string][] = [
   ["ajustes", ICONES.ajustes, "Ajustes"],
 ];
 
+/** O menu em grupos (fica mais fácil de achar); Ajustes fica embaixo, sempre à vista. */
+const GRUPOS: [string, Secao[]][] = [
+  ["IAs", ["conversa", "perfis", "ferramentas", "projetos", "memoria"]],
+  ["Organização", ["calendario", "tarefas", "notas", "rotinas", "habitos", "timers", "foco"]],
+  ["Contas", ["avisos", "redefinicoes"]],
+  ["Ferramentas", ["copiados", "textos", "traducoes", "pc"]],
+  ["Ilha", ["personagem"]],
+];
+
+function botaoMenu(id: Secao): string {
+  const item = MENU.find(([s]) => s === id);
+  if (!item) return "";
+  const [, icone, nome] = item;
+  return `<button type="button" class="item-menu" data-secao="${id}">${icone}<span>${nome}</span></button>`;
+}
+
 export async function iniciarCentral(): Promise<void> {
   document.body.classList.add("modo-central");
   if (!dentroDoApp) document.body.classList.add("navegador");
@@ -71,9 +87,10 @@ export async function iniciarCentral(): Promise<void> {
           <button type="button" class="botao-icone fechar-grande" title="Fechar (Esc)" aria-label="Fechar">${ICONES.fechar}</button>
           </span>
         </div>
-        <div class="itens-menu">${MENU.map(
-          ([id, icone, nome]) => `<button type="button" class="item-menu" data-secao="${id}">${icone}<span>${nome}</span></button>`,
+        <div class="itens-menu">${GRUPOS.map(
+          ([titulo, itens]) => `<p class="grupo-menu">${titulo}</p>${itens.map(botaoMenu).join("")}`,
         ).join("")}</div>
+        <div class="rodape-menu">${botaoMenu("ajustes")}</div>
       </nav>
       <main class="conteudo-central"></main>
     </div>
