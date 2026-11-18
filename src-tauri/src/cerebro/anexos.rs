@@ -4,7 +4,8 @@
 //!   recebe imagens com "-i").
 //! - DeepSeek (API): o texto do arquivo vai junto da mensagem; PDF vira texto;
 //!   arquivos grandes são cortados (com aviso). Imagens só o modelo
-//!   deepseek-flash lê (vão como imagem, não como texto).
+//!   deepseek-flash lê (vão como imagem, não como texto). Word (.docx) e
+//!   LibreOffice (.odt) também viram texto.
 
 use std::path::Path;
 
@@ -60,6 +61,8 @@ pub fn para_api(prompt: &str, anexos: &[String], le_imagens: bool) -> Result<(St
         }
         let conteudo = if caminho.to_lowercase().ends_with(".pdf") {
             pdf_extract::extract_text(caminho).map_err(|_| format!("Não consegui ler o PDF {nome}."))?
+        } else if let Some(lido) = crate::maos::documento::texto_de_documento(Path::new(caminho)) {
+            lido?
         } else {
             let bytes = std::fs::read(caminho).map_err(|_| format!("Não consegui abrir {nome}."))?;
             String::from_utf8(bytes).map_err(|_| format!("{nome} não é um arquivo de texto. Para ele, use o Claude Code, o Codex ou o Gemini."))?

@@ -17,6 +17,15 @@ pub struct Pedido {
     pub anexos: Vec<String>,
     /// Conversa rápida da ilha que vai continuar na Central.
     pub conversa: Option<serde_json::Value>,
+    /// Pedido pronto para enviar numa conversa nova, com os anexos
+    /// (ex.: "faça um fichamento" de um PDF solto na ilha).
+    pub mensagem: Option<String>,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct Envio {
+    texto: String,
+    anexos: Vec<String>,
 }
 
 #[derive(Default)]
@@ -26,10 +35,10 @@ pub struct TelaPendente(Mutex<Option<Pedido>>);
 static MODO_JANELA: AtomicBool = AtomicBool::new(false);
 
 pub fn abrir(app: &AppHandle, tela: Option<String>) {
-    abrir_com(app, tela, Vec::new(), None);
+    abrir_com(app, tela, Vec::new(), None, None);
 }
 
-pub fn abrir_com(app: &AppHandle, tela: Option<String>, anexos: Vec<String>, conversa: Option<serde_json::Value>) {
+pub fn abrir_com(app: &AppHandle, tela: Option<String>, anexos: Vec<String>, conversa: Option<serde_json::Value>, mensagem: Option<String>) {
     if let Some(j) = app.get_webview_window(JANELA_CENTRAL) {
         if !MODO_JANELA.load(Ordering::Relaxed) {
             posicionar(app, &j);
@@ -41,7 +50,9 @@ pub fn abrir_com(app: &AppHandle, tela: Option<String>, anexos: Vec<String>, con
         if let Some(t) = tela {
             let _ = app.emit_to(JANELA_CENTRAL, "central:tela", t);
         }
-        if !anexos.is_empty() {
+        if let Some(texto) = mensagem {
+            let _ = app.emit_to(JANELA_CENTRAL, "central:enviar", Envio { texto, anexos });
+        } else if !anexos.is_empty() {
             let _ = app.emit_to(JANELA_CENTRAL, "central:anexar", anexos);
         }
         if let Some(c) = conversa {
@@ -50,7 +61,7 @@ pub fn abrir_com(app: &AppHandle, tela: Option<String>, anexos: Vec<String>, con
         return;
     }
     if let Ok(mut p) = app.state::<TelaPendente>().0.lock() {
-        *p = Some(Pedido { tela, anexos, conversa });
+        *p = Some(Pedido { tela, anexos, conversa, mensagem });
     }
     let criada = WebviewWindowBuilder::new(app, JANELA_CENTRAL, WebviewUrl::default())
         .title("Ilha")
@@ -133,8 +144,9 @@ pub async fn abrir_central(
     tela: Option<String>,
     anexos: Option<Vec<String>>,
     conversa: Option<serde_json::Value>,
+    mensagem: Option<String>,
 ) {
-    abrir_com(&app, tela, anexos.unwrap_or_default(), conversa);
+    abrir_com(&app, tela, anexos.unwrap_or_default(), conversa, mensagem);
 }
 
 /// A Central, ao abrir, pergunta o que foi pedido (tela e anexos).

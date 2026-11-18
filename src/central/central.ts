@@ -21,7 +21,7 @@ import { ICONES } from "../corpo/icones";
 import { Carinha } from "../corpo/carinha";
 import type { Contexto, NomeTela } from "../corpo/contexto";
 import { dentroDoApp } from "../ponte";
-import { anexar, comecarNova, importarConversa, montarConversa, pararPeloId } from "./conversa";
+import { anexar, comecarNova, enviarPronto, importarConversa, montarConversa, pararPeloId } from "./conversa";
 import type { Conversa } from "../dados/conversas";
 import { montarProjetos } from "./projetos";
 import { montarPerfis } from "./perfis";
@@ -348,6 +348,11 @@ export async function iniciarCentral(): Promise<void> {
       ir("conversa");
       importarConversa(e.payload);
     });
+    // Pedido pronto vindo da ilha (ex.: fichamento de um PDF): conversa nova, já enviada.
+    await listen<{ texto: string; anexos: string[] }>("central:enviar", (e) => {
+      ir("conversa");
+      enviarPronto(e.payload.texto, e.payload.anexos);
+    });
     // Arquivos arrastados para a ilha chegam aqui.
     await listen<string[]>("central:anexar", (e) => {
       ir("conversa");
@@ -364,7 +369,7 @@ export async function iniciarCentral(): Promise<void> {
       }
     });
   }
-  const pedido = await telaInicialCentral().catch(() => ({ tela: null, anexos: [] as string[], conversa: null }));
+  const pedido = await telaInicialCentral().catch(() => ({ tela: null, anexos: [] as string[], conversa: null, mensagem: null }));
   let lembrada: string | null = null;
   try {
     lembrada = localStorage.getItem("ilha-central-secao");
@@ -377,6 +382,7 @@ export async function iniciarCentral(): Promise<void> {
   if (inicial === "boas-vindas" || ler().config.boasVindasFeita === false) {
     import("./boas-vindas").then((m) => m.mostrarBoasVindas(palco, () => ir("conversa")));
   }
-  if (pedido.anexos.length) anexar(pedido.anexos);
+  if (pedido.mensagem) enviarPronto(pedido.mensagem, pedido.anexos);
+  else if (pedido.anexos.length) anexar(pedido.anexos);
   if (pedido.conversa) importarConversa(pedido.conversa as Conversa);
 }

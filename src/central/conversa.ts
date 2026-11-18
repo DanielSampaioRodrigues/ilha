@@ -2,6 +2,7 @@
 // mensagens com a resposta aparecendo enquanto é escrita, escolher perfil,
 // motor, modelo, raciocínio, projeto, modo, MCPs e skills; parar, continuar no
 // terminal e passar para outro motor.
+import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { ler, novoId, type Dados } from "../dados/armazem";
 import { responder, USAM_MCP } from "../dados/pedido";
@@ -204,6 +205,7 @@ let novoModo: "conversar" | "editar" = "conversar";
 let novoPerfil: string | null = null;
 const nova: Escolhas = { motor: "deepseek", modelo: "", esforco: "", mcps: [], skills: [] };
 let redesenharTudo: () => void = () => {};
+let redesenharMensagens: () => void = () => {};
 
 export function conversaRodando(): boolean {
   return rodando.size > 0;
@@ -354,7 +356,7 @@ function contextoPara(c: Conversa, destino: Motor): string {
   return `Estou continuando com você (${NOMES_MOTORES[destino]}) uma conversa que comecei com o ${NOMES_MOTORES[c.motor]}. Aqui está o contexto:\n\n${trecho}\n\n---\n\nContinue a partir daqui: `;
 }
 
-function bolha(m: MensagemConversa, motor: Motor, ativa: boolean): string {
+function bolha(m: MensagemConversa, motor: Motor, ativa: boolean, indice = -1): string {
   if (m.papel === "voce") {
     const anexos = (m.anexos ?? []).map((a) => `<span class="chip-anexo" title="${escapar(a)}">${ICONES.clipe}${escapar(nomeDo(a))}</span>`).join("");
     return `<div class="bolha voce">${anexos ? `<div class="anexos-msg">${anexos}</div>` : ""}${escapar(m.texto).replace(/\n/g, "<br>")}</div>`;
@@ -375,6 +377,11 @@ function bolha(m: MensagemConversa, motor: Motor, ativa: boolean): string {
       ${ferramentas ? `<div class="ferramentas">${ferramentas}</div>` : ""}
       <div class="md">${corpo}${pensando}${ativa && m.texto ? '<span class="cursor"></span>' : ""}</div>
       ${erro}
+      ${
+        !ativa && m.texto && indice >= 0
+          ? `<div class="acoes-bolha"><button type="button" data-copiar="${indice}">${ICONES.copiar}Copiar</button><button type="button" data-word="${indice}">${ICONES.arquivo}Salvar em Word</button></div>`
+          : ""
+      }
     </div>`;
 }
 
@@ -714,7 +721,7 @@ export function montarConversa(): HTMLElement {
     if (!c || !mensagensEl) return desenharTudo();
     const noFim = mensagensEl.scrollHeight - mensagensEl.scrollTop - mensagensEl.clientHeight < 80;
     const ativa = rodando.has(c.id);
-    mensagensEl.innerHTML = c.mensagens.map((m, i) => bolha(m, c.motor, ativa && i === c.mensagens.length - 1)).join("");
+    mensagensEl.innerHTML = c.mensagens.map((m, i) => bolha(m, c.motor, ativa && i === c.mensagens.length - 1, i)).join("");
     if (noFim) mensagensEl.scrollTop = mensagensEl.scrollHeight;
     // Botão Enviar/Parar muda quando termina.
     const form = painel.querySelector(".compositor");
@@ -749,6 +756,33 @@ export function montarConversa(): HTMLElement {
       </header>
       <div class="mensagens"></div>`;
     mensagensEl = painel.querySelector(".mensagens");
+    // Copiar a resposta, ou salvar como documento do Word (ao lado do arquivo
+    // que foi mandado, se houver; senão em Documentos\Ilha) e abrir.
+    mensagensEl?.addEventListener("click", (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-copiar], [data-word]");
+      if (!b) return;
+      const i = Number(b.dataset.copiar ?? b.dataset.word);
+      const m = c.mensagens[i];
+      if (!m?.texto) return;
+      const rotulo = b.innerHTML;
+      const avisar = (t: string) => {
+        b.textContent = t;
+        window.setTimeout(() => (b.innerHTML = rotulo), 2200);
+      };
+      if (b.dataset.copiar !== undefined) {
+        navigator.clipboard.writeText(m.texto).then(() => avisar("Copiado!"), () => avisar("Não deu"));
+        return;
+      }
+      const pedido = c.mensagens.slice(0, i).reverse().find((x) => x.papel === "voce");
+      const original = pedido?.anexos?.find((a) => /\.(pdf|docx?|odt|txt|md|rtf)$/i.test(a));
+      const cabeca = m.texto.match(/^#{1,3}\s+(.+)$/m)?.[1]?.replace(/[*_`]/g, "").trim();
+      const titulo = cabeca || c.titulo || "Resposta da IA";
+      b.disabled = true;
+      invoke<string>("salvar_word", { texto: m.texto, titulo, juntoDe: original ?? null })
+        .then((caminho) => avisar(`Salvo: ${nomeDo(caminho)}`))
+        .catch((erro) => avisar(String(erro)))
+        .finally(() => (b.disabled = false));
+    });
     painel.append(compositor(c));
     desenharMensagens();
     if (mensagensEl) mensagensEl.scrollTop = mensagensEl.scrollHeight;
@@ -796,6 +830,7 @@ export function montarConversa(): HTMLElement {
     }
   };
   redesenharTudo = desenharTudo;
+  redesenharMensagens = desenharMensagens;
 
   aoClicar(raiz, "nova", () => {
     atualId = null;
@@ -832,6 +867,25 @@ export function importarConversa(c: Conversa): void {
   else adicionarConversa(c);
   salvarConversas();
   atualId = c.id;
+  redesenharTudo();
+}
+
+/**
+ * Pedido pronto vindo da ilha (ex.: "faça um fichamento" de um PDF solto nela):
+ * começa uma conversa nova com a IA de sempre e já envia. Se essa IA não
+ * estiver disponível, deixa o pedido escrito e os anexos prontos para o Dan escolher.
+ */
+export function enviarPronto(texto: string, anexos: string[]): void {
+  const c = novaConversa();
+  if (!disponiveis[c.motor]) {
+    atualId = null;
+    rascunho = texto;
+    anexar(anexos);
+    redesenharTudo();
+    return;
+  }
+  atualId = c.id;
+  void enviar(c, texto, anexos, () => (atualId === c.id ? redesenharMensagens() : redesenharTudo()));
   redesenharTudo();
 }
 

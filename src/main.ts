@@ -240,17 +240,49 @@ async function iniciar(): Promise<void> {
   ouvir<"desligado" | "automatico" | "sempre">("ilha:modo-discreto", (m) => ilha.definirModoDiscreto(m));
   ouvir<string>("ilha:atalho", (a) => ilha.definirAtalho(a));
 
-  // Arrastar arquivos para a ilha: mostra o que dá para fazer com eles
-  // (diminuir, PDF, converter, renomear ou mandar para a IA).
+  // Arrastar arquivos para a ilha: ela se abre com "bolhas" do que dá para
+  // fazer (diminuir, PDF, fichamento, resumo…); soltar dentro de uma já faz.
   if (dentroDoApp) {
     const { getCurrentWebview } = await import("@tauri-apps/api/webview");
-    const { receberArquivos } = await import("./corpo/telas/arquivos");
+    const { arrastarSobre, receberArquivos, soltarEm } = await import("./corpo/telas/arquivos");
+    let abertaPeloArraste = false;
+    let fechar = 0;
+    const ponto = (p: { x: number; y: number }) => [p.x / window.devicePixelRatio, p.y / window.devicePixelRatio] as const;
     getCurrentWebview()
       .onDragDropEvent((e) => {
-        document.body.classList.toggle("soltando", e.payload.type === "enter" || e.payload.type === "over");
-        if (e.payload.type !== "drop" || !e.payload.paths.length) return;
-        receberArquivos(e.payload.paths);
-        ilha.abrir("arquivos");
+        const p = e.payload;
+        if (p.type === "enter") {
+          window.clearTimeout(fechar);
+          document.body.classList.add("soltando");
+          if (!p.paths.length) return;
+          receberArquivos(p.paths);
+          if (ilha.telaAtual !== "arquivos" || !ilha.podeFecharSozinha) {
+            abertaPeloArraste = !ilha.podeFecharSozinha;
+            ilha.abrir("arquivos");
+          }
+        } else if (p.type === "over") {
+          arrastarSobre(...ponto(p.position));
+        } else if (p.type === "drop") {
+          document.body.classList.remove("soltando");
+          abertaPeloArraste = false;
+          if (!p.paths.length) return;
+          if (ilha.telaAtual !== "arquivos") {
+            receberArquivos(p.paths);
+            ilha.abrir("arquivos");
+          } else if (!soltarEm(...ponto(p.position))) {
+            // Soltou fora das bolhas: elas continuam lá para clicar.
+            ilha.abrir("arquivos");
+          }
+        } else {
+          document.body.classList.remove("soltando");
+          arrastarSobre(null);
+          // Desistiu de arrastar: se fui eu que abri, fecho de novo.
+          if (abertaPeloArraste)
+            fechar = window.setTimeout(() => {
+              if (abertaPeloArraste && ilha.telaAtual === "arquivos") ilha.fechar();
+              abertaPeloArraste = false;
+            }, 700);
+        }
       })
       .catch(() => {});
   } else if (new URLSearchParams(location.search).get("arquivos")) {

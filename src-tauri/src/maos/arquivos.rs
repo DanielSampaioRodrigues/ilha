@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use image::{DynamicImage, GenericImageView, ImageFormat};
 
 /// Um nome que ainda não existe: "foto (menor).jpg", "foto (menor) 2.jpg"…
-fn livre(pasta: &Path, base: &str, ext: &str) -> PathBuf {
+pub(crate) fn livre(pasta: &Path, base: &str, ext: &str) -> PathBuf {
     let primeiro = pasta.join(format!("{base}.{ext}"));
     if !primeiro.exists() {
         return primeiro;

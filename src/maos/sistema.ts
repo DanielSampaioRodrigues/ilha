@@ -271,13 +271,14 @@ export interface PedidoConversa {
   mcpsDaIlha: string[];
 }
 
-export const abrirCentral = (tela?: string, anexos?: string[], conversa?: unknown) =>
-  pedir<void>("abrir_central", { tela: tela ?? null, anexos: anexos ?? null, conversa: conversa ?? null });
+export const abrirCentral = (tela?: string, anexos?: string[], conversa?: unknown, mensagem?: string) =>
+  pedir<void>("abrir_central", { tela: tela ?? null, anexos: anexos ?? null, conversa: conversa ?? null, mensagem: mensagem ?? null });
 export const telaInicialCentral = () =>
-  pedir<{ tela: string | null; anexos: string[]; conversa: unknown }>("tela_inicial_central", undefined, {
+  pedir<{ tela: string | null; anexos: string[]; conversa: unknown; mensagem: string | null }>("tela_inicial_central", undefined, {
     tela: null,
     anexos: [],
     conversa: null,
+    mensagem: null,
   });
 export const motoresDisponiveis = () =>
   pedir<{ motor: Motor; encontrado: boolean }[]>("motores_disponiveis", undefined, [
