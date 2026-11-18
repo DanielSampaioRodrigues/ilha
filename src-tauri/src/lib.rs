@@ -141,6 +141,7 @@ pub fn run() {
             maos::ouvido::definir_espera,
             maos::atualizar::procurar_versao,
             maos::pastas::procurar_pastas,
+            maos::musica::primeiro_video,
             maos::kokoro::estado_kokoro,
             maos::kokoro::preparar_kokoro,
             maos::kokoro::falar_kokoro,

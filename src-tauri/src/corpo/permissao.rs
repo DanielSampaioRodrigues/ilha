@@ -262,7 +262,7 @@ fn ferramentas_da_ilha() -> Value {
     json!([
         {
             "name": "ilha_fazer",
-            "description": "Faz algo pela própria Ilha com uma frase curta, do jeito que o Dan falaria. Exemplos: \"volume 30\", \"mudo\", \"pausa a música\", \"próxima música\", \"timer 10 min pizza\", \"foco 25\", \"me lembra em 15 min de ligar pro João\", \"abre o spotify\", \"traduz a tela\", \"copia meu pix\" (textos rápidos), \"vai passear\", \"que horas são\" ou a frase de uma rotina do Dan (ex.: \"bom dia\"). Devolve o que a ilha fez, ou avisa que não entendeu.",
+            "description": "Faz algo pela própria Ilha com uma frase curta, do jeito que o Dan falaria. Exemplos: \"volume 30\", \"mudo\", \"pausa a música\", \"próxima música\", \"timer 10 min pizza\", \"foco 25\", \"me lembra em 15 min de ligar pro João\", \"abre o spotify\", \"toca Djavan\" (toca música pelo nome), \"traduz a tela\", \"copia meu pix\" (textos rápidos), \"vai passear\", \"que horas são\" ou a frase de uma rotina do Dan (ex.: \"bom dia\"). Devolve o que a ilha fez, ou avisa que não entendeu.",
             "inputSchema": { "type": "object", "properties": { "pedido": { "type": "string" } }, "required": ["pedido"] }
         },
         {

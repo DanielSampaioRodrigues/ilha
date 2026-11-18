@@ -1,7 +1,8 @@
 // Meu PC: como está o computador e correções simples (sempre com confirmação).
 import { diagnosticoPc, limparTemporarios, type Diagnostico } from "../../maos/sistema";
 import type { Contexto } from "../contexto";
-import { Carinha } from "../carinha";
+import { Carinha, PERSONAGENS } from "../carinha";
+import { ler } from "../../dados/armazem";
 import { aoClicar, cabecalho, confirmarAntes, html } from "../ui";
 
 const ETAPAS = [
@@ -108,6 +109,11 @@ export function montarPc(ctx: Contexto): HTMLElement {
           <span class="radar-feixe"></span>
           <span class="radar-anel"></span>
           <span class="radar-rosto"></span>
+          <svg class="radar-lupa" viewBox="0 0 40 40" aria-hidden="true">
+            <circle cx="16" cy="16" r="11" fill="rgba(63,230,238,0.16)" stroke="currentColor" stroke-width="3.5"/>
+            <path d="M8 13a8 8 0 0 1 6-5" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round"/>
+            <path d="M24.5 24.5 35 35" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+          </svg>
           <span class="radar-pct">0%</span>
         </div>
         <div class="coluna etapas-varredura">
@@ -116,7 +122,14 @@ export function montarPc(ctx: Contexto): HTMLElement {
           <div class="barra"><div class="barra-cheia barra-varredura" style="width:0%"></div></div>
         </div>
       </div>`;
-    lugar.querySelector(".radar-rosto")!.replaceChildren(new Carinha("lendo", { tamanho: 3, comAcessorio: true }).elemento);
+    // Ilustrados seguram a lupa de verdade (pose própria, maior); os de pixel
+    // ganham a lupa animada passeando pelo radar.
+    const ilustrado = !!PERSONAGENS[ler().config.personagem]?.imagens;
+    lugar.querySelector(".radar-rosto")!.replaceChildren(new Carinha("analisando", { tamanho: ilustrado ? 5 : 3, comAcessorio: true }).elemento);
+    if (ilustrado) {
+      lugar.querySelector(".radar-lupa")?.remove();
+      lugar.querySelector(".radar")!.classList.add("com-ilustrado");
+    }
     const pct = lugar.querySelector<HTMLElement>(".radar-pct")!;
     const barra = lugar.querySelector<HTMLElement>(".barra-varredura")!;
     const etapas = [...lugar.querySelectorAll<HTMLElement>(".etapa")];

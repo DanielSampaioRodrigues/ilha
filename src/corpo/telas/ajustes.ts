@@ -245,6 +245,24 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       </section>
 
       <section class="secao" data-aba="geral">
+        <p class="titulo-secao">Música</p>
+        <div class="item">
+          <div class="coluna"><span class="principal">Onde tocar o que eu pedir</span><span class="secundario">“Toca Djavan”, “coloca Oceano no Spotify”. No YouTube e no YouTube Music já começa tocando; no Spotify e no Deezer abre a busca. Automático: Spotify se estiver instalado, senão YouTube Music.</span></div>
+          <select class="entrada curta2 escolha-musica" aria-label="Onde tocar música">
+            ${[
+              ["", "Automático"],
+              ["spotify", "Spotify"],
+              ["youtube-music", "YouTube Music"],
+              ["youtube", "YouTube"],
+              ["deezer", "Deezer"],
+            ]
+              .map(([v, n]) => `<option value="${v}" ${(dados.config.musicaOnde ?? "") === v ? "selected" : ""}>${n}</option>`)
+              .join("")}
+          </select>
+        </div>
+      </section>
+
+      <section class="secao" data-aba="geral">
         <p class="titulo-secao">Computador</p>
         ${interruptor("windows", "Abrir a ilha quando o Windows ligar")}
         ${interruptor("telacheia", "Esconder em jogos, vídeos e apresentações em tela cheia")}
@@ -350,6 +368,10 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     b.setAttribute("aria-checked", String(ligado));
     atenderPeloNome(ligado, ler().config.nomeRobo).catch(() => {});
     ajustarMicrofoneComEco();
+  });
+  raiz.querySelector<HTMLSelectElement>(".escolha-musica")!.addEventListener("change", (e) => {
+    const v = (e.target as HTMLSelectElement).value as "" | "youtube-music" | "youtube" | "spotify" | "deezer";
+    mudar((d) => (d.config.musicaOnde = v || undefined));
   });
   aoClicar(raiz, "espera-fala", (b) => {
     const ms = Number(b.dataset.ms) || 1400;

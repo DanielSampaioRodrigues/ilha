@@ -39,7 +39,9 @@ export type Expressao =
   // Usadas no passeio.
   | "andando"
   | "acenando"
-  | "pulando";
+  | "pulando"
+  // Verificação do PC: olhando com a lupa.
+  | "analisando";
 
 export const NOMES_EXPRESSOES: Record<Expressao, string> = {
   normal: "Repouso",
@@ -66,6 +68,7 @@ export const NOMES_EXPRESSOES: Record<Expressao, string> = {
   andando: "Andando",
   acenando: "Acenando",
   pulando: "Pulando",
+  analisando: "Com a lupa",
 };
 
 /** Expressões que se mexem sozinhas (quadros de animação). */
@@ -237,6 +240,9 @@ function desenho(expressao: Expressao, olhar: Ponto): Desenho {
       return { esquerdo: FELIZ, direito: FELIZ, boca: "grande", bochechas: true };
     case "confuso":
       return { esquerdo: olhoAberto(0, 0), direito: olhoAberto(1, -1), boca: "zigue", bochechas: false };
+    case "analisando":
+      // Um olho grandão (o da lupa) e o outro normal.
+      return { esquerdo: ARREGALADO, direito: olhoAberto(dx, dy), boca: "pequena", bochechas: false };
     default:
       return { esquerdo: olhoAberto(dx, dy), direito: olhoAberto(dx, dy), boca: "sorriso", bochechas: true };
   }
@@ -517,7 +523,7 @@ const BRANCO = "#E9ECEF";
 const ROSA = "#FF8FB4";
 
 /** Os dois quadros de andar olham para o mesmo lado. */
-const andandoPara = (lado: "esquerda" | "direita") => ({ andando1: lado, andando2: lado });
+const andandoPara = (lado: "esquerda" | "direita") => ({ andando1: lado, andando2: lado, andando3: lado });
 
 /**
  * Receita dos personagens feitos com IA: todos têm as mesmas 27 poses
@@ -559,10 +565,12 @@ function feitoComIA(
         foco: "programando",
         acenando: "acenando",
         pulando: "pulando",
+        analisando: "lupa",
       },
       anim: {
         digitando: { quadros: ["digitando1", "digitando2"], ms: 220 },
-        andando: { quadros: ["andando1", "andando2"], ms: 260 },
+        // De perfil, olhando para onde anda: três passos e volta (1-2-3-2).
+        andando: { quadros: ["andando1", "andando2", "andando3", "andando2"], ms: 170 },
         sonolento: { quadros: ["bocejando", "dormindo", "dormindo", "bocejando", "soneca", "soneca"], ms: 1100 },
       },
       largas: (() => {
@@ -858,16 +866,16 @@ export const PERSONAGENS: Record<PersonagemId, Personagem> = {
   // ---------- Feitos com IA (imagens 3D) ----------
   broto: feitoComIA("broto", "Broto", "Fofinho, com uma anteninha que acende.", { lados: andandoPara("direita") }),
   faisca: feitoComIA("faisca", "Faísca", "Punk de moicano rosa e jaqueta de tachinhas. Atitude total.", { lados: andandoPara("direita") }),
-  mimi: feitoComIA("mimi", "Mimi", "Estilo anime, cabelo lilás e moletom verde-água."),
-  bolota: feitoComIA("bolota", "Bolota", "Um gatinho laranja muito preguiçoso.", { lados: { andando1: "esquerda", andando2: "direita" } }),
-  lata: feitoComIA("lata", "Lata", "Robozinho de lata antigo, de corda nas costas."),
-  neon: feitoComIA("neon", "Neon", "Capacete com viseira de LED: na ilha, você vê só a viseira."),
-  cosmo: feitoComIA("cosmo", "Cosmo", "Astronauta de viseira escura com olhos que brilham."),
+  mimi: feitoComIA("mimi", "Mimi", "Estilo anime, cabelo lilás e moletom verde-água.", { lados: andandoPara("direita") }),
+  bolota: feitoComIA("bolota", "Bolota", "Um gatinho laranja muito preguiçoso.", { lados: andandoPara("direita") }),
+  lata: feitoComIA("lata", "Lata", "Robozinho de lata antigo, de corda nas costas.", { lados: andandoPara("direita") }),
+  neon: feitoComIA("neon", "Neon", "Capacete com viseira de LED: na ilha, você vê só a viseira.", { lados: andandoPara("direita") }),
+  cosmo: feitoComIA("cosmo", "Cosmo", "Astronauta de viseira escura com olhos que brilham.", { lados: andandoPara("direita") }),
   massinha: feitoComIA("massinha", "Massinha", "Feito de massa de modelar: se remolda a cada pose.", { material: "massinha", lados: andandoPara("direita") }),
   boing: feitoComIA("boing", "Boing", "Dinossauro de borracha: estica e balança quando muda.", { material: "borracha", lados: andandoPara("direita") }),
   dobra: feitoComIA("dobra", "Dobra", "Raposa de origami: se dobra e desdobra entre as poses.", { material: "papel", lados: andandoPara("direita") }),
   teo: feitoComIA("teo", "Téo", "Autista, com abafador de ouvido e brinquedo sensorial. Uma homenagem às pessoas neurodivergentes.", { lados: andandoPara("direita") }),
-  nimbo: feitoComIA("nimbo", "Nimbo", "Nuvenzinha que vira fumacinha ao mudar e chove quando fica triste.", { material: "nuvem" }),
+  nimbo: feitoComIA("nimbo", "Nimbo", "Nuvenzinha que vira fumacinha ao mudar e chove quando fica triste.", { material: "nuvem", lados: andandoPara("direita") }),
 
   // ---------- Estilo moderno (vetor) ----------
   ...(Object.fromEntries(
