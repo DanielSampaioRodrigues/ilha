@@ -13,7 +13,7 @@ import {
   type Midia,
 } from "../../maos/sistema";
 import { ordenar } from "./tarefas";
-import { abrirOuvindo } from "./conversa";
+import { abrirComPedido, abrirOuvindo } from "./conversa";
 import type { Contexto } from "../contexto";
 import { seloDa } from "../selos";
 import { ICONES } from "../icones";
@@ -186,6 +186,11 @@ export function montarInicio(ctx: Contexto): HTMLElement {
         <button type="button" class="redondo" aria-label="Conversar" title="Conversar aqui na ilha" data-acao="digitar">${ICONES.teclado}</button>
         <button type="button" class="redondo grande vermelho" aria-label="Falar" title="Falar com a IA" data-acao="falar">${ICONES.microfone}</button>
       </header>
+      <div class="busca-rapida" hidden>
+        ${ICONES.raio}
+        <input class="entrada-busca" aria-label="Buscar uma ferramenta ou pedir algo à IA" autocomplete="off" spellcheck="false">
+        <span class="dica-busca"></span>
+      </div>
       ${pilulas ? `<div class="pilulas">${pilulas}</div>` : ""}
       ${atualizacao}
       ${precisa}
@@ -245,6 +250,58 @@ export function montarInicio(ctx: Contexto): HTMLElement {
   const subtitulo = raiz.querySelector<HTMLElement>(".subtitulo")!;
   const recado = (texto: string, ms?: number) => recadoTemporario(subtitulo, texto, ms);
   if (ctx.mensagem) recado(ctx.mensagem, 5000);
+
+  // Começou a digitar na tela inicial: busca as ferramentas e os programas
+  // na hora; Enter abre o primeiro, ou manda o texto para a IA.
+  const busca = raiz.querySelector<HTMLElement>(".busca-rapida")!;
+  const campoBusca = busca.querySelector<HTMLInputElement>("input")!;
+  const dicaBusca = busca.querySelector<HTMLElement>(".dica-busca")!;
+  const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const candidatos = [...raiz.querySelectorAll<HTMLElement>(".atalho-tela, .lancador .app")];
+  let primeiro: HTMLElement | null = null;
+  const filtrar = () => {
+    const q = semAcento(campoBusca.value);
+    primeiro = null;
+    for (const c of candidatos) {
+      const nome = semAcento(c.textContent ?? "");
+      const bate = !q || nome.includes(q);
+      c.classList.toggle("fora-da-busca", !bate);
+      c.classList.remove("primeiro-da-busca");
+      if (q && bate && !primeiro) primeiro = c;
+    }
+    primeiro?.classList.add("primeiro-da-busca");
+    raiz.classList.toggle("buscando", !!q);
+    dicaBusca.textContent = !q ? "" : primeiro ? `Enter abre ${primeiro.textContent?.trim()}` : "Enter pergunta à IA";
+  };
+  const fecharBusca = () => {
+    campoBusca.value = "";
+    busca.hidden = true;
+    filtrar();
+  };
+  campoBusca.addEventListener("input", () => (campoBusca.value ? filtrar() : fecharBusca()));
+  campoBusca.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      fecharBusca();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const texto = campoBusca.value.trim();
+      if (!texto) return;
+      if (primeiro) primeiro.click();
+      else {
+        abrirComPedido(texto);
+        ctx.irPara("conversa");
+      }
+    }
+  });
+  const aoDigitar = (e: KeyboardEvent) => {
+    if (!raiz.isConnected) return document.removeEventListener("keydown", aoDigitar);
+    const alvo = e.target as HTMLElement;
+    if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1 || /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName) || alvo.isContentEditable) return;
+    busca.hidden = false;
+    campoBusca.focus();
+  };
+  document.addEventListener("keydown", aoDigitar);
 
   // Brincadeira: clicar no personagem faz ele dar um pulinho (com confete).
   const cabeca = raiz.querySelector<HTMLElement>(".cabeca-carinha, .cabeca");
