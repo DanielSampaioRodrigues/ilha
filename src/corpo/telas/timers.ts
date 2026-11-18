@@ -26,7 +26,8 @@ export function montarTimers(ctx: Contexto): HTMLElement {
           .map(
             (t) => `
           <div class="item">
-            <div class="coluna"><span class="principal">${escapar(t.nome)}</span><span class="secundario">${t.minutos} min</span></div>
+            <div class="coluna"><span class="principal">${escapar(t.nome)}</span><span class="secundario">${t.minutos} min</span>
+              <div class="barra"><div class="barra-cheia" data-barra-fim="${t.fim}" data-total="${t.minutos * 60_000}"></div></div></div>
             <span class="tempo grande" data-fim="${t.fim}">--:--</span>
             <button type="button" class="botao" data-acao="cancelar" data-id="${t.id}">Cancelar</button>
           </div>`,
@@ -56,6 +57,11 @@ export function montarTimers(ctx: Contexto): HTMLElement {
   aoClicar(raiz, "voltar", () => ctx.irPara("inicio"));
   const atualizar = () => {
     raiz.querySelectorAll<HTMLElement>("[data-fim]").forEach((el) => (el.textContent = formatar(Number(el.dataset.fim) - Date.now())));
+    // A barrinha de cada timer vai esvaziando até o fim.
+    raiz.querySelectorAll<HTMLElement>("[data-barra-fim]").forEach((el) => {
+      const falta = Math.max(0, Number(el.dataset.barraFim) - Date.now());
+      el.style.width = `${Math.min(100, (falta / Math.max(1, Number(el.dataset.total))) * 100).toFixed(1)}%`;
+    });
     const decorrido = cronometro.acumulado + (cronometro.rodando ? Date.now() - cronometro.inicio : 0);
     raiz.querySelector<HTMLElement>(".cronometro")!.textContent = formatar(decorrido, true);
   };
