@@ -1,0 +1,545 @@
+/* Painel "Hoje" da Central: cartões de vidro num grid estilo "bento". */
+.pagina-hoje {
+  container-type: inline-size;
+}
+
+.hoje {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.cartao-hoje {
+  position: relative;
+  grid-column: span 4;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 18px 18px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(16px);
+  transition: border-color 0.2s, transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1), box-shadow 0.2s;
+}
+
+.cartao-hoje:hover {
+  border-color: color-mix(in oklab, var(--ciano) 25%, transparent);
+  box-shadow: 0 14px 34px -22px color-mix(in oklab, var(--ciano) 80%, transparent);
+}
+
+.hoje.chegando .cartao-hoje {
+  animation: cartao-chegar 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+}
+
+.hoje.chegando .cartao-hoje:nth-child(2) { animation-delay: 50ms; }
+.hoje.chegando .cartao-hoje:nth-child(3) { animation-delay: 100ms; }
+.hoje.chegando .cartao-hoje:nth-child(4) { animation-delay: 140ms; }
+.hoje.chegando .cartao-hoje:nth-child(5) { animation-delay: 180ms; }
+.hoje.chegando .cartao-hoje:nth-child(6) { animation-delay: 220ms; }
+.hoje.chegando .cartao-hoje:nth-child(7) { animation-delay: 260ms; }
+.hoje.chegando .cartao-hoje:nth-child(8) { animation-delay: 300ms; }
+
+@keyframes cartao-chegar {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+    filter: blur(6px);
+  }
+}
+
+.titulo-cartao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--apagado);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.titulo-cartao svg {
+  width: 15px;
+  height: 15px;
+  color: var(--ciano);
+}
+
+.ver-tudo {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--apagado);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.ver-tudo:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--texto);
+}
+
+.vazio-hoje {
+  margin: 0;
+  color: var(--apagado);
+  font-size: 13.5px;
+}
+
+.tudo-certo {
+  color: color-mix(in oklab, #7cf29a 80%, white);
+}
+
+.botao-suave {
+  align-self: flex-start;
+  padding: 8px 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  background: none;
+  color: var(--texto);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.botao-suave:hover {
+  border-color: var(--ciano);
+  color: var(--ciano);
+}
+
+/* ---------- Saudação (cartão grande) ---------- */
+.heroi {
+  grid-column: span 8;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 200px;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(70% 120% at 100% 100%, color-mix(in oklab, var(--cor-2) 30%, transparent), transparent 70%),
+    radial-gradient(60% 90% at 0% 0%, color-mix(in oklab, var(--ciano) 22%, transparent), transparent 70%),
+    rgba(255, 255, 255, 0.04);
+}
+
+.heroi-texto {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 4px;
+}
+
+.data-hoje {
+  margin: 0;
+  color: var(--apagado);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.data-hoje::first-letter {
+  text-transform: uppercase;
+}
+
+.ola {
+  margin: 0;
+  background: linear-gradient(100deg, #ffffff 15%, color-mix(in oklab, var(--ciano) 75%, white) 60%, var(--cor-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.resumo-hoje {
+  margin: 2px 0 6px;
+  font-size: 15px;
+  color: #d5dbe2;
+}
+
+.chips-heroi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip-heroi {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  font-size: 12.5px;
+  font-weight: 600;
+  animation: chip-chegar 0.4s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+.chip-heroi svg {
+  color: var(--ciano);
+}
+
+.heroi-personagem {
+  display: grid;
+  place-items: end center;
+  flex: none;
+  width: 190px;
+  margin: -18px -10px -16px 0;
+}
+
+.heroi-personagem .carinha {
+  flex: none;
+  filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.45));
+  animation: flutuar 4s ease-in-out infinite;
+}
+
+/* ---------- Foco ---------- */
+.botoes-foco {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  padding: 4px 0;
+}
+
+.bola-foco {
+  --cor: var(--ciano);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 104px;
+  height: 104px;
+  border: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 25%, color-mix(in oklab, var(--cor) 55%, transparent), transparent 60%),
+    conic-gradient(from 210deg, var(--cor), var(--cor-2), var(--cor));
+  color: #05070a;
+  cursor: pointer;
+  box-shadow: 0 14px 30px -14px var(--cor), inset 0 -6px 16px rgba(0, 0, 0, 0.25);
+  transition: transform 0.3s cubic-bezier(0.3, 1.6, 0.5, 1), box-shadow 0.2s;
+}
+
+.bola-foco.pausa {
+  --cor: oklch(from var(--ciano) 0.82 0.13 calc(h + 150));
+  width: 84px;
+  height: 84px;
+  align-self: center;
+}
+
+.bola-foco strong {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.bola-foco.pausa strong {
+  font-size: 24px;
+}
+
+.bola-foco span {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.bola-foco:hover {
+  transform: scale(1.06) rotate(-3deg);
+  box-shadow: 0 18px 36px -12px var(--cor), inset 0 -6px 16px rgba(0, 0, 0, 0.25);
+}
+
+.bola-foco:active {
+  transform: scale(0.94);
+}
+
+.bola-foco.comecou {
+  animation: pop-certo 0.5s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+
+.linha-hoje {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+}
+
+.linha-hoje > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linha-hoje svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ciano);
+}
+
+.linha-hoje.alerta {
+  box-shadow: inset 3px 0 0 var(--laranja, #ff9f43);
+}
+
+.tempo-timer {
+  color: var(--ciano);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.timers-hoje {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---------- Agenda ---------- */
+.lista-agenda {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.linha-agenda {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 7px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.linha-agenda:last-child {
+  border-bottom: 0;
+}
+
+.linha-agenda.passou {
+  opacity: 0.45;
+}
+
+.hora-agenda {
+  flex: none;
+  width: 58px;
+  padding: 2px 0;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--ciano) 14%, transparent);
+  color: var(--ciano);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.linha-agenda .principal {
+  font-size: 13.5px;
+}
+
+/* ---------- Tarefas ---------- */
+.lista-tarefas-hoje {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.linha-tarefa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  font-size: 13.5px;
+}
+
+.linha-tarefa .prioridade {
+  margin-right: 4px;
+  color: #ff6b6b;
+}
+
+.linha-tarefa .circulo.marcado {
+  border-color: var(--ciano);
+  background: var(--ciano);
+  animation: pop-certo 0.4s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+
+.linha-tarefa:has(.marcado) span {
+  text-decoration: line-through;
+  opacity: 0.5;
+  transition: opacity 0.3s;
+}
+
+.nova-tarefa-hoje .entrada {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  border-style: dashed;
+}
+
+/* ---------- Hábitos ---------- */
+.aneis-habitos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 6px;
+}
+
+.anel-habito {
+  --cor: oklch(from var(--ciano) 0.8 0.15 calc(h + var(--giro, 0)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 74px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--texto);
+  font: inherit;
+  cursor: pointer;
+}
+
+.anel-caixa {
+  position: relative;
+  display: grid;
+  place-items: center;
+  transition: transform 0.28s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.anel-caixa svg {
+  width: 56px;
+  height: 56px;
+}
+
+.anel-habito .anel-cheio {
+  stroke: var(--cor);
+  stroke-width: 5;
+  filter: drop-shadow(0 0 4px color-mix(in oklab, var(--cor) 70%, transparent));
+  transition: stroke-dasharray 0.5s cubic-bezier(0.3, 1.2, 0.5, 1);
+}
+
+.anel-habito .anel-fundo {
+  stroke-width: 5;
+}
+
+.anel-caixa b {
+  position: absolute;
+  font-size: 12px;
+}
+
+.anel-habito.completo b {
+  color: var(--cor);
+  font-size: 18px;
+}
+
+.anel-habito:hover .anel-caixa {
+  transform: scale(1.1);
+}
+
+.anel-habito:active .anel-caixa {
+  transform: scale(0.92);
+}
+
+.nome-habito {
+  max-width: 100%;
+  overflow: hidden;
+  color: #cfd5dc;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Conversas, nota, contas ---------- */
+.conversas-hoje {
+  grid-column: span 5;
+}
+
+.nota-hoje {
+  grid-column: span 4;
+  cursor: pointer;
+}
+
+.contas-hoje {
+  grid-column: span 3;
+}
+
+.lista-conversas-hoje {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.linha-conversa {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.linha-conversa:hover {
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateX(3px);
+}
+
+.linha-conversa .coluna {
+  min-width: 0;
+}
+
+.linha-conversa .principal {
+  overflow: hidden;
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.texto-nota {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: #d5dbe2;
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 7;
+}
+
+.nota-hoje:hover .texto-nota {
+  color: #fff;
+}
+
+/* Janela mais estreita: cartões maiores, dois por linha. */
+@container (max-width: 860px) {
+  .heroi,
+  .conversas-hoje {
+    grid-column: span 12;
+  }
+
+  .cartao-hoje:not(.heroi):not(.conversas-hoje) {
+    grid-column: span 6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hoje.chegando .cartao-hoje,
+  .heroi-personagem .carinha {
+    animation: none;
+  }
+}

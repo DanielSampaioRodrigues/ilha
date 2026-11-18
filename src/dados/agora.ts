@@ -39,23 +39,29 @@ export function tempoAgora(): Promise<Tempo | null> {
   return comCache(`tempo:${cidade}`, 20, () => invoke<Tempo | null>("tempo_agora", { cidade }).catch(() => null));
 }
 
-/** O próximo compromisso de hoje (que ainda não acabou de começar há mais de 15 min). */
-export function proximoCompromisso(): Promise<Compromisso | null> {
+/** Os compromissos de hoje (do Calendário da Apple), em ordem; os de dia inteiro primeiro. */
+export function compromissosDeHoje(): Promise<Compromisso[]> {
   const email = ler().config.icloudEmail;
-  if (!email) return Promise.resolve(null);
-  return comCache(`agenda:${email}`, 10, async () => {
-    const agora = new Date();
-    const fimDoDia = new Date(agora);
-    fimDoDia.setHours(23, 59, 59, 0);
-    const eventos = await icloudEventos(email, utc(new Date(agora.getTime() - 15 * 60_000)), utc(fimDoDia)).catch(() => []);
-    const lidos = eventos
-      .map((e) => ({ e, d: dataDoIcs(e.inicio) }))
-      .filter((x): x is { e: (typeof eventos)[number]; d: { quando: Date; diaInteiro: boolean } } => !!x.d)
-      .filter((x) => !x.d.diaInteiro)
-      .sort((a, b) => a.d.quando.getTime() - b.d.quando.getTime());
-    const p = lidos[0];
-    return p ? { titulo: p.e.titulo || "Compromisso", quando: p.d.quando, diaInteiro: false, local: p.e.local } : null;
+  if (!email) return Promise.resolve([]);
+  return comCache(`agenda:${email}:${new Date().toDateString()}`, 10, async () => {
+    const inicio = new Date();
+    inicio.setHours(0, 0, 0, 0);
+    const fim = new Date(inicio.getTime() + 86_400_000);
+    const eventos = await icloudEventos(email, utc(inicio), utc(fim)).catch(() => []);
+    return eventos
+      .map((e) => {
+        const d = dataDoIcs(e.inicio);
+        return d ? { titulo: e.titulo || "Compromisso", quando: d.quando, diaInteiro: d.diaInteiro, local: e.local } : null;
+      })
+      .filter((c): c is Compromisso => !!c)
+      .sort((a, b) => Number(b.diaInteiro) - Number(a.diaInteiro) || a.quando.getTime() - b.quando.getTime());
   });
+}
+
+/** O próximo compromisso de hoje (com hora; vale até 15 min depois de começar). */
+export async function proximoCompromisso(): Promise<Compromisso | null> {
+  const limite = Date.now() - 15 * 60_000;
+  return (await compromissosDeHoje()).find((c) => !c.diaInteiro && c.quando.getTime() >= limite) ?? null;
 }
 
 /** Desenho e nome do tempo a partir do código WMO. */

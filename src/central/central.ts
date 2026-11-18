@@ -21,15 +21,17 @@ import { ICONES } from "../corpo/icones";
 import { Carinha } from "../corpo/carinha";
 import type { Contexto, NomeTela } from "../corpo/contexto";
 import { dentroDoApp } from "../ponte";
-import { anexar, comecarNova, enviarPronto, importarConversa, montarConversa, pararPeloId } from "./conversa";
+import { abrirConversa, anexar, comecarNova, enviarPronto, importarConversa, montarConversa, pararPeloId } from "./conversa";
+import { montarHoje } from "./hoje";
 import type { Conversa } from "../dados/conversas";
 import { montarProjetos } from "./projetos";
 import { montarPerfis } from "./perfis";
 import { montarFerramentas } from "./ferramentas";
 
-type Secao = "conversa" | "projetos" | "perfis" | "ferramentas" | Exclude<NomeTela, "inicio" | "apps" | "conversa">;
+type Secao = "hoje" | "conversa" | "projetos" | "perfis" | "ferramentas" | Exclude<NomeTela, "inicio" | "apps" | "conversa">;
 
 const MENU: [Secao, string, string][] = [
+  ["hoje", ICONES.relogio, "Hoje"],
   ["conversa", ICONES.teclado, "Conversa"],
   ["perfis", ICONES.personagem, "Perfis"],
   ["ferramentas", ICONES.ajustes, "MCPs e Skills"],
@@ -90,7 +92,7 @@ export async function iniciarCentral(): Promise<void> {
           <button type="button" class="botao-icone fechar-grande" title="Fechar (Esc)" aria-label="Fechar">${ICONES.fechar}</button>
           </span>
         </div>
-        <div class="itens-menu">${GRUPOS.map(
+        <div class="itens-menu">${botaoMenu("hoje")}${GRUPOS.map(
           ([titulo, itens]) => `<p class="grupo-menu">${titulo}</p>${itens.map(botaoMenu).join("")}`,
         ).join("")}</div>
         <div class="rodape-menu">${botaoMenu("ajustes")}</div>
@@ -131,7 +133,7 @@ export async function iniciarCentral(): Promise<void> {
     tela: secao as NomeTela,
     ir: () => {},
     fechar: () => {},
-    irPara: (t) => ir(t === "inicio" ? "conversa" : (t as Secao)),
+    irPara: (t) => ir(t === "inicio" ? "hoje" : (t as Secao)),
     renovar: () => mostrar(),
     segurarAberta: (p) => p,
     depois: (f, ms) => relogios.push(window.setTimeout(f, ms)),
@@ -157,9 +159,37 @@ export async function iniciarCentral(): Promise<void> {
     definirModoDiscreto: (modo) => emit("ilha:modo-discreto", modo).catch(() => {}),
   });
 
-  const mostrar = () => {
+  const mostrar = (animar = true) => {
     limpar();
     palco.querySelectorAll<HTMLElement>(".item-menu").forEach((b) => b.classList.toggle("ativo", b.dataset.secao === secao));
+    if (secao === "hoje") {
+      const pagina = document.createElement("div");
+      pagina.className = "pagina pagina-hoje";
+      pagina.append(
+        montarHoje(
+          {
+            ir: (s) => ir(s as Secao),
+            abrirConversa: (id) => {
+              ir("conversa");
+              abrirConversa(id);
+            },
+            novaConversa: () => {
+              ir("conversa");
+              comecarNova();
+            },
+            renovar: () => {
+              const rolagem = conteudo.querySelector(".pagina-hoje")?.scrollTop ?? 0;
+              mostrar(false);
+              const nova = conteudo.querySelector(".pagina-hoje");
+              if (nova) nova.scrollTop = rolagem;
+            },
+          },
+          animar,
+        ),
+      );
+      conteudo.replaceChildren(pagina);
+      return;
+    }
     if (secao === "conversa") {
       conteudo.replaceChildren(conversaEl);
       return;
@@ -183,7 +213,7 @@ export async function iniciarCentral(): Promise<void> {
   };
 
   const ir = (s: Secao) => {
-    secao = MENU.some(([id]) => id === s) ? s : "conversa";
+    secao = MENU.some(([id]) => id === s) ? s : "hoje";
     // A Central volta nesta tela da próxima vez.
     try {
       localStorage.setItem("ilha-central-secao", secao);
@@ -213,7 +243,7 @@ export async function iniciarCentral(): Promise<void> {
   aoMudarDeFora(() => {
     aplicarCor(ler().config.corDestaque);
     desenharMarca();
-    if (secao !== "conversa" && secao !== "notas") mostrar();
+    if (secao !== "conversa" && secao !== "notas") mostrar(false);
   });
 
   // ---------- Abrir e fechar como a ilha ----------
@@ -379,10 +409,10 @@ export async function iniciarCentral(): Promise<void> {
     /* sem problema */
   }
   const inicial = pedido.tela ?? new URLSearchParams(location.search).get("secao") ?? lembrada;
-  ir((inicial as Secao) ?? "conversa");
+  ir((inicial as Secao) ?? "hoje");
   // Primeira abertura (ilha recém-instalada): boas-vindas guiadas por cima.
   if (inicial === "boas-vindas" || ler().config.boasVindasFeita === false) {
-    import("./boas-vindas").then((m) => m.mostrarBoasVindas(palco, () => ir("conversa")));
+    import("./boas-vindas").then((m) => m.mostrarBoasVindas(palco, () => ir("hoje")));
   }
   if (pedido.mensagem) enviarPronto(pedido.mensagem, pedido.anexos);
   else if (pedido.anexos.length) anexar(pedido.anexos);

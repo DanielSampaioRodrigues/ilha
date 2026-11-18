@@ -36,7 +36,7 @@ function hojeEscrito(d: Date): string {
 /** Um anel pequeno de progresso (0 a 1). */
 function anel(fracao: number): string {
   const c = 2 * Math.PI * 7;
-  return `<svg class="anel" viewBox="0 0 18 18" width="16" height="16" aria-hidden="true"><circle cx="9" cy="9" r="7" class="anel-fundo"/><circle cx="9" cy="9" r="7" class="anel-cheio" stroke-dasharray="${(c * Math.min(1, fracao)).toFixed(1)} ${c.toFixed(1)}"/></svg>`;
+  return `<svg class="anel" viewBox="0 0 18 18" width="16" height="16" aria-hidden="true"><circle cx="9" cy="9" r="7" class="anel-fundo"/>${fracao > 0 ? `<circle cx="9" cy="9" r="7" class="anel-cheio" stroke-dasharray="${(c * Math.min(1, fracao)).toFixed(1)} ${c.toFixed(1)}"/>` : ""}</svg>`;
 }
 
 function saudacao(): string {

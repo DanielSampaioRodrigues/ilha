@@ -913,6 +913,12 @@ export function enviarPronto(texto: string, anexos: string[]): void {
   redesenharTudo();
 }
 
+/** Abre uma conversa que já existe (ex.: clicada no painel "Hoje"). */
+export function abrirConversa(id: string): void {
+  atualId = id;
+  redesenharTudo();
+}
+
 /** Abre a tela de conversa já pronta para escrever (botão Digitar da ilha). */
 export function comecarNova(): void {
   atualId = null;
