@@ -970,6 +970,17 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     const botao = raiz.querySelector<HTMLButtonElement>(".botao-atualizacao")!;
     const recado = raiz.querySelector<HTMLElement>(".recado-atualizacao")!;
     let achada: Novidade | null = null;
+    /** Link para a página da versão mais nova no GitHub (baixar o instalador e abrir). */
+    const mostrarPeloNavegador = (texto: string) => {
+      if (raiz.querySelector(".pelo-navegador")) return;
+      const p = document.createElement("span");
+      p.className = "secundario pelo-navegador";
+      p.innerHTML = `${escapar(texto)} <button type="button" class="link">abrir a página de downloads</button> (clique em “Ilha_…_x64-setup.exe”, abra e escolha a mesma pasta).`;
+      p.querySelector("button")!.addEventListener("click", () =>
+        abrirPrograma("https://github.com/DanielSampaioRodrigues/ilha/releases/latest").catch(() => {}),
+      );
+      recado.after(p);
+    };
     botao.addEventListener("click", async () => {
       botao.disabled = true;
       if (achada) {
@@ -980,10 +991,18 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         } catch {
           recado.textContent = "Não consegui instalar agora. Tente de novo daqui a pouco.";
           botao.disabled = false;
+          mostrarPeloNavegador("Ou baixe pelo navegador:");
         }
         return;
       }
       botao.textContent = "Procurando…";
+      // Se demorar (rede da faculdade, firewall…), oferece baixar pelo navegador, que sempre funciona.
+      const comeco = Date.now();
+      const relogioBusca = window.setInterval(() => {
+        const s = Math.round((Date.now() - comeco) / 1000);
+        botao.textContent = `Procurando… ${s}s`;
+        if (s === 15) mostrarPeloNavegador("Está demorando. Se quiser, baixe a versão nova pelo navegador:");
+      }, 1000);
       try {
         achada = await procurar();
         if (achada) {
@@ -997,6 +1016,9 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       } catch {
         recado.textContent = "Não consegui procurar agora. Confira a internet e tente de novo.";
         botao.textContent = "Procurar agora";
+        mostrarPeloNavegador("Não consegui pelo caminho normal. Baixe pelo navegador:");
+      } finally {
+        window.clearInterval(relogioBusca);
       }
       botao.disabled = false;
     });
