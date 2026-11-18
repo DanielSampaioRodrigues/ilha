@@ -18,6 +18,7 @@ import { ICONES } from "../corpo/icones";
 import { selo, SELO_MOTOR } from "../corpo/selos";
 import { escapar, html } from "../corpo/ui";
 import { ordenar } from "../corpo/telas/tarefas";
+import { entenderData, quandoLegivel } from "../dados/datas-faladas";
 
 export interface AcoesHoje {
   ir(secao: string): void;
@@ -124,7 +125,7 @@ export function montarHoje(acoes: AcoesHoje, animar: boolean): HTMLElement {
             )
             .join("") || '<p class="vazio-hoje">Nada pendente. Que tal descansar um pouco?</p>'
         }</div>
-        <form class="nova-tarefa-hoje"><input class="entrada" name="texto" placeholder="+ Nova tarefa e Enter" aria-label="Nova tarefa" autocomplete="off"></form>
+        <form class="nova-tarefa-hoje"><input class="entrada" name="texto" placeholder="+ Nova tarefa (ex.: Prova sexta 8h)" aria-label="Nova tarefa" autocomplete="off"><span class="previa-data" hidden></span></form>
       </section>
 
       <section class="cartao-hoje habitos-hoje">
@@ -259,11 +260,18 @@ export function montarHoje(acoes: AcoesHoje, animar: boolean): HTMLElement {
     if (e.key === "Enter") acoes.ir("notas");
   });
   const form = raiz.querySelector<HTMLFormElement>(".nova-tarefa-hoje")!;
+  const previa = form.querySelector<HTMLElement>(".previa-data")!;
+  form.querySelector("input")!.addEventListener("input", (e) => {
+    const r = entenderData((e.target as HTMLInputElement).value);
+    previa.hidden = !r.quando;
+    previa.innerHTML = r.quando ? `${ICONES.calendario}${quandoLegivel(r.quando)}` : "";
+  });
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    const texto = String(new FormData(form).get("texto") ?? "").trim();
-    if (!texto) return;
-    mudar((x) => x.tarefas.push({ id: novoId(), texto, prioridade: 0, quando: null, feita: false, subtarefas: [] }));
+    const frase = String(new FormData(form).get("texto") ?? "").trim();
+    if (!frase) return;
+    const { texto, quando, prioridade } = entenderData(frase);
+    mudar((x) => x.tarefas.push({ id: novoId(), texto, prioridade, quando, feita: false, subtarefas: [] }));
     acoes.renovar();
     window.setTimeout(() => document.querySelector<HTMLInputElement>(".nova-tarefa-hoje input")?.focus(), 30);
   });

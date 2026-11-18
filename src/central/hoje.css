@@ -560,3 +560,9 @@
   padding: 0 6px;
   font-size: 10.5px;
 }
+
+.nova-tarefa-hoje {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

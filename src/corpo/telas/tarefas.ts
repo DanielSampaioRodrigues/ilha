@@ -1,4 +1,5 @@
 // Lista de tarefas: prioridade (!, !!, !!!), data opcional e subtarefas.
+import { entenderData, quandoLegivel } from "../../dados/datas-faladas";
 import { confeteEm } from "../festa";
 import { ler, mudar, novoId, type Tarefa } from "../../dados/armazem";
 import { diasAte, diaEscrito, horaEscrita } from "../../dados/datas";
@@ -77,11 +78,12 @@ export function montarTarefas(ctx: Contexto): HTMLElement {
     <div class="estado aberta tela">
       ${cabecalho(`Tarefas · ${pendentes.length}`)}
       <form class="linha nova-tarefa">
-        <input class="entrada" name="texto" placeholder="Nova tarefa e Enter" maxlength="120" autocomplete="off">
+        <input class="entrada" name="texto" placeholder="Nova tarefa (ex.: Prova sexta 8h) e Enter" maxlength="120" autocomplete="off">
         <div class="segmentos pequeno" role="radiogroup" aria-label="Importância">
           ${[0, 1, 2, 3].map((p) => `<button type="button" class="segmento" role="radio" aria-checked="${p === 0}" data-prioridade="${p}">${p ? "!".repeat(p) : "—"}</button>`).join("")}
         </div>
       </form>
+      <p class="previa-data" hidden></p>
       <div class="secao">${pendentes.map(linhaTarefa).join("") || '<p class="vazio">Nada pendente. Toque no círculo para concluir; na tarefa, para ver etapas e data.</p>'}</div>
       ${
         feitas.length
@@ -102,11 +104,19 @@ export function montarTarefas(ctx: Contexto): HTMLElement {
     }),
   );
   const form = raiz.querySelector<HTMLFormElement>(".nova-tarefa")!;
+  // Enquanto digita: mostra a data que a ilha entendeu ("Prova sexta 8h" → sex, 20/11 às 08:00).
+  const previa = raiz.querySelector<HTMLElement>(".previa-data")!;
+  form.querySelector("input")!.addEventListener("input", (e) => {
+    const r = entenderData((e.target as HTMLInputElement).value);
+    previa.hidden = !r.quando && !r.prioridade;
+    previa.innerHTML = `${r.quando ? `${ICONES.calendario}${quandoLegivel(r.quando)}` : ""}${r.prioridade ? ` <b class="prioridade">${"!".repeat(r.prioridade)}</b>` : ""}`;
+  });
   form.addEventListener("submit", (e) => {
     e.preventDefault();
-    const texto = String(new FormData(form).get("texto") ?? "").trim();
-    if (!texto) return;
-    mudar((d) => d.tarefas.push({ id: novoId(), texto, prioridade, quando: null, feita: false, subtarefas: [] }));
+    const frase = String(new FormData(form).get("texto") ?? "").trim();
+    if (!frase) return;
+    const { texto, quando, prioridade: p } = entenderData(frase);
+    mudar((d) => d.tarefas.push({ id: novoId(), texto, prioridade: Math.max(prioridade, p), quando, feita: false, subtarefas: [] }));
     ctx.renovar();
     window.setTimeout(() => document.querySelector<HTMLInputElement>('.nova-tarefa input[name="texto"]')?.focus(), 50);
   });

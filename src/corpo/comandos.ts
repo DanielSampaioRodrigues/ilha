@@ -67,6 +67,16 @@ export async function tentarComando(texto: string, ctx: Contexto): Promise<strin
   const rotina = rotinaDaFrase(texto, d);
   if (rotina) return rodarRotina(rotina, ctx);
 
+  // Nova tarefa, com data se tiver: "nova tarefa entregar trabalho amanhã 19h".
+  const tarefa = texto.trim().match(/^(?:nova tarefa|adiciona(?:r)? (?:a |uma )?tarefa|anota(?:r)? (?:a |uma )?tarefa|cria(?:r)? (?:a |uma )?tarefa|tarefa:)\s*:?\s+(.+?)\.?$/i);
+  if (tarefa) {
+    const { entenderData, quandoLegivel } = await import("../dados/datas-faladas");
+    const r = entenderData(tarefa[1]);
+    const nomeTarefa = r.texto.replace(/^./, (c) => c.toUpperCase());
+    mudar((x) => x.tarefas.push({ id: novoId(), texto: nomeTarefa, prioridade: r.prioridade, quando: r.quando, feita: false, subtarefas: [] }));
+    return `Anotei: ${nomeTarefa}${r.quando ? ` (${quandoLegivel(r.quando)})` : ""}.`;
+  }
+
   // Cidade para o tempo: "minha cidade é Recife", "eu moro em São Paulo".
   const cidade = texto.trim().match(/^(?:a )?minha cidade (?:é|e|agora é)\s+(.+?)[.!]?$|^(?:eu )?(?:moro|estou morando) (?:em|no|na)\s+(.+?)[.!]?$/i);
   if (cidade) {
