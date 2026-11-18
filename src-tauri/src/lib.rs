@@ -149,6 +149,7 @@ pub fn run() {
             maos::musica::primeiro_video,
             maos::musica::musica_apple,
             maos::documento::salvar_word,
+            maos::tempo::tempo_agora,
             maos::kokoro::estado_kokoro,
             maos::kokoro::preparar_kokoro,
             maos::kokoro::falar_kokoro,

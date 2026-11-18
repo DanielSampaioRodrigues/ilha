@@ -86,6 +86,10 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
           <input class="entrada curta2" name="nome" maxlength="30" value="${escapar(dados.config.nome)}" aria-label="Seu nome">
         </div>
         <div class="item">
+          <div class="coluna"><span class="principal">Sua cidade</span><span class="secundario">Para mostrar o tempo agora na tela inicial. Em branco, não mostra.</span></div>
+          <input class="entrada curta2" name="cidade" maxlength="60" value="${escapar(dados.config.cidade ?? "")}" placeholder="Ex.: Recife" aria-label="Sua cidade">
+        </div>
+        <div class="item">
           <div class="coluna"><span class="principal">Cor de destaque</span><span class="secundario">Botões e marcações. Os olhos do robô ficam com os personagens.</span></div>
           <div class="linha amostras">${cores}</div>
         </div>
@@ -329,6 +333,8 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   // Nome
   const nome = raiz.querySelector<HTMLInputElement>('[name="nome"]')!;
   nome.addEventListener("input", () => mudar((d) => (d.config.nome = nome.value.trim() || "Dan")));
+  const cidade = raiz.querySelector<HTMLInputElement>('[name="cidade"]')!;
+  cidade.addEventListener("change", () => mudar((d) => (d.config.cidade = cidade.value.trim() || undefined)));
   const nomeRobo = raiz.querySelector<HTMLInputElement>('[name="nomeRobo"]')!;
   nomeRobo.addEventListener("input", () => {
     mudar((d) => (d.config.nomeRobo = nomeRobo.value.trim() || "Robozinho"));

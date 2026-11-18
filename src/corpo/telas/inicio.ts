@@ -18,6 +18,7 @@ import type { Contexto } from "../contexto";
 import { seloDa } from "../selos";
 import { ICONES } from "../icones";
 import { confeteEm } from "../festa";
+import { jeitoDoTempo, proximoCompromisso, tempoAgora } from "../../dados/agora";
 import { aoClicar, escapar, html, recadoTemporario } from "../ui";
 
 /** Manhã, tarde ou noite: muda as cores da saudação. */
@@ -191,7 +192,7 @@ export function montarInicio(ctx: Contexto): HTMLElement {
         <input class="entrada-busca" aria-label="Buscar uma ferramenta ou pedir algo à IA" autocomplete="off" spellcheck="false">
         <span class="dica-busca"></span>
       </div>
-      ${pilulas ? `<div class="pilulas">${pilulas}</div>` : ""}
+      <div class="pilulas"${pilulas ? "" : " hidden"}>${pilulas}</div>
       ${atualizacao}
       ${precisa}
       ${secaoTarefas}
@@ -250,6 +251,31 @@ export function montarInicio(ctx: Contexto): HTMLElement {
   const subtitulo = raiz.querySelector<HTMLElement>(".subtitulo")!;
   const recado = (texto: string, ms?: number) => recadoTemporario(subtitulo, texto, ms);
   if (ctx.mensagem) recado(ctx.mensagem, 5000);
+
+  // Pílulas que dependem da internet: o tempo e o próximo compromisso (chegam depois).
+  const caixaPilulas = raiz.querySelector<HTMLElement>(".pilulas")!;
+  const pilula = (html: string, tela?: string, antes = false) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "pilula";
+    b.innerHTML = html;
+    if (tela) b.addEventListener("click", () => ctx.irPara(tela as never));
+    if (antes) caixaPilulas.prepend(b);
+    else caixaPilulas.append(b);
+    caixaPilulas.hidden = false;
+  };
+  void proximoCompromisso().then((c) => {
+    if (!c || !raiz.isConnected) return;
+    const falta = Math.round((c.quando.getTime() - Date.now()) / 60_000);
+    const quando = falta <= 0 ? "agora" : falta < 60 ? `em ${falta} min` : `às ${c.quando.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+    pilula(`${ICONES.calendario}<span class="texto-pilula">${escapar(c.titulo)}</span> · ${quando}`, "calendario", true);
+  });
+  void tempoAgora().then((t) => {
+    if (!t || !raiz.isConnected) return;
+    const j = jeitoDoTempo(t.codigo, t.dia);
+    pilula(`${j.icone}${Math.round(t.temperatura)}° <span class="secundario">${escapar(j.nome)}</span>`, undefined, true);
+    caixaPilulas.firstElementChild?.setAttribute("title", `${j.nome} em ${t.cidade}`);
+  });
 
   // Começou a digitar na tela inicial: busca as ferramentas e os programas
   // na hora; Enter abre o primeiro, ou manda o texto para a IA.

@@ -4,6 +4,7 @@ pub mod arquivos;
 pub mod documento;
 pub mod chamado;
 pub mod musica;
+pub mod tempo;
 pub mod kokoro;
 pub mod pastas;
 pub mod calendario;

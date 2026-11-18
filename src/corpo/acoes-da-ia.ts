@@ -93,12 +93,12 @@ async function verificarPc(): Promise<string> {
 // ---------- Agenda (Calendário da Apple) ----------
 
 /** Data local "AAAA-MM-DD" → começo do dia em UTC no formato do CalDAV. */
-function utc(d: Date): string {
+export function utc(d: Date): string {
   return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
 /** "20261118T170000Z" | "20261118T170000" | "20261118" → Date local (e se é dia inteiro). */
-function dataDoIcs(t: string): { quando: Date; diaInteiro: boolean } | null {
+export function dataDoIcs(t: string): { quando: Date; diaInteiro: boolean } | null {
   const m = t.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/);
   if (!m) return null;
   const [, a, me, di, h, mi, s, z] = m;

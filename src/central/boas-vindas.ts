@@ -42,6 +42,7 @@ export function mostrarBoasVindas(palco: HTMLElement, aoTerminar: () => void): v
         <p class="secundario">Organizo suas coisas, converso com as IAs, falo e escuto. Primeiro, as apresentações:</p>
         <label class="campo">Como posso te chamar?<input class="entrada" name="nome" maxlength="30" value="${escapar(c.nome === "Dan" ? "" : c.nome)}" placeholder="Seu nome"></label>
         <label class="campo">E o meu nome? (é como você me chama pela voz)<input class="entrada" name="robo" maxlength="20" value="${escapar(c.nomeRobo)}"></label>
+        <label class="campo">Sua cidade (para eu mostrar o tempo)<input class="entrada" name="cidade" maxlength="60" value="${escapar(c.cidade ?? "")}" placeholder="Ex.: Recife"></label>
         ${rodape()}`;
       cartao.querySelector(".carinha-boas-vindas")!.replaceChildren(new Carinha("feliz", { tamanho: 4, comAcessorio: true }).elemento);
       cartao.querySelector<HTMLInputElement>('[name="nome"]')!.focus();
@@ -140,9 +141,11 @@ export function mostrarBoasVindas(palco: HTMLElement, aoTerminar: () => void): v
       if (passo === 0) {
         const nome = cartao.querySelector<HTMLInputElement>('[name="nome"]')!.value.trim();
         const robo = cartao.querySelector<HTMLInputElement>('[name="robo"]')!.value.trim();
+        const cidade = cartao.querySelector<HTMLInputElement>('[name="cidade"]')!.value.trim();
         mudar((d) => {
           if (nome) d.config.nome = nome;
           if (robo) d.config.nomeRobo = robo;
+          d.config.cidade = cidade || undefined;
         });
       }
       if (passo >= PASSOS - 1) {
