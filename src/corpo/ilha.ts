@@ -175,6 +175,7 @@ export class Ilha {
     const discreto =
       this.modoDiscreto === "sempre" || (this.modoDiscreto === "automatico" && this.janelaComAbas);
     if (this.perguntas.length) return "confirmacao";
+    if (this.ditado) return "ditando";
     if (discreto && !this.expandida) return "discreto";
     if (this.trabalho) return "trabalhando";
     if (this.foco || ler().timers.length) return "foco";
@@ -191,7 +192,7 @@ export class Ilha {
 
   /** Estados de descanso, que podem ser trocados sem atrapalhar o Dan. */
   private emDescanso(): boolean {
-    return ["repouso", "aviso", "foco", "discreto", "renovacao", "musica", "volume", "trabalhando"].includes(this.estado);
+    return ["repouso", "aviso", "foco", "discreto", "renovacao", "musica", "volume", "trabalhando", "ditando"].includes(this.estado);
   }
 
   /** O que está tocando mudou (vem a cada 2 s do main.ts). */
@@ -203,6 +204,20 @@ export class Ilha {
     if (!mudou || !this.emDescanso() || this.estado === "volume" || this.mouseDentro) return;
     if (this.estadoBase() !== this.estado) this.fechar();
     else if (this.estado === "musica") this.renovar();
+  }
+
+  /** Ditado em qualquer lugar: mostra o que está sendo ouvido, sem pegar o foco. */
+  private ditado: { etapa: string; texto: string } | null = null;
+  mostrarDitado(etapa: string, texto = ""): void {
+    const ativo = etapa === "ouvindo" || etapa === "entendendo" || etapa === "texto";
+    if (ativo) {
+      this.ditado = { etapa: etapa === "texto" ? this.ditado?.etapa ?? "ouvindo" : etapa, texto: texto || this.ditado?.texto || "" };
+      if (this.estado === "ditando") this.renovar();
+      else if (this.emDescanso()) this.mostrar("ditando");
+      return;
+    }
+    this.ditado = null;
+    if (this.estado === "ditando") this.fechar();
   }
 
   /** O volume mudou: mostra por um instante na ilha (só se ela estiver fechada). */
@@ -604,6 +619,7 @@ export class Ilha {
       responderPergunta: (permitir) => this.responderPergunta(permitir),
       trabalho: this.trabalho,
       volume: this.volume,
+      ditado: this.ditado,
       ir: (estado) => this.mostrar(estado),
       fechar: () => this.fechar(),
       irPara: (tela) => this.irPara(tela),

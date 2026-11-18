@@ -148,6 +148,12 @@ export interface Config {
   modelosRapida?: Partial<Record<string, string>>;
   /** Conversa rápida: só conversar, ou fazer tudo no PC (pedindo "Posso?" no que não tem volta). */
   modoRapida?: "conversar" | "editar";
+  /** Ditado em qualquer lugar (atalho global). Ligado se não houver nada. */
+  ditadoLigado?: boolean;
+  /** Atalho do ditado (ex.: "Ctrl+Shift+Space"). */
+  atalhoDitado?: string;
+  /** Dicionário do ouvido: uma palavra por linha ("Certo = errado1, errado2"). */
+  dicionario?: string;
   /** Pastas que o Dan usa (abertas pela ilha ou fixadas): a IA sempre sabe onde ficam. */
   pastas?: PastaConhecida[];
   /** Microfone com cancelamento de eco (interromper sem fone). Ligado se não houver nada. */

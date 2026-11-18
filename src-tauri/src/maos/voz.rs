@@ -26,7 +26,7 @@ pub async fn ouvir(app: tauri::AppHandle) -> Result<String, String> {
         // funciona com uma janela da ilha na frente). Não precisa esperar a
         // escuta do nome: os dois podem usar o microfone juntos.
         if super::ouvido::pronto_para_pedido() {
-            return super::ouvido::ouvir_pedido(&app, &PARAR);
+            return super::ouvido::ouvir_pedido(&app, &PARAR).map(|t| super::ditado::corrigir(&t));
         }
         // O ouvido do Windows não funciona direito num programa comum como a
         // ilha (só em apps da loja): enquanto o ouvido próprio instala, avisa.

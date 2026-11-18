@@ -15,6 +15,7 @@ export type NomeEstado =
   | "renovacao"
   | "musica"
   | "volume"
+  | "ditando"
   | "aberta";
 
 export type NomeTela =
@@ -111,6 +112,8 @@ export interface Contexto {
   musica: Midia | null;
   /** Último volume visto (para o aviso de volume). */
   volume: Volume | null;
+  /** Ditado em qualquer lugar acontecendo agora (texto ao vivo). */
+  ditado?: { etapa: string; texto: string } | null;
   comecarFoco(tipo: SessaoFoco["tipo"], minutos: number): void;
   /** Liga/desliga o modo discreto (risquinho em repouso). */
   definirModoDiscreto(modo: import("../dados/armazem").ModoDiscreto): void;

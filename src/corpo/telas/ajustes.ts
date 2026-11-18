@@ -24,6 +24,7 @@ import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
 import { procurar, type Novidade } from "../../atualizacao";
 import { ajustarMicrofoneComEco } from "../../maos/microfone-eco";
+import { ATALHOS_DITADO, ATALHO_DITADO_PADRAO } from "../../dados/dicionario";
 import { aoClicar, cabecalho, escapar, html, recadoTemporario } from "../ui";
 
 const TECLAS = [
@@ -123,6 +124,18 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         <div class="item">
           <div class="coluna"><span class="principal">Atender quando eu chamar pelo nome</span><span class="secundario">Diga “${escapar(dados.config.nomeRobo)}” (ou “${escapar(dados.config.nomeRobo)}, que horas são?”) e ele responde, com a ilha aberta ou fechada. O microfone fica ligado, mas tudo é entendido no próprio PC: nada sai do computador e só o que vem depois do nome vira pedido.</span></div>
           <button type="button" class="chave" role="switch" aria-checked="${dados.config.atenderPeloNome}" aria-label="Atender quando eu chamar pelo nome" data-acao="atender-nome"><span></span></button>
+        </div>
+        <div class="item">
+          <div class="coluna"><span class="principal">Ditado em qualquer lugar</span><span class="secundario situacao-ditado">Em qualquer programa: aperte o atalho, fale, e aperte de novo para colar o texto onde está o cursor. Esc cancela.</span></div>
+          <select class="entrada escolha-atalho-ditado" style="min-width: 200px" aria-label="Atalho do ditado">
+            ${ATALHOS_DITADO.map((a) => `<option value="${a}" ${(dados.config.atalhoDitado || ATALHO_DITADO_PADRAO) === a ? "selected" : ""}>${atalhoLegivel(a)}</option>`).join("")}
+          </select>
+          <button type="button" class="chave" role="switch" aria-checked="${dados.config.ditadoLigado !== false}" aria-label="Ditado em qualquer lugar" data-acao="ditado-ligado"><span></span></button>
+        </div>
+        <div class="item coluna-item">
+          <div class="coluna"><span class="principal">Dicionário</span><span class="secundario">Palavras que o ouvido costuma errar (nomes, clientes, siglas). Uma por linha. Se ele escreve de um jeito errado conhecido, ponha depois do “=”: <code>Claude Code = cloud code, clode code</code>. Vale para o ditado e para os pedidos.</span></div>
+          <textarea class="entrada dicionario" rows="5" spellcheck="false" placeholder="Arcano&#10;Aleph&#10;Claude Code = cloud code, clode code">${escapar(dados.config.dicionario ?? "")}</textarea>
+          <div class="linha"><span class="secundario resposta-dicionario"></span><span class="espaco"></span><button type="button" class="botao ciano" data-acao="salvar-dicionario">Salvar</button></div>
         </div>
         <div class="item">
           <div class="coluna"><span class="principal">Interromper sem fone</span><span class="secundario">Usa o cancelamento de eco das chamadas de vídeo: a voz do robô que sai na caixa de som é tirada do que o microfone ouve, então dá para chamar “${escapar(dados.config.nomeRobo)}” e interromper mesmo sem fone. Funciona melhor com a voz natural. Se não der certo no seu PC, desligue.</span></div>
@@ -319,6 +332,39 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     b.setAttribute("aria-checked", String(ligado));
     atenderPeloNome(ligado, ler().config.nomeRobo).catch(() => {});
     ajustarMicrofoneComEco();
+  });
+  // Ditado em qualquer lugar e dicionário.
+  const situacaoDitado = raiz.querySelector<HTMLElement>(".situacao-ditado")!;
+  const escolhaAtalhoDitado = raiz.querySelector<HTMLSelectElement>(".escolha-atalho-ditado")!;
+  const explicarDitado = (registrado: string | null) => {
+    const c = ler().config;
+    if (c.ditadoLigado === false) situacaoDitado.textContent = "Desligado.";
+    else if (!registrado) situacaoDitado.textContent = "Nenhum desses atalhos está livre agora; escolha outro.";
+    else {
+      situacaoDitado.textContent = `Em qualquer programa: aperte ${atalhoLegivel(registrado)}, fale, e aperte de novo para colar onde está o cursor. Esc cancela.`;
+      if (registrado !== escolhaAtalhoDitado.value) escolhaAtalhoDitado.value = registrado;
+    }
+  };
+  const aplicarEExplicar = () => import("../../dados/dicionario").then((m) => m.aplicarDitado()).then(explicarDitado);
+  void aplicarEExplicar();
+  aoClicar(raiz, "ditado-ligado", (b) => {
+    const ligado = ler().config.ditadoLigado === false;
+    mudar((d) => (d.config.ditadoLigado = ligado));
+    b.setAttribute("aria-checked", String(ligado));
+    void aplicarEExplicar();
+  });
+  escolhaAtalhoDitado.addEventListener("change", () => {
+    mudar((d) => (d.config.atalhoDitado = escolhaAtalhoDitado.value));
+    void aplicarEExplicar();
+  });
+  aoClicar(raiz, "salvar-dicionario", () => {
+    const texto = raiz.querySelector<HTMLTextAreaElement>(".dicionario")!.value;
+    mudar((d) => (d.config.dicionario = texto));
+    void aplicarEExplicar();
+    import("../../dados/dicionario").then((m) => {
+      const n = m.lerDicionario(texto).length;
+      recadoTemporario(raiz.querySelector<HTMLElement>(".resposta-dicionario")!, n ? `Pronto: ${n} palavra(s).` : "Dicionário vazio.");
+    });
   });
   aoClicar(raiz, "microfone-eco", (b) => {
     const ligado = ler().config.microfoneComEco === false;

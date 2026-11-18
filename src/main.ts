@@ -92,6 +92,37 @@ async function iniciar(): Promise<void> {
   // enquanto "Atender quando eu chamar pelo nome" estiver ligado.
   ajustarMicrofoneComEco();
   aoMudarDeFora(ajustarMicrofoneComEco);
+  // Ditado em qualquer lugar (atalho global) e o dicionário do ouvido.
+  import("./dados/dicionario").then((m) => {
+    void m.aplicarDitado();
+    let antes = "";
+    aoMudarDeFora(() => {
+      const c = ler().config;
+      const agora = `${c.ditadoLigado}|${c.atalhoDitado}|${c.dicionario}`;
+      if (agora !== antes) void m.aplicarDitado();
+      antes = agora;
+    });
+  });
+  let ditadoConfirmado = "";
+  ouvir<{ etapa: string; texto?: string; erro?: string }>("ilha:ditado", (d) => {
+    if (d.etapa === "ouvindo") ditadoConfirmado = "";
+    if (d.etapa === "ouvindo" || d.etapa === "entendendo") document.body.dataset.ditando = "1";
+    else delete document.body.dataset.ditando;
+    if (d.etapa === "erro") {
+      ilha.mostrarDitado("fim");
+      ilha.avisar(d.texto ? `Não consegui colar (${d.erro}). O texto ficou copiado: é só Ctrl+V.` : `Ditado: ${d.erro}`);
+      return;
+    }
+    ilha.mostrarDitado(d.etapa);
+  });
+  ouvir<string>("ilha:ditado-texto", (t) => {
+    ditadoConfirmado = t;
+    ilha.mostrarDitado("texto", t);
+  });
+  ouvir<string>("ilha:ouvindo-texto", (parcial) => {
+    if (!document.body.dataset.ditando) return;
+    ilha.mostrarDitado("texto", `${ditadoConfirmado} ${parcial}`.trim());
+  });
   // Calendário da Apple: manda o que mudou (se estiver conectado).
   import("./dados/calendario").then((m) => m.sincronizarSempre());
   // Chamou pelo nome: abre a conversa já ouvindo o pedido.

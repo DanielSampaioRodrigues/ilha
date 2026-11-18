@@ -1,7 +1,7 @@
 // Pedidos ao lado Rust e aos plugins do Tauri. Fora do app (navegador de
 // teste) tudo responde com valores neutros.
 import { Channel, invoke } from "@tauri-apps/api/core";
-import { enquanto, segurarPor } from "./foco";
+import { enquanto } from "./foco";
 import { open } from "@tauri-apps/plugin-dialog";
 import * as inicioAutomatico from "@tauri-apps/plugin-autostart";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
@@ -276,12 +276,6 @@ export const motoresDisponiveis = () =>
 /** Modelos que o programa/API informa (Antigravity e DeepSeek). */
 export const listarModelos = (motor: Motor) =>
   pedir<string[]>("listar_modelos", { motor }, motor === "antigravity" ? ["gemini-3.8-flash-medium", "gemini-4-hydrogen-high"] : []);
-/** Abre a digitação por voz do Windows (Win + H) na caixa com o cursor. */
-export const ditado = () => {
-  // O painel de ditado do Windows pode tirar o foco por um tempo.
-  segurarPor(15000);
-  return pedir<void>("ditado");
-};
 /** Esconde a ilha grande (ela continua viva por trás, terminando conversas). */
 export const esconderCentral = () => pedir<void>("esconder_central");
 /** A janela da frente do Windows: se é da ilha, ou uma "intrusa" (terminal que abriu sozinho). */
@@ -519,3 +513,12 @@ export interface PastaAchada {
 /** Procura pastas pelo nome (aproximado) em todos os discos. */
 export const procurarPastas = (nome: string) => pedir<PastaAchada[]>("procurar_pastas", { nome }, []);
 export const renovarPastas = () => pedir<void>("renovar_pastas");
+
+/** Ditado em qualquer lugar: liga/troca o atalho. Devolve o atalho registrado. */
+export const definirDitado = (ligado: boolean, atalho: string) => pedir<string | null>("definir_ditado", { ligado, atalho }, ligado ? atalho : null);
+export interface PalavraDicionario {
+  certo: string;
+  errados: string[];
+}
+/** Palavras que o ouvido costuma errar (vale para tudo que a ilha ouve). */
+export const definirDicionario = (palavras: PalavraDicionario[]) => pedir<void>("definir_dicionario", { palavras });

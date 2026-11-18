@@ -523,6 +523,18 @@ impl Cortador {
         self.falando
     }
 
+    /// Encerra na hora (ex.: o Dan apertou o atalho de novo): devolve a fala
+    /// que estava em andamento, se tinha voz de verdade.
+    pub fn terminar(&mut self) -> Option<Vec<f32>> {
+        if !self.falando {
+            return None;
+        }
+        self.falando = false;
+        self.seguidos = 0;
+        let fala = std::mem::take(&mut self.fala);
+        (self.com_voz >= 6).then_some(fala)
+    }
+
     /// Recebe som; devolve as falas que terminaram.
     pub fn empurrar(&mut self, amostras: &[f32]) -> Vec<Vec<f32>> {
         let mut prontas = Vec::new();
@@ -842,8 +854,65 @@ impl EnvioNuvem {
                 Err(e) => log::warn!("Ouvido: nuvem falhou ({e}); entendendo no PC"),
             }
         }
-        transcrever(bom(), fala, None)
+        let dica = super::ditado::dica();
+        transcrever(bom(), fala, dica.as_deref())
     }
+}
+
+/// Ditado em qualquer lugar: grava até `parar` (o Dan aperta o atalho de novo),
+/// entendendo cada trecho assim que a pessoa faz uma pausa (o texto aparece ao
+/// vivo na ilha). `cancelar`: descarta tudo. Devolve o texto inteiro.
+pub fn ditar(app: &AppHandle, parar: &AtomicBool, cancelar: &AtomicBool) -> Result<String, String> {
+    if !pronto_para_pedido() {
+        return Err(aviso_instalando().unwrap_or_else(|| "O ouvido da ilha ainda não está pronto.".into()));
+    }
+    let microfone = abrir_microfone()?;
+    let _ = app.emit("ilha:microfone-aberto", ());
+    preparar_bom();
+    let mut cortador = Cortador::new(900, 30_000);
+    let mut nuvem = EnvioNuvem::novo(Some(app));
+    let mut texto = String::new();
+    let comeco = Instant::now();
+    let juntar = |texto: &mut String, mais: Result<String, String>| {
+        if let Ok(t) = mais {
+            let t = t.trim();
+            if !t.is_empty() {
+                if !texto.is_empty() {
+                    texto.push(' ');
+                }
+                texto.push_str(t);
+            }
+        }
+    };
+    loop {
+        if cancelar.load(Ordering::Relaxed) {
+            return Ok(String::new());
+        }
+        // Atalho de novo (ou 5 min de ditado): fecha o trecho em andamento.
+        if parar.load(Ordering::Relaxed) || comeco.elapsed() > Duration::from_secs(300) {
+            if let Some(fala) = cortador.terminar() {
+                let _ = app.emit("ilha:entendendo", ());
+                let resto = nuvem.entender(&fala);
+                juntar(&mut texto, resto);
+            }
+            break;
+        }
+        let som = match microfone.chegando.recv_timeout(Duration::from_millis(100)) {
+            Ok(s) => s,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(_) => return Err("O microfone parou de mandar som.".into()),
+        };
+        let falava = cortador.falando();
+        let pronta = cortador.empurrar(&som).into_iter().next();
+        nuvem.som(&som, falava, cortador.falando(), pronta.is_some());
+        if let Some(fala) = pronta {
+            let anterior = std::mem::replace(&mut nuvem, EnvioNuvem::novo(Some(app)));
+            let trecho = anterior.entender(&fala);
+            juntar(&mut texto, trecho);
+            let _ = app.emit("ilha:ditado-texto", super::ditado::corrigir(&texto));
+        }
+    }
+    Ok(texto)
 }
 
 /// Palavras que não terminam um pedido ("abre o…", "manda para…"): se a fala
@@ -1177,7 +1246,7 @@ fn atender(
         })
     };
     let _ = match pedido {
-        Ok(texto) => app.emit("ilha:pedido-ouvido", serde_json::json!({ "texto": texto })),
+        Ok(texto) => app.emit("ilha:pedido-ouvido", serde_json::json!({ "texto": super::ditado::corrigir(&texto) })),
         Err(erro) => app.emit("ilha:pedido-ouvido", serde_json::json!({ "erro": erro })),
     };
 }

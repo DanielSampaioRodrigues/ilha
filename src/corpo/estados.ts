@@ -326,6 +326,27 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
     },
   },
 
+  // Ditado em qualquer lugar: o texto aparece ao vivo; o atalho de novo cola.
+  ditando: {
+    largura: 460,
+    raio: 24,
+    compacto: false,
+    montar: (ctx) => {
+      const d = ctx.ditado ?? { etapa: "ouvindo", texto: "" };
+      const barras = Array.from({ length: 14 }, (_, i) => `<span style="--i:${i}"></span>`).join("");
+      const texto = d.texto.length > 140 ? `…${d.texto.slice(-140)}` : d.texto;
+      return html(`
+        <div class="estado compacto">
+          <i data-carinha="ouvindo" data-acessorio></i>
+          <div class="coluna">
+            <span class="rotulo"><span class="ponto gravando"></span>${d.etapa === "entendendo" ? "Escrevendo…" : "Ditado"}</span>
+            <span class="secundario fala">${texto ? escapar(texto) : "Pode falar. Atalho de novo cola; Esc cancela."}</span>
+          </div>
+          <div class="onda" aria-hidden="true">${barras}</div>
+        </div>`);
+    },
+  },
+
   // Aviso rápido quando o volume muda.
   volume: {
     largura: 300,
