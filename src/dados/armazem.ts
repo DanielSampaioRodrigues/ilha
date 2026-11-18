@@ -148,6 +148,8 @@ export interface Config {
   modelosRapida?: Partial<Record<string, string>>;
   /** Conversa rápida: só conversar, ou fazer tudo no PC (pedindo "Posso?" no que não tem volta). */
   modoRapida?: "conversar" | "editar";
+  /** Silêncio (ms) que encerra um pedido falado: 900, 1400 (padrão) ou 2200. */
+  esperaFala?: number;
   /** Ditado em qualquer lugar (atalho global). Ligado se não houver nada. */
   ditadoLigado?: boolean;
   /** Atalho do ditado (ex.: "Ctrl+Shift+Space"). */

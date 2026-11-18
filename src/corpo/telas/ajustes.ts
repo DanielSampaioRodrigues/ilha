@@ -19,7 +19,7 @@ import {
   PROGRAMAS_COM_ABAS,
   situacaoAvisos,
   type ProgramaIA,
-  type SituacaoAviso, atenderPeloNome, aquecerKokoro, baixarOuvido, escolherOuvido, estadoKokoro, prepararKokoro, testarOuvido, conferirVoz, consertarVoz, estadoChamado, estadoOuvido, vozesNaturais, type EstadoChamado, type EstadoOuvido, type EstadoVoz } from "../../maos/sistema";
+  type SituacaoAviso, atenderPeloNome, aquecerKokoro, baixarOuvido, definirEspera, escolherOuvido, estadoKokoro, prepararKokoro, testarOuvido, conferirVoz, consertarVoz, estadoChamado, estadoOuvido, vozesNaturais, type EstadoChamado, type EstadoOuvido, type EstadoVoz } from "../../maos/sistema";
 import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
 import { procurar, type Novidade } from "../../atualizacao";
@@ -124,6 +124,18 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         <div class="item">
           <div class="coluna"><span class="principal">Atender quando eu chamar pelo nome</span><span class="secundario">Diga “${escapar(dados.config.nomeRobo)}” (ou “${escapar(dados.config.nomeRobo)}, que horas são?”) e ele responde, com a ilha aberta ou fechada. O microfone fica ligado, mas tudo é entendido no próprio PC: nada sai do computador e só o que vem depois do nome vira pedido.</span></div>
           <button type="button" class="chave" role="switch" aria-checked="${dados.config.atenderPeloNome}" aria-label="Atender quando eu chamar pelo nome" data-acao="atender-nome"><span></span></button>
+        </div>
+        <div class="item">
+          <div class="coluna"><span class="principal">Esperar eu terminar de falar</span><span class="secundario">Quanto silêncio encerra o pedido. “Com calma” é melhor para quem pausa para pensar; “Rápido” responde antes. Frases que param no meio (“abre a pasta do…”) sempre esperam o resto.</span></div>
+          <div class="segmentos" role="radiogroup" aria-label="Esperar eu terminar de falar">
+            ${[
+              [900, "Rápido"],
+              [1400, "Normal"],
+              [2200, "Com calma"],
+            ]
+              .map(([ms, nome]) => `<button type="button" class="segmento" role="radio" aria-checked="${(dados.config.esperaFala ?? 1400) === ms}" data-acao="espera-fala" data-ms="${ms}">${nome}</button>`)
+              .join("")}
+          </div>
         </div>
         <div class="item">
           <div class="coluna"><span class="principal">Ditado em qualquer lugar</span><span class="secundario situacao-ditado">Em qualquer programa: aperte o atalho, fale, e aperte de novo para colar o texto onde está o cursor. Esc cancela.</span></div>
@@ -332,6 +344,12 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
     b.setAttribute("aria-checked", String(ligado));
     atenderPeloNome(ligado, ler().config.nomeRobo).catch(() => {});
     ajustarMicrofoneComEco();
+  });
+  aoClicar(raiz, "espera-fala", (b) => {
+    const ms = Number(b.dataset.ms) || 1400;
+    mudar((d) => (d.config.esperaFala = ms));
+    raiz.querySelectorAll('[data-acao="espera-fala"]').forEach((s) => s.setAttribute("aria-checked", String(s === b)));
+    definirEspera(ms).catch(() => {});
   });
   // Ditado em qualquer lugar e dicionário.
   const situacaoDitado = raiz.querySelector<HTMLElement>(".situacao-ditado")!;

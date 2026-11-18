@@ -495,6 +495,19 @@ pub struct Cortador {
 /// resto vira o pedido do mesmo jeito (o mesmo microfone continua ouvindo).
 const ESPERA_DEPOIS_DO_NOME_MS: usize = 250;
 
+/// Silêncio que encerra um pedido (Ajustes › Voz › "Esperar eu terminar").
+static ESPERA_PEDIDO_MS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1_400);
+
+fn espera_pedido() -> usize {
+    ESPERA_PEDIDO_MS.load(Ordering::Relaxed)
+}
+
+/// Quanto silêncio encerra o pedido: 900 (rápido), 1400 (normal) ou 2200 ms (com calma).
+#[tauri::command]
+pub fn definir_espera(ms: usize) {
+    ESPERA_PEDIDO_MS.store(ms.clamp(600, 3_000), Ordering::Relaxed);
+}
+
 /// Depois de "nome + pedido" de uma vez, quanto tempo a ilha ainda espera a
 /// pessoa continuar (corre junto com o entendimento, quase não atrasa).
 const CONTINUAR_DEPOIS_DO_NOME_MS: u64 = 700;
@@ -917,10 +930,16 @@ pub fn ditar(app: &AppHandle, parar: &AtomicBool, cancelar: &AtomicBool) -> Resu
 
 /// Palavras que não terminam um pedido ("abre o…", "manda para…"): se a fala
 /// acaba numa delas (ou em vírgula), a pessoa só parou para pensar.
-const NAO_TERMINA: [&str; 40] = [
+const NAO_TERMINA: [&str; 74] = [
     "e", "ou", "mas", "que", "de", "do", "da", "dos", "das", "em", "no", "na", "nos", "nas", "para", "pra", "pro", "por",
     "com", "sem", "o", "a", "os", "as", "um", "uma", "meu", "minha", "seu", "sua", "se", "quando", "porque", "como",
     "sobre", "ate", "entre", "pelo", "pela", "tipo",
+    // mais preposições, contrações e ligações que pedem continuação
+    "ao", "aos", "num", "numa", "dum", "duma", "nesse", "nessa", "neste", "nesta", "desse", "dessa", "deste", "desta",
+    "meus", "minhas", "seus", "suas", "nosso", "nossa", "pois", "embora", "enquanto", "caso", "onde", "nem", "contra",
+    "desde", "durante", "apos",
+    // hesitação
+    "ha", "ahn", "hum", "hmm",
 ];
 
 pub fn parece_incompleta(texto: &str) -> bool {
@@ -964,7 +983,7 @@ pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, Strin
     let microfone = abrir_microfone()?;
     let _ = app.emit("ilha:microfone-aberto", ());
     preparar_bom();
-    let mut cortador = Cortador::new(1_400, 20_000);
+    let mut cortador = Cortador::new(espera_pedido(), 20_000);
     let mut nuvem = EnvioNuvem::novo(Some(app));
     let comeco = Instant::now();
     let fala = loop {
@@ -1166,7 +1185,7 @@ fn proxima_fala(
         return Ok(Some((f, nuvem)));
     }
     let parar = &super::voz::PARAR;
-    let mut cortador = Cortador::new(1_400, 20_000);
+    let mut cortador = Cortador::new(espera_pedido(), 20_000);
     let mut nuvem = EnvioNuvem::novo(Some(app));
     let comeco = Instant::now();
     loop {
@@ -1361,6 +1380,9 @@ mod testes {
         assert!(parece_incompleta("quero saber sobre o clima e"));
         assert!(parece_incompleta("anota isso,"));
         assert!(parece_incompleta("escaneia meu PC pra ver se..."));
+        assert!(parece_incompleta("coloca isso numa"));
+        assert!(parece_incompleta("abre a pasta nesse"));
+        assert!(!parece_incompleta("abre a pasta clientes arcano 3"));
         assert!(parece_incompleta("então eu queria…"));
         assert!(!parece_incompleta("que horas são"));
         assert!(!parece_incompleta("abre o Spotify"));

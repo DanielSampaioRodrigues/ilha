@@ -137,6 +137,7 @@ pub fn run() {
             maos::ouvido::escolher_ouvido,
             maos::ouvido::testar_ouvido,
             maos::ouvido::som_do_microfone,
+            maos::ouvido::definir_espera,
             maos::atualizar::procurar_versao,
             maos::pastas::procurar_pastas,
             maos::kokoro::estado_kokoro,

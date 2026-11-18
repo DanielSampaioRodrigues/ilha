@@ -522,3 +522,5 @@ export interface PalavraDicionario {
 }
 /** Palavras que o ouvido costuma errar (vale para tudo que a ilha ouve). */
 export const definirDicionario = (palavras: PalavraDicionario[]) => pedir<void>("definir_dicionario", { palavras });
+/** Quanto silêncio encerra um pedido falado (ms). */
+export const definirEspera = (ms: number) => pedir<void>("definir_espera", { ms });

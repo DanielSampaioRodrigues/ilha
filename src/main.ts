@@ -128,6 +128,10 @@ async function iniciar(): Promise<void> {
   // Chamou pelo nome: abre a conversa já ouvindo o pedido.
   // Ouvido rápido (padrão) ou mais preciso: o Rust baixa o que faltar.
   escolherOuvido(!!ler().config.ouvidoPreciso, !!ler().config.ouvidoNuvem).catch(() => {});
+  import("./maos/sistema").then((m) => {
+    m.definirEspera(ler().config.esperaFala ?? 1400).catch(() => {});
+    aoMudarDeFora(() => m.definirEspera(ler().config.esperaFala ?? 1400).catch(() => {}));
+  });
   // Voz natural Kokoro (grátis, no PC): baixa o que faltar e deixa pronta.
   if (ler().config.vozNatural && (ler().config.vozMotor ?? "kokoro") === "kokoro")
     import("./maos/sistema").then((m) =>
