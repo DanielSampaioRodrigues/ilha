@@ -107,6 +107,16 @@ let aoVivoDitado: (t: string) => void = () => {};
 aoEventoDaIlha<string>("ilha:ouvindo-texto", (t) => {
   if (ditando) aoVivoDitado(t);
 });
+/** Ideias para começar uma conversa: [botão, começo do pedido]. */
+const IDEIAS: [string, string][] = [
+  ["Explicar um conceito", "Me explica de um jeito simples, com exemplos do dia a dia: "],
+  ["Plano de estudos", "Monta um plano de estudos, dia a dia, para a prova de "],
+  ["Resumir um texto", "Resume em tópicos curtos o texto a seguir:\n\n"],
+  ["Melhorar um texto", "Revisa e melhora este texto, sem mudar o sentido:\n\n"],
+  ["Escrever um e-mail", "Escreve um e-mail educado e direto para "],
+  ["Organizar a semana", "Me ajuda a organizar minha semana. Tenho estes compromissos e tarefas: "],
+];
+
 /** Arquivos esperando a próxima mensagem. */
 let anexosPendentes: string[] = [];
 let aoMudarAnexos: () => void = () => {};
@@ -512,12 +522,26 @@ export function montarConversa(): HTMLElement {
           }
         </div>
         <p class="secundario dica-nova">${dica[motor]}</p>
+        <div class="ideias-comeco">
+          ${IDEIAS.map(([rotulo], i) => `<button type="button" class="ideia" data-ideia="${i}" style="--giro:${i * 55}">${escapar(rotulo)}</button>`).join("")}
+        </div>
         ${preparando ? caixaInstalar(preparando) : recadoPronto ? `<p class="secundario recado-pronto">${escapar(recadoPronto)}</p>` : ""}
       </div>`;
     const refazer = () => {
       desenharNova();
       painel.append(compositor(null));
     };
+    // Ideias: escrevem o começo do pedido no campo, para o Dan completar.
+    painel.querySelectorAll<HTMLElement>("[data-ideia]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const campo = painel.querySelector<HTMLTextAreaElement>(".compositor textarea");
+        if (!campo) return;
+        campo.value = IDEIAS[Number(b.dataset.ideia)][1];
+        campo.dispatchEvent(new Event("input"));
+        campo.focus();
+        campo.setSelectionRange(campo.value.length, campo.value.length);
+      }),
+    );
     aoClicar(painel, "perfil", (b) => {
       const p = d.perfis.find((x) => x.id === b.dataset.id);
       novoPerfil = p?.id ?? null;

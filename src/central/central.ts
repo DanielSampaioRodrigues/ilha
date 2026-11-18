@@ -65,7 +65,9 @@ function botaoMenu(id: Secao): string {
   const item = MENU.find(([s]) => s === id);
   if (!item) return "";
   const [, icone, nome] = item;
-  return `<button type="button" class="item-menu" data-secao="${id}">${icone}<span>${nome}</span></button>`;
+  // Cada item com a sua cor (como os ícones da ilha).
+  const giro = (MENU.indexOf(item) * 360) / MENU.length;
+  return `<button type="button" class="item-menu" data-secao="${id}" style="--giro:${giro.toFixed(0)}">${icone}<span>${nome}</span></button>`;
 }
 
 export async function iniciarCentral(): Promise<void> {

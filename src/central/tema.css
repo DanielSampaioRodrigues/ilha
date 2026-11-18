@@ -259,3 +259,45 @@ body.modo-central .titulo-comeco {
   font-weight: 800;
   letter-spacing: -0.02em;
 }
+
+/* Ícones do menu, cada um com a sua cor. */
+body.modo-central .item-menu svg {
+  color: oklch(from var(--ciano) 0.8 0.14 calc(h + var(--giro, 0)));
+  transition: transform 0.25s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+body.modo-central .item-menu:hover svg {
+  transform: scale(1.15) rotate(-6deg);
+}
+
+/* Ideias para começar uma conversa. */
+body.modo-central .ideias-comeco {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+body.modo-central .ideia {
+  --cor: oklch(from var(--ciano) 0.8 0.14 calc(h + var(--giro, 0)));
+  padding: 8px 14px;
+  border: 1px solid color-mix(in oklab, var(--cor) 30%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--cor) 9%, rgba(255, 255, 255, 0.02));
+  color: var(--texto);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.3, 1.6, 0.5, 1), border-color 0.2s, box-shadow 0.2s;
+}
+
+body.modo-central .ideia:hover {
+  border-color: var(--cor);
+  box-shadow: 0 8px 22px -12px var(--cor);
+  transform: translateY(-2px);
+}
+
+body.modo-central .ideia:active {
+  transform: scale(0.96);
+}
