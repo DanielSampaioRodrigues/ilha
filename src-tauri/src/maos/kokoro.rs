@@ -837,10 +837,69 @@ pub async fn falar_kokoro(texto: String, voz: String, velocidade: Option<f32>) -
             audio.len() as f32 / TAXA as f32,
             inicio.elapsed().as_millis()
         );
-        Ok(tauri::ipc::Response::new(wav(&audio)))
+        Ok(tauri::ipc::Response::new(wav(&realcar(&audio))))
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Um filtro simples de segunda ordem (biquad), amostra por amostra.
+fn filtrar(audio: &mut [f32], b: [f32; 3], a: [f32; 3]) {
+    let (mut x1, mut x2, mut y1, mut y2) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+    for v in audio.iter_mut() {
+        let x = *v;
+        let y = b[0] * x + b[1] * x1 + b[2] * x2 - a[1] * y1 - a[2] * y2;
+        x2 = x1;
+        x1 = x;
+        y2 = y1;
+        y1 = y;
+        *v = y;
+    }
+}
+
+/// A Kokoro sai baixa (~-23 dBFS) e abafada (pouca energia acima de 3 kHz).
+/// Deixa mais clara e mais alta: corta o grave embolado (abaixo de 90 Hz),
+/// realça a "presença" (+5 dB acima de ~2,8 kHz), leva o volume a ~-16 dBFS
+/// (o normal de fala) e segura os picos com um limitador suave (sem estourar).
+pub fn realcar(audio: &[f32]) -> Vec<f32> {
+    use std::f32::consts::PI;
+    let fs = TAXA as f32;
+    let mut s = audio.to_vec();
+    if s.is_empty() {
+        return s;
+    }
+    // Passa-alta em 90 Hz (Butterworth).
+    let (w, q) = (2.0 * PI * 90.0 / fs, std::f32::consts::FRAC_1_SQRT_2);
+    let (c, al) = (w.cos(), w.sin() / (2.0 * q));
+    let a0 = 1.0 + al;
+    filtrar(&mut s, [(1.0 + c) / 2.0 / a0, -(1.0 + c) / a0, (1.0 + c) / 2.0 / a0], [1.0, -2.0 * c / a0, (1.0 - al) / a0]);
+    // Prateleira de agudos: +5 dB a partir de ~2,8 kHz.
+    let (aa, w) = (10f32.powf(5.0 / 40.0), 2.0 * PI * 2_800.0 / fs);
+    let (c, sn) = (w.cos(), w.sin());
+    let al = sn / 2.0 * ((aa + 1.0 / aa) * (1.0 / 1.0 - 1.0) + 2.0).sqrt();
+    let r = 2.0 * aa.sqrt() * al;
+    let a0 = (aa + 1.0) - (aa - 1.0) * c + r;
+    filtrar(
+        &mut s,
+        [
+            aa * ((aa + 1.0) + (aa - 1.0) * c + r) / a0,
+            -2.0 * aa * ((aa - 1.0) + (aa + 1.0) * c) / a0,
+            aa * ((aa + 1.0) + (aa - 1.0) * c - r) / a0,
+        ],
+        [1.0, 2.0 * ((aa - 1.0) - (aa + 1.0) * c) / a0, ((aa + 1.0) - (aa - 1.0) * c - r) / a0],
+    );
+    // Volume: média em -16 dBFS (no máximo 4x, para frases curtinhas não exagerarem).
+    let rms = (s.iter().map(|v| v * v).sum::<f32>() / s.len() as f32).sqrt();
+    let ganho = if rms > 1e-5 { (10f32.powf(-16.0 / 20.0) / rms).min(4.0) } else { 1.0 };
+    // Limitador suave: acima de 0,75 a curva achata (tanh) e nunca passa de ~0,97.
+    const LIM: f32 = 0.75;
+    for v in s.iter_mut() {
+        let x = *v * ganho;
+        let m = x.abs();
+        let y = if m > LIM { x.signum() * (LIM + (1.0 - LIM) * ((m - LIM) / (1.0 - LIM)).tanh()) } else { x };
+        *v = y * 0.97;
+    }
+    s
 }
 
 /// Deixa o motor carregado (ex.: ao escolher a Kokoro), para a 1ª fala sair rápida.
@@ -856,6 +915,13 @@ pub async fn aquecer_kokoro() {
                     Ok(m) => *g = Some(m),
                     Err(e) => log::warn!("Voz Kokoro: {e}"),
                 }
+            }
+            // A primeira conta do motor é bem mais lenta: faz uma de mentira agora,
+            // para a primeira fala de verdade já sair rápida.
+            if let Some(m) = g.as_mut() {
+                let inicio = std::time::Instant::now();
+                let _ = m.falar("Oi.", "dora", 1.0);
+                log::info!("Voz Kokoro: aquecida em {} ms", inicio.elapsed().as_millis());
             }
         }
     })
@@ -960,5 +1026,30 @@ mod testes {
             assert!(a.len() > TAXA as usize * 3);
             std::fs::write(Path::new(&v("KOKORO_SAIDA")).join(format!("ilha_{voz}.wav")), wav(&a)).unwrap();
         }
+    }
+}
+
+#[cfg(test)]
+mod testes_realce {
+    use super::*;
+
+    #[test]
+    fn realce_sobe_o_volume_sem_estourar() {
+        // Uma "voz" baixinha (~-26 dBFS): mistura de grave e agudo.
+        let audio: Vec<f32> = (0..TAXA as usize)
+            .map(|i| {
+                let t = i as f32 / TAXA as f32;
+                0.06 * (2.0 * std::f32::consts::PI * 220.0 * t).sin() + 0.03 * (2.0 * std::f32::consts::PI * 4_000.0 * t).sin()
+            })
+            .collect();
+        let rms = |v: &[f32]| (v.iter().map(|x| x * x).sum::<f32>() / v.len() as f32).sqrt();
+        let r = realcar(&audio);
+        assert_eq!(r.len(), audio.len());
+        assert!(r.iter().all(|v| v.abs() <= 0.98), "nada passa de 0,98");
+        assert!(rms(&r) > rms(&audio) * 1.5, "fica mais alto");
+        assert!(realcar(&[]).is_empty());
+        // Um grito (pico 1,0) não estoura.
+        let alto: Vec<f32> = (0..TAXA as usize).map(|i| (i as f32 * 0.07).sin()).collect();
+        assert!(realcar(&alto).iter().all(|v| v.abs() <= 0.98));
     }
 }

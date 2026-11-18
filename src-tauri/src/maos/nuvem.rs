@@ -35,12 +35,51 @@ fn pcm16(amostras: &[f32]) -> Vec<u8> {
     bytes
 }
 
+/// Uma conexão aberta de antemão (sem som nenhum), enquanto a ilha confere se a
+/// fala tinha o nome. Assim, quando tinha, o pedido não espera conectar.
+static PRE_ABERTA: std::sync::Mutex<Option<(std::time::Instant, Nuvem)>> = std::sync::Mutex::new(None);
+/// Depois disso a conexão parada é descartada (a ElevenLabs pode fechá-la).
+const PRE_ABERTA_VALE: Duration = Duration::from_secs(8);
+
+/// Já abre uma conexão, sem mandar som (o som só vai depois que o nome foi ouvido).
+pub fn pre_abrir() {
+    if !LIGADA.load(Ordering::Relaxed) {
+        return;
+    }
+    if let Ok(mut p) = PRE_ABERTA.lock() {
+        if p.as_ref().is_some_and(|(quando, _)| quando.elapsed() < PRE_ABERTA_VALE) {
+            return;
+        }
+        *p = abrir_nova(None).map(|n| (std::time::Instant::now(), n));
+    }
+}
+
+/// A fala não tinha o nome: fecha a conexão aberta de antemão.
+pub fn descartar_pre_aberta() {
+    if let Ok(mut p) = PRE_ABERTA.lock() {
+        *p = None;
+    }
+}
+
 /// Abre a conexão (se a nuvem está escolhida e há chave). O som pode ser
 /// mandado na hora: o que chegar antes de conectar espera na fila.
 pub fn abrir(app: Option<tauri::AppHandle>) -> Option<Nuvem> {
     if !LIGADA.load(Ordering::Relaxed) {
         return None;
     }
+    // Sem texto ao vivo: aproveita a conexão aberta de antemão, se ainda vale.
+    if app.is_none() {
+        if let Some((quando, n)) = PRE_ABERTA.lock().ok().and_then(|mut p| p.take()) {
+            if quando.elapsed() < PRE_ABERTA_VALE {
+                log::info!("Ouvido na nuvem: usando a conexão já aberta");
+                return Some(n);
+            }
+        }
+    }
+    abrir_nova(app)
+}
+
+fn abrir_nova(app: Option<tauri::AppHandle>) -> Option<Nuvem> {
     let chave = crate::maos::cofre::ler("elevenlabs")?;
     let (envia, mut fila) = tokio::sync::mpsc::unbounded_channel::<(Vec<u8>, bool)>();
     let (devolve, resultado) = std::sync::mpsc::channel();
@@ -57,22 +96,44 @@ pub fn abrir(app: Option<tauri::AppHandle>) -> Option<Nuvem> {
     Some(Nuvem { envia, resultado })
 }
 
+/// A conexão segura, montada uma vez só (ler os certificados do Windows a cada
+/// conexão custava tempo).
+fn seguranca() -> Result<tokio_tungstenite::Connector, String> {
+    static CONFIG: std::sync::OnceLock<Result<std::sync::Arc<rustls::ClientConfig>, String>> = std::sync::OnceLock::new();
+    CONFIG
+        .get_or_init(|| {
+            // A criptografia padrão (uma vez só; se já houver, tudo bem).
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+            let mut raizes = rustls::RootCertStore::empty();
+            for cert in rustls_native_certs::load_native_certs().certs {
+                let _ = raizes.add(cert);
+            }
+            if raizes.is_empty() {
+                return Err("não achei os certificados de segurança do Windows".into());
+            }
+            Ok(std::sync::Arc::new(rustls::ClientConfig::builder().with_root_certificates(raizes).with_no_client_auth()))
+        })
+        .clone()
+        .map(tokio_tungstenite::Connector::Rustls)
+}
+
 async fn conversar(
     chave: &str,
     fila: &mut tokio::sync::mpsc::UnboundedReceiver<(Vec<u8>, bool)>,
     app: Option<&tauri::AppHandle>,
 ) -> Result<String, String> {
     use tauri::Emitter;
-    // A criptografia padrão (uma vez só; se já houver, tudo bem).
-    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let mut pedido = ENDERECO.into_client_request().map_err(|e| e.to_string())?;
     pedido
         .headers_mut()
         .insert("xi-api-key", chave.parse().map_err(|_| "chave inválida".to_string())?);
-    let (ws, _) = tokio::time::timeout(Duration::from_secs(5), tokio_tungstenite::connect_async(pedido))
+    let inicio = std::time::Instant::now();
+    let conectar = tokio_tungstenite::connect_async_tls_with_config(pedido, None, false, Some(seguranca()?));
+    let (ws, _) = tokio::time::timeout(Duration::from_secs(5), conectar)
         .await
         .map_err(|_| "a ElevenLabs demorou para responder".to_string())?
         .map_err(|e| format!("não conectou na ElevenLabs: {e}"))?;
+    log::info!("Ouvido na nuvem: conectou em {} ms", inicio.elapsed().as_millis());
     let (mut manda, mut recebe) = ws.split();
     let mut texto = String::new();
     let mut fechou = false;

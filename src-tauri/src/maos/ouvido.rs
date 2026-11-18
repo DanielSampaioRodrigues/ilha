@@ -1242,6 +1242,8 @@ fn atender(
     fala: &[f32],
 ) {
     preparar_bom();
+    // A resposta vem da DeepSeek: já abre a conexão enquanto o pedido é entendido.
+    crate::cerebro::deepseek::aquecer();
     super::voz::PARAR.store(false, Ordering::Relaxed);
     // A etapa vai junto: a tela pode ainda estar abrindo quando os avisos chegam.
     let veio_junto = resto.split_whitespace().count() >= 2;
@@ -1266,8 +1268,11 @@ fn atender(
         }
         ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
         ULTIMA_FALA_MS.store((fala.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
+        log::info!("Ouvido: pedido junto com o nome entendido em {} ms", inicio.elapsed().as_millis());
         Ok(completar(app, microfone, fila, p))
     } else {
+        // O pedido vem depois (com texto ao vivo, numa conexão própria).
+        super::nuvem::descartar_pre_aberta();
         // Uma palavra que veio colada no nome ("Robozinho, que… horas são?") entra no pedido.
         let comeco_do_pedido = resto.clone();
         ouvir_continuacao(app, microfone, fila).and_then(|(f, nuvem)| {
@@ -1369,7 +1374,15 @@ pub fn esperar_nome(app: &AppHandle, continuar: impl Fn() -> bool, ouviu: impl F
             }
             let nome = super::chamado::nome_atual();
             let inicio = Instant::now();
-            let Some((texto, resto)) = chamou(&fala, &nome) else { continue };
+            // Fala comprida pode ser "nome + pedido": já conecta na nuvem (sem
+            // mandar som) enquanto confere o nome, para o pedido não esperar.
+            if segundos >= 1.2 {
+                super::nuvem::pre_abrir();
+            }
+            let Some((texto, resto)) = chamou(&fala, &nome) else {
+                super::nuvem::descartar_pre_aberta();
+                continue;
+            };
             log::info!("Ouvido: nome reconhecido em {} ms", inicio.elapsed().as_millis());
             ouviu(texto.clone());
             atender(app, &microfone, &mut fila, &nome, texto, resto, &fala);

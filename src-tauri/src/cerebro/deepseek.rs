@@ -16,6 +16,33 @@ const MODELOS: &str = "https://api.deepseek.com/models";
 /// "deepseek-reasoner" foram desligados pela DeepSeek em 24/07/2026.
 pub const MODELO_RAPIDO: &str = "deepseek-flash";
 
+/// Uma conexão só, reaproveitada: abrir uma nova a cada pergunta (conexão
+/// segura até os servidores da DeepSeek) custava quase meio segundo.
+fn cliente() -> &'static reqwest::Client {
+    static CLIENTE: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENTE.get_or_init(|| {
+        reqwest::Client::builder()
+            .pool_idle_timeout(std::time::Duration::from_secs(90))
+            .tcp_keepalive(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_default()
+    })
+}
+
+/// Chamaram o robô pelo nome: já abre a conexão com a DeepSeek enquanto o
+/// pedido é entendido (não gasta nada: só pergunta a lista de modelos).
+pub fn aquecer() {
+    let Some(chave) = cofre::ler("deepseek") else { return };
+    tauri::async_runtime::spawn(async move {
+        let inicio = std::time::Instant::now();
+        let r = cliente().get(MODELOS).bearer_auth(chave).timeout(std::time::Duration::from_secs(10)).send().await;
+        if let Ok(r) = r {
+            let _ = r.bytes().await;
+            log::info!("DeepSeek: conexão aquecida em {} ms", inicio.elapsed().as_millis());
+        }
+    });
+}
+
 #[derive(Deserialize)]
 struct Resposta {
     choices: Vec<Escolha>,
@@ -48,7 +75,7 @@ pub async fn perguntar(sistema: &str, usuario: &str, em_json: bool) -> Result<St
     if em_json {
         corpo["response_format"] = json!({ "type": "json_object" });
     }
-    let resposta = reqwest::Client::new()
+    let resposta = cliente()
         .post(ENDERECO)
         .bearer_auth(chave)
         .json(&corpo)
@@ -129,7 +156,7 @@ pub async fn traduzir(linhas: &[String]) -> Result<Vec<String>, String> {
 /// Lista os modelos que a conta da DeepSeek pode usar (direto da API).
 pub async fn modelos() -> Result<Vec<String>, String> {
     let chave = cofre::ler("deepseek").ok_or("Falta a chave da DeepSeek.")?;
-    let resposta = reqwest::Client::new()
+    let resposta = cliente()
         .get(MODELOS)
         .bearer_auth(chave)
         .timeout(std::time::Duration::from_secs(20))
@@ -187,7 +214,8 @@ pub async fn conversar(
             corpo["reasoning_effort"] = json!(nivel);
         }
     }
-    let mut resposta = reqwest::Client::new()
+    let inicio = std::time::Instant::now();
+    let mut resposta = cliente()
         .post(ENDERECO)
         .bearer_auth(chave)
         .json(&corpo)
@@ -206,6 +234,7 @@ pub async fn conversar(
         let texto = resposta.text().await.unwrap_or_default();
         return Err(format!("A DeepSeek respondeu com erro ({situacao}): {}", texto.chars().take(300).collect::<String>()));
     }
+    log::info!("DeepSeek: começou a responder em {} ms", inicio.elapsed().as_millis());
     // Os pedaços chegam no formato "data: {json}" (um por linha).
     let mut sobra: Vec<u8> = Vec::new();
     while let Some(pedaco) = resposta.chunk().await.map_err(|e| e.to_string())? {
