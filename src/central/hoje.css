@@ -3,7 +3,7 @@
   container-type: inline-size;
 }
 
-.hoje {
+.painel-hoje {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 16px;
@@ -31,17 +31,17 @@
   box-shadow: 0 14px 34px -22px color-mix(in oklab, var(--ciano) 80%, transparent);
 }
 
-.hoje.chegando .cartao-hoje {
+.painel-hoje.chegando .cartao-hoje {
   animation: cartao-chegar 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
 }
 
-.hoje.chegando .cartao-hoje:nth-child(2) { animation-delay: 50ms; }
-.hoje.chegando .cartao-hoje:nth-child(3) { animation-delay: 100ms; }
-.hoje.chegando .cartao-hoje:nth-child(4) { animation-delay: 140ms; }
-.hoje.chegando .cartao-hoje:nth-child(5) { animation-delay: 180ms; }
-.hoje.chegando .cartao-hoje:nth-child(6) { animation-delay: 220ms; }
-.hoje.chegando .cartao-hoje:nth-child(7) { animation-delay: 260ms; }
-.hoje.chegando .cartao-hoje:nth-child(8) { animation-delay: 300ms; }
+.painel-hoje.chegando .cartao-hoje:nth-child(2) { animation-delay: 50ms; }
+.painel-hoje.chegando .cartao-hoje:nth-child(3) { animation-delay: 100ms; }
+.painel-hoje.chegando .cartao-hoje:nth-child(4) { animation-delay: 140ms; }
+.painel-hoje.chegando .cartao-hoje:nth-child(5) { animation-delay: 180ms; }
+.painel-hoje.chegando .cartao-hoje:nth-child(6) { animation-delay: 220ms; }
+.painel-hoje.chegando .cartao-hoje:nth-child(7) { animation-delay: 260ms; }
+.painel-hoje.chegando .cartao-hoje:nth-child(8) { animation-delay: 300ms; }
 
 @keyframes cartao-chegar {
   from {
@@ -538,8 +538,25 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hoje.chegando .cartao-hoje,
+  .painel-hoje.chegando .cartao-hoje,
   .heroi-personagem .carinha {
     animation: none;
   }
+}
+
+.semana-foco.no-hoje {
+  margin-top: auto;
+  justify-content: space-between;
+}
+
+.semana-foco.no-hoje .secundario {
+  max-width: 120px;
+  font-size: 12px;
+  text-align: right;
+}
+
+.anel-habito .fogo {
+  margin: 0;
+  padding: 0 6px;
+  font-size: 10.5px;
 }

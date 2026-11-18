@@ -1,5 +1,6 @@
 // A ilha: desenha a forma preta, anima a gota e troca o conteúdo de cada estado.
 
+import { registrarFoco } from "../dados/progresso";
 import { caminho, OMBRO } from "./forma";
 import { mudarAtividade, type Expressao } from "./carinha";
 import { Mola, type Firmeza } from "./mola";
@@ -461,6 +462,8 @@ export class Ilha {
   }
 
   pararFoco(): void {
+    // Parou antes: conta o tempo que já tinha passado.
+    if (this.foco?.tipo === "foco") registrarFoco((Math.min(Date.now(), this.foco.fim) - this.foco.inicio) / 60_000);
     this.foco = null;
     if (this.estado !== "aberta") this.fechar();
   }
@@ -478,6 +481,7 @@ export class Ilha {
     }
     if (this.foco && agora >= this.foco.fim) {
       const terminou = this.foco.tipo;
+      if (terminou === "foco") registrarFoco((this.foco.fim - this.foco.inicio) / 60_000);
       this.foco = null;
       tocarAlarme();
       const pausa = ler().config.pausaMinutos;

@@ -279,6 +279,8 @@ export interface Dados {
   memorias: Memoria[];
   /** Rotinas: vários passos com uma frase, um botão ou num horário. */
   rotinas: Rotina[];
+  /** Minutos de foco por dia (AAAA-MM-DD), para o gráfico da semana. */
+  focoHistorico?: Record<string, number>;
   config: Config;
 }
 

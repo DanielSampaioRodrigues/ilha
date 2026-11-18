@@ -2,6 +2,7 @@
 import { confeteEm } from "../festa";
 import { ler, mudar, novoId } from "../../dados/armazem";
 import { paraISO } from "../../dados/datas";
+import { semanaDoHabito, sequencia } from "../../dados/progresso";
 import type { Contexto } from "../contexto";
 import { ICONES } from "../icones";
 import { aoClicar, cabecalho, confirmarAntes, escapar, html } from "../ui";
@@ -15,11 +16,16 @@ export function montarHabitos(ctx: Contexto): HTMLElement {
     .map((h) => {
       const feito = h.registros[dia] ?? 0;
       const pct = Math.min(100, (feito / Math.max(1, h.meta)) * 100);
+      const seguidos = sequencia(h);
+      const semana = semanaDoHabito(h)
+        .map((f, i) => `<i class="dia-habito ${f >= 1 ? "cheio" : f > 0 ? "meio" : ""} ${i === 6 ? "dia-atual" : ""}" title="${f >= 1 ? "cumpriu" : f > 0 ? "fez uma parte" : "não fez"}"></i>`)
+        .join("");
       return `
       <div class="item">
         <div class="coluna">
-          <span class="principal">${escapar(h.nome)} <span class="secundario">${feito}/${h.meta}${feito >= h.meta ? " · feito!" : ""}</span></span>
+          <span class="principal">${escapar(h.nome)} <span class="secundario">${feito}/${h.meta}${feito >= h.meta ? " · feito!" : ""}</span>${seguidos >= 2 ? `<span class="fogo" title="${seguidos} dias seguidos">🔥 ${seguidos}</span>` : ""}</span>
           <div class="barra"><div class="barra-cheia ${feito >= h.meta ? "completa" : ""}" style="width:${pct}%"></div></div>
+          <span class="semana-habito" aria-label="Últimos 7 dias">${semana}</span>
         </div>
         <button type="button" class="redondo" aria-label="Menos ${escapar(h.nome)}" data-acao="menos" data-id="${h.id}">−</button>
         <button type="button" class="redondo claro" aria-label="Mais ${escapar(h.nome)}" data-acao="mais" data-id="${h.id}">+</button>

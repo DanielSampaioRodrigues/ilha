@@ -11,6 +11,7 @@ import { NOMES_MOTORES } from "../maos/sistema";
 import { haQuanto, paraISO, pendentes, pertoDeRenovar, prazo, faltaEscrito } from "../dados/datas";
 import { compromissosDeHoje, jeitoDoTempo, tempoAgora } from "../dados/agora";
 import { agendaConectada } from "../dados/agenda";
+import { graficoFoco, resumoFoco, sequencia } from "../dados/progresso";
 import { Carinha } from "../corpo/carinha";
 import { confeteEm } from "../corpo/festa";
 import { ICONES } from "../corpo/icones";
@@ -74,7 +75,7 @@ export function montarHoje(acoes: AcoesHoje, animar: boolean): HTMLElement {
     : "Tudo em dia por aqui. Bora fazer algo legal?";
 
   const raiz = html(`
-    <div class="hoje ${animar ? "chegando" : ""}">
+    <div class="painel-hoje ${animar ? "chegando" : ""}">
       <section class="cartao-hoje heroi">
         <div class="heroi-texto">
           <p class="data-hoje">${escapar(agora.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" }))}</p>
@@ -97,6 +98,7 @@ export function montarHoje(acoes: AcoesHoje, animar: boolean): HTMLElement {
           .slice(0, 3)
           .map((t) => `<div class="linha-hoje"><span>${ICONES.timer}${escapar(t.nome)}</span><span class="tempo-timer" data-fim="${t.fim}">${relogio(t.fim - Date.now())}</span></div>`)
           .join("")}</div>
+        <div class="semana-foco no-hoje">${graficoFoco(agora)}<span class="secundario">${resumoFoco(agora)}</span></div>
       </section>
 
       <section class="cartao-hoje agenda-hoje">
@@ -134,6 +136,7 @@ export function montarHoje(acoes: AcoesHoje, animar: boolean): HTMLElement {
           <button type="button" class="anel-habito ${h.feito >= h.meta ? "completo" : ""}" data-habito="${h.id}" style="--giro:${i * 70}" title="Somar 1 em ${escapar(h.nome)}">
             <span class="anel-caixa">${anel(h.feito / Math.max(1, h.meta))}<b>${h.feito >= h.meta ? "✓" : `${h.feito}/${h.meta}`}</b></span>
             <span class="nome-habito">${escapar(h.nome)}</span>
+            ${sequencia(h, agora) >= 2 ? `<span class="fogo">🔥 ${sequencia(h, agora)}</span>` : ""}
           </button>`,
             )
             .join("") || '<p class="vazio-hoje">Nenhum hábito ainda.</p>'
