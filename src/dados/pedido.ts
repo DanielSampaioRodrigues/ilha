@@ -39,12 +39,13 @@ function sobreAIlha(c: Conversa, d: Dados): string {
   const recursos =
     "A Ilha tem: timers e lembretes, modo foco com pausas, tarefas (com prioridade e subtarefas), notas, hábitos, assinaturas com vencimentos, " +
     "memória (o que o Dan pede para as IAs lembrarem), rotinas (vários passos com uma frase, ex.: \"bom dia\"), textos rápidos para copiar, " +
-    "lançador de apps, controle de volume e da música do Windows, tradução de texto da tela, histórico do que foi copiado, calendário, " +
+    "lançador de apps, controle de volume e da música do Windows, tradução de texto da tela, histórico do que foi copiado, ligação com o Calendário da Apple (iCloud) do Dan, " +
     "a verificação do PC (\"Meu PC\": processador, memória, disco, temporários, programas pesados) com limpeza dos temporários, e conversas com IAs (esta).";
   const ferramentas = comFerramentas
     ? " Você tem as ferramentas da própria Ilha (servidor MCP \"ilha\", nomes começando com ilha_): use ilha_verificar_pc para escanear/verificar o PC, " +
       "ilha_fazer para volume, música, timer, foco, lembrete, abrir programa, traduzir a tela, copiar texto rápido e rotinas, " +
-      "ilha_ler e ilha_anotar para tarefas, notas, hábitos, assinaturas e memória, ilha_concluir_tarefa, ilha_limpar_temporarios e ilha_abrir_tela. " +
+      "ilha_ler e ilha_anotar para tarefas, notas, hábitos, assinaturas e memória, ilha_concluir_tarefa, ilha_limpar_temporarios, ilha_abrir_tela, " +
+      "e ilha_agenda / ilha_agenda_criar para LER e criar compromissos no Calendário da Apple (iCloud) do Dan, que é a agenda principal dele. " +
       "Quando o pedido for sobre algo que a Ilha faz, prefira essas ferramentas a comandos do Windows."
     : " Se pedirem algo que a Ilha faz (timer, foco, volume, abrir programa), diga a frase curta para o Dan falar à Ilha (ex.: \"timer 10 min\").";
   return `Você está rodando dentro da Ilha, o assistente de ${d.config.nome} no Windows (o robô se chama "${d.config.nomeRobo}"). ${recursos}${ferramentas}`;

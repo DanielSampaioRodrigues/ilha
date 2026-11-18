@@ -34,6 +34,20 @@ pub struct Evento {
     pub repete: String,
     /// Minutos ANTES do início para o alerta (negativo = depois). Sem = sem alerta.
     pub alerta_minutos: Option<i64>,
+    /// Duração (só eventos com hora). Sem = 15 min (lembretes da ilha).
+    #[serde(default)]
+    pub duracao_minutos: Option<i64>,
+}
+
+/// Um compromisso lido da agenda do Dan.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct EventoLido {
+    pub calendario: String,
+    pub titulo: String,
+    /// Como veio do iCloud: "AAAAMMDD" (dia inteiro), "AAAAMMDDTHHMMSSZ" (UTC) ou sem Z (hora local).
+    pub inicio: String,
+    pub fim: String,
+    pub local: String,
 }
 
 // ---------- XML (só o necessário para o CalDAV) ----------
@@ -187,7 +201,7 @@ pub fn ics(e: &Evento, agora_utc: &str) -> Result<String, String> {
     } else {
         // Horário "flutuante": o do computador/iPhone, sem fuso fixo.
         l.push(format!("DTSTART:{inicio}"));
-        l.push("DURATION:PT15M".into());
+        l.push(format!("DURATION:PT{}M", e.duracao_minutos.filter(|m| (1..=1440).contains(m)).unwrap_or(15)));
     }
     if !e.notas.trim().is_empty() {
         l.push(dobrar(&format!("DESCRIPTION:{}", escapar_ics(&e.notas))));
@@ -380,9 +394,141 @@ pub async fn icloud_enviar(email: String, calendario: String, eventos: Vec<Event
     Ok(feitos)
 }
 
+// ---------- Ler a agenda ----------
+
+fn desescapar_ics(t: &str) -> String {
+    t.replace("\\n", "\n").replace("\\N", "\n").replace("\\,", ",").replace("\\;", ";").replace("\\\\", "\\")
+}
+
+/// Compromissos de um texto iCalendar (já com as repetições expandidas pelo iCloud).
+fn eventos_do_ics(ics: &str, calendario: &str) -> Vec<EventoLido> {
+    // Linhas dobradas: as que começam com espaço continuam a anterior.
+    let mut linhas: Vec<String> = Vec::new();
+    for l in ics.replace("\r\n", "\n").split('\n') {
+        if let Some(cont) = l.strip_prefix([' ', '\t']) {
+            if let Some(ultima) = linhas.last_mut() {
+                ultima.push_str(cont);
+            }
+        } else {
+            linhas.push(l.to_string());
+        }
+    }
+    let mut lista = Vec::new();
+    let mut atual: Option<EventoLido> = None;
+    let mut fundo = 0; // dentro de VALARM etc.
+    for l in linhas {
+        let Some((chave, valor)) = l.split_once(':') else { continue };
+        let nome = chave.split(';').next().unwrap_or_default().to_ascii_uppercase();
+        match (nome.as_str(), valor.trim()) {
+            ("BEGIN", "VEVENT") => {
+                atual = Some(EventoLido {
+                    calendario: calendario.to_string(),
+                    titulo: String::new(),
+                    inicio: String::new(),
+                    fim: String::new(),
+                    local: String::new(),
+                })
+            }
+            ("BEGIN", _) if atual.is_some() => fundo += 1,
+            ("END", "VEVENT") => {
+                if let Some(e) = atual.take().filter(|e| !e.inicio.is_empty()) {
+                    lista.push(e);
+                }
+                fundo = 0;
+            }
+            ("END", _) if fundo > 0 => fundo -= 1,
+            _ if fundo > 0 => {}
+            ("SUMMARY", v) => {
+                if let Some(e) = atual.as_mut() {
+                    e.titulo = desescapar_ics(v);
+                }
+            }
+            ("LOCATION", v) => {
+                if let Some(e) = atual.as_mut() {
+                    e.local = desescapar_ics(v);
+                }
+            }
+            ("DTSTART", v) => {
+                if let Some(e) = atual.as_mut() {
+                    e.inicio = v.to_string();
+                }
+            }
+            ("DTEND", v) => {
+                if let Some(e) = atual.as_mut() {
+                    e.fim = v.to_string();
+                }
+            }
+            _ => {}
+        }
+    }
+    lista
+}
+
+/// "AAAAMMDDTHHMMSSZ" (formato que o CalDAV pede no intervalo).
+fn data_utc_valida(t: &str) -> bool {
+    t.len() == 16 && t.as_bytes()[8] == b'T' && t.ends_with('Z') && t[..8].chars().chain(t[9..15].chars()).all(|c| c.is_ascii_digit())
+}
+
+/// Lê os compromissos de TODOS os calendários do iCloud entre `inicio` e `fim`
+/// (UTC, "AAAAMMDDTHHMMSSZ"). Só leitura.
+#[tauri::command]
+pub async fn icloud_eventos(email: String, inicio: String, fim: String) -> Result<Vec<EventoLido>, String> {
+    if !data_utc_valida(&inicio) || !data_utc_valida(&fim) {
+        return Err("Datas inválidas.".into());
+    }
+    let senha = cofre::ler_icloud().ok_or("O calendário da Apple não está conectado (Ajustes › Calendário da Apple).")?;
+    let calendarios = descobrir(email.trim(), &senha).await?;
+    let c = cliente()?;
+    let corpo = format!(
+        r#"<?xml version="1.0" encoding="utf-8"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><c:calendar-data><c:expand start="{inicio}" end="{fim}"/></c:calendar-data></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"><c:time-range start="{inicio}" end="{fim}"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>"#
+    );
+    let mut todos = Vec::new();
+    for cal in &calendarios {
+        if !endereco_do_icloud(&cal.url) {
+            continue;
+        }
+        let r = c
+            .request(Method::from_bytes(b"REPORT").map_err(|e| e.to_string())?, &cal.url)
+            .basic_auth(email.trim(), Some(&senha))
+            .header("Depth", "1")
+            .header("Content-Type", "application/xml; charset=utf-8")
+            .body(corpo.clone())
+            .send()
+            .await;
+        let xml = match r {
+            Ok(r) if r.status().is_success() => r.text().await.unwrap_or_default(),
+            Ok(r) => {
+                log::warn!("Calendário: não li \"{}\" ({})", cal.nome, r.status());
+                continue;
+            }
+            Err(e) => return Err(format!("Sem conexão com o iCloud: {e}")),
+        };
+        let xml = sem_prefixos(&xml);
+        for dados in blocos(&xml, "calendar-data") {
+            let texto = dados.trim().trim_start_matches("<![CDATA[").trim_end_matches("]]>");
+            todos.extend(eventos_do_ics(&desescapar(texto), &cal.nome));
+        }
+    }
+    todos.sort_by(|a, b| a.inicio.cmp(&b.inicio));
+    Ok(todos)
+}
+
 #[cfg(test)]
 mod testes {
     use super::*;
+
+    #[test]
+    fn le_os_compromissos() {
+        let ics = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:1\r\nSUMMARY:Reunião com a\r\n  gráfica\\, revisão\r\nDTSTART:20261118T170000Z\r\nDTEND:20261118T180000Z\r\nLOCATION:Sala 2\r\nBEGIN:VALARM\r\nSUMMARY:alerta\r\nEND:VALARM\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nSUMMARY:Feriado\r\nDTSTART;VALUE=DATE:20261120\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        let e = eventos_do_ics(ics, "Casa");
+        assert_eq!(e.len(), 2);
+        assert_eq!(e[0].titulo, "Reunião com a gráfica, revisão");
+        assert_eq!(e[0].inicio, "20261118T170000Z");
+        assert_eq!(e[0].local, "Sala 2");
+        assert_eq!(e[1].inicio, "20261120");
+        assert!(data_utc_valida("20261118T030000Z"));
+        assert!(!data_utc_valida("2026-11-18"));
+    }
 
     #[test]
     fn le_a_lista_de_calendarios() {
@@ -415,6 +561,7 @@ mod testes {
             inicio: "2026-12-31".into(),
             repete: "mensal".into(),
             alerta_minutos: Some(2 * 1440 - 540),
+            duracao_minutos: None,
         };
         let t = ics(&e, "20261116T000000Z").unwrap();
         assert!(t.contains("DTSTART;VALUE=DATE:20261231"));

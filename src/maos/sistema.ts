@@ -312,7 +312,16 @@ export interface EventoCalendario {
   inicio: string;
   repete: string;
   alertaMinutos: number | null;
+  duracaoMinutos?: number | null;
 }
+export interface EventoLido {
+  calendario: string;
+  titulo: string;
+  inicio: string;
+  fim: string;
+  local: string;
+}
+export const icloudEventos = (email: string, inicio: string, fim: string) => pedir<EventoLido[]>("icloud_eventos", { email, inicio, fim }, []);
 export const icloudConectar = (email: string, senha: string) =>
   pedir<Calendario[]>("icloud_conectar", { email, senha }, [{ url: "https://exemplo/cal/home/", nome: "Casa" }]);
 export const icloudCalendarios = (email: string) => pedir<Calendario[]>("icloud_calendarios", { email }, []);

@@ -126,6 +126,7 @@ pub fn run() {
             maos::calendario::icloud_desconectar,
             maos::calendario::icloud_conectado,
             maos::calendario::icloud_enviar,
+            maos::calendario::icloud_eventos,
             corpo::central::tela_inicial_central,
             corpo::foco::janela_da_frente,
             maos::ouvido::estado_ouvido,
