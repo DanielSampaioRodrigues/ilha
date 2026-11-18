@@ -87,6 +87,7 @@ pub fn run() {
             maos::cofre::salvar_segredo_mcp,
             maos::cofre::tem_segredo_mcp,
             cerebro::deepseek::testar_deepseek,
+            cerebro::deepseek::transformar_texto,
             cerebro::motores::conversar,
             cerebro::motores::parar_conversa,
             cerebro::motores::motores_disponiveis,

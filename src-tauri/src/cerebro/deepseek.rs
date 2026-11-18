@@ -75,6 +75,25 @@ pub async fn perguntar(sistema: &str, usuario: &str, em_json: bool) -> Result<St
         .ok_or_else(|| "A DeepSeek não respondeu nada.".into())
 }
 
+/// Ações rápidas sobre um texto (o que o Dan copiou): corrigir, traduzir,
+/// resumir ou melhorar. Devolve só o texto pronto, para colar.
+#[tauri::command]
+pub async fn transformar_texto(acao: String, texto: String) -> Result<String, String> {
+    let texto: String = texto.chars().take(12_000).collect();
+    if texto.trim().is_empty() {
+        return Err("Não tem texto copiado.".into());
+    }
+    let instrucao = match acao.as_str() {
+        "corrigir" => "Corrija ortografia, gramática, acentuação e pontuação do texto (português do Brasil, ou a língua do texto). Mantenha o sentido, o tom e a formatação. Não acrescente nada.",
+        "traduzir" => "Traduza o texto para português do Brasil. Se ele já estiver em português, traduza para inglês. Mantenha a formatação.",
+        "resumir" => "Resuma o texto em português do Brasil, curto e claro: no máximo 5 linhas (pode usar tópicos curtos).",
+        "melhorar" => "Reescreva o texto para ficar mais claro, fluido e profissional, na mesma língua, sem mudar o sentido nem inventar informação.",
+        _ => return Err("Ação desconhecida.".into()),
+    };
+    let sistema = format!("{instrucao} Responda APENAS com o texto final, sem comentários, sem aspas e sem explicar o que fez.");
+    perguntar(&sistema, &texto, false).await.map(|t| t.trim().to_string())
+}
+
 /// Testa a chave guardada com uma pergunta mínima.
 #[tauri::command]
 pub async fn testar_deepseek() -> Result<String, String> {

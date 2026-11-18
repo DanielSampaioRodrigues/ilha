@@ -147,6 +147,22 @@ export async function tentarComando(texto: string, ctx: Contexto): Promise<strin
     return "Arraste em volta do texto para traduzir.";
   }
 
+  // IA sobre o que foi copiado: "corrige o que eu copiei", "resume o texto copiado".
+  m = semCortesia(t).match(
+    /^(corrige|corrigir|corrija|traduz|traduzir|traduza|resume|resumir|resuma|melhora|melhorar|melhore)(?: o| esse| este| isso)?(?: texto)? (?:que eu copiei|que copiei|copiado|da area de transferencia|do copiado)$/,
+  );
+  if (m) {
+    const acao = ({ c: "corrigir", t: "traduzir", r: "resumir", m: "melhorar" } as const)[m[1][0] as "c" | "t" | "r" | "m"];
+    const { lerCopiado, transformarTexto } = await import("../maos/sistema");
+    const original = await lerCopiado();
+    if (!original.trim()) return "Não tem texto copiado agora. Copie com Ctrl+C e peça de novo.";
+    const pronto = await transformarTexto(acao, original);
+    await copiar(pronto);
+    if (acao === "resumir") return `Resumo (já copiado): ${pronto}`;
+    if (acao === "traduzir" && pronto.length < 300) return `Tradução (já copiada): ${pronto}`;
+    return `Pronto: o texto ${acao === "corrigir" ? "corrigido" : acao === "traduzir" ? "traduzido" : "melhorado"} está copiado. É só colar com Ctrl+V.`;
+  }
+
   // Copiar um texto rápido: "copia meu pix".
   m = t.match(/^(?:copia|copiar|copie)(?: o| a| meu| minha)* (.+)$/);
   if (m) {

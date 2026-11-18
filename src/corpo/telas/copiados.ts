@@ -13,6 +13,8 @@ import {
   copiar,
   nomeDoPrograma,
   type Copiado,
+  transformarTexto,
+  type AcaoTexto,
 } from "../../maos/sistema";
 import { dentroDoApp } from "../../ponte";
 import type { Contexto } from "../contexto";
@@ -74,6 +76,7 @@ export function montarCopiados(ctx: Contexto): HTMLElement {
             }</span>
             <span class="secundario">${haQuanto(new Date(c.quando))}${c.programa ? ` · ${escapar(nomeDoPrograma(c.programa))}` : ""}</span>
           </button>
+          ${c.tipo === "texto" ? `<button type="button" class="redondo" aria-label="Usar a IA neste texto" title="Corrigir, traduzir, resumir ou melhorar com a IA" data-acao="ia" data-id="${c.id}">${ICONES.raio}</button>` : ""}
           <button type="button" class="redondo ${c.fixo ? "ativo-fixo" : ""}" aria-label="${c.fixo ? "Soltar" : "Fixar"}" title="${c.fixo ? "Soltar" : "Fixar (nunca some)"}" data-acao="fixar" data-id="${c.id}">${ICONES.alfinete}</button>
           <button type="button" class="redondo" aria-label="Apagar" data-acao="apagar" data-id="${c.id}">${ICONES.lixeira}</button>
         </div>`,
@@ -88,6 +91,40 @@ export function montarCopiados(ctx: Contexto): HTMLElement {
           recadoTemporario(aviso, c.tipo === "arquivos" ? "Copiei os caminhos dos arquivos (Ctrl+V cola)." : "Copiado! É só colar com Ctrl+V."),
         )
         .catch((e) => recadoTemporario(aviso, String(e)));
+    });
+    // IA no texto: mostra as 4 ações embaixo do item; o resultado vai para a área de transferência.
+    aoClicar(lista, "ia", (b) => {
+      const item = b.closest<HTMLElement>(".item")!;
+      const aberto = item.nextElementSibling?.classList.contains("acoes-ia");
+      lista.querySelectorAll(".acoes-ia").forEach((x) => x.remove());
+      if (aberto) return;
+      const acoes = html(`
+        <div class="acoes-ia linha">
+          ${([
+            ["corrigir", "Corrigir"],
+            ["traduzir", "Traduzir"],
+            ["resumir", "Resumir"],
+            ["melhorar", "Melhorar"],
+          ] as const)
+            .map(([a, n]) => `<button type="button" class="chip pequeno-chip" data-acao="ia-fazer" data-ia="${a}" data-id="${b.dataset.id}">${n}</button>`)
+            .join("")}
+          <span class="secundario resultado-ia"></span>
+        </div>`);
+      item.after(acoes);
+      aoClicar(acoes, "ia-fazer", (botao) => {
+        const c = itens.find((x) => x.id === botao.dataset.id);
+        if (!c) return;
+        const resultado = acoes.querySelector<HTMLElement>(".resultado-ia")!;
+        resultado.textContent = "Pensando…";
+        acoes.querySelectorAll("button").forEach((x) => ((x as HTMLButtonElement).disabled = true));
+        transformarTexto(botao.dataset.ia as AcaoTexto, c.texto)
+          .then(async (pronto) => {
+            await copiar(pronto);
+            resultado.textContent = "Pronto! Está copiado: é só colar com Ctrl+V.";
+          })
+          .catch((e) => (resultado.textContent = String(e)))
+          .finally(() => acoes.querySelectorAll("button").forEach((x) => ((x as HTMLButtonElement).disabled = false)));
+      });
     });
     aoClicar(lista, "fixar", (b) => {
       copiadosFixar(b.dataset.id!).then(carregar).catch(() => {});

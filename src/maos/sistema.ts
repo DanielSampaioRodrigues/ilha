@@ -4,7 +4,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { enquanto } from "./foco";
 import { open } from "@tauri-apps/plugin-dialog";
 import * as inicioAutomatico from "@tauri-apps/plugin-autostart";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { dentroDoApp } from "../ponte";
 
 export interface Midia {
@@ -150,6 +150,20 @@ export async function copiar(texto: string): Promise<void> {
   if (dentroDoApp) await writeText(texto);
   else await navigator.clipboard.writeText(texto);
 }
+
+/** O texto que está copiado agora ("" se não for texto). */
+export async function lerCopiado(): Promise<string> {
+  try {
+    return dentroDoApp ? ((await readText()) ?? "") : await navigator.clipboard.readText();
+  } catch {
+    return "";
+  }
+}
+
+export type AcaoTexto = "corrigir" | "traduzir" | "resumir" | "melhorar";
+/** IA rápida (DeepSeek) sobre um texto: devolve só o texto pronto. */
+export const transformarTexto = (acao: AcaoTexto, texto: string) =>
+  pedir<string>("transformar_texto", { acao, texto }, `(${acao}) ${texto}`);
 
 // ---------- Chaves de IA (ficam no cofre do Windows; a interface nunca lê a chave) ----------
 
