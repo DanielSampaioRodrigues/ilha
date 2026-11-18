@@ -2,6 +2,8 @@
 // achar de novo na hora e para contar às IAs onde elas ficam.
 import { ler, mudar, type Dados, type PastaConhecida } from "./armazem";
 import { abrirPrograma, procurarPastas, type PastaAchada } from "../maos/sistema";
+import { invoke } from "@tauri-apps/api/core";
+import { dentroDoApp } from "../ponte";
 
 const NUMEROS: Record<string, string> = {
   um: "1", uma: "1", dois: "2", duas: "2", tres: "3", quatro: "4", cinco: "5", seis: "6", sete: "7", oito: "8", nove: "9", dez: "10",
@@ -71,8 +73,9 @@ export async function acharPasta(nome: string): Promise<{ melhor: PastaAchada | 
   return { melhor, outras: achadas.filter((a) => a !== melhor) };
 }
 
-/** Abre no Explorador e lembra dela. */
+/** Abre no Explorador (só se for mesmo uma pasta) e lembra dela. */
 export async function abrirPasta(caminho: string): Promise<void> {
-  await abrirPrograma(caminho);
+  if (dentroDoApp) await invoke("abrir_pasta", { caminho });
+  else await abrirPrograma(caminho);
   usarPasta(caminho);
 }

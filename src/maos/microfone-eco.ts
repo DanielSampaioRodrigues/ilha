@@ -10,15 +10,28 @@ import { ler } from "../dados/armazem";
 
 let fluxo: MediaStream | null = null;
 let ctx: AudioContext | null = null;
+/** Ligando agora (evita abrir dois microfones se pedirem duas vezes seguidas). */
+let ligando = false;
+/** Muda a cada ligar/desligar: um "ligar" atrasado vê que foi cancelado. */
+let geracao = 0;
 
 export async function ligarMicrofoneComEco(): Promise<void> {
-  if (!dentroDoApp || fluxo) return;
+  if (!dentroDoApp || fluxo || ligando) return;
+  ligando = true;
+  const minha = ++geracao;
   try {
-    fluxo = await navigator.mediaDevices.getUserMedia({
+    const novo = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
     });
+    if (minha !== geracao) {
+      // Desligaram enquanto o Windows abria o microfone.
+      novo.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    fluxo = novo;
     ctx = new AudioContext({ sampleRate: 16000 });
     await ctx.audioWorklet.addModule("/microfone-worklet.js");
+    if (minha !== geracao || !ctx) return;
     const fonte = ctx.createMediaStreamSource(fluxo);
     const captura = new AudioWorkletNode(ctx, "captura");
     let juntando: Float32Array[] = [];
@@ -56,10 +69,13 @@ export async function ligarMicrofoneComEco(): Promise<void> {
   } catch (erro) {
     console.warn("Microfone com cancelamento de eco indisponível; usando o direto.", erro);
     desligarMicrofoneComEco();
+  } finally {
+    ligando = false;
   }
 }
 
 export function desligarMicrofoneComEco(): void {
+  geracao++;
   fluxo?.getTracks().forEach((t) => t.stop());
   fluxo = null;
   void ctx?.close();

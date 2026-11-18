@@ -699,6 +699,12 @@ impl Microfone {
 static OUVINTES_ECO: Mutex<Vec<std::sync::mpsc::Sender<Vec<f32>>>> = Mutex::new(Vec::new());
 static ULTIMO_SOM_ECO: Mutex<Option<Instant>> = Mutex::new(None);
 
+/// O microfone da janela (com eco) parou de mandar som: quem espera por ele
+/// não pode ficar esperando para sempre (o canal nunca "fecha").
+fn parou(m: &Microfone) -> bool {
+    m.com_eco && !eco_ativo()
+}
+
 /// A janela está mandando som (com cancelamento de eco) agora.
 fn eco_ativo() -> bool {
     ULTIMO_SOM_ECO.lock().ok().and_then(|u| *u).is_some_and(|t| t.elapsed() < Duration::from_millis(1500))
@@ -901,8 +907,19 @@ pub fn ditar(app: &AppHandle, parar: &AtomicBool, cancelar: &AtomicBool) -> Resu
         if cancelar.load(Ordering::Relaxed) {
             return Ok(String::new());
         }
-        // Atalho de novo (ou 5 min de ditado): fecha o trecho em andamento.
-        if parar.load(Ordering::Relaxed) || comeco.elapsed() > Duration::from_secs(300) {
+        // Atalho de novo (ou 5 min de ditado, ou o microfone da janela parou): fecha o trecho em andamento.
+        if parar.load(Ordering::Relaxed) || comeco.elapsed() > Duration::from_secs(300) || parou(&microfone) {
+            // O som que chegou enquanto o trecho anterior era entendido ainda
+            // está no canal: passa por ele antes de fechar (senão a última frase some).
+            for som in microfone.chegando.try_iter() {
+                let falava = cortador.falando();
+                let pronta = cortador.empurrar(&som).into_iter().next();
+                nuvem.som(&som, falava, cortador.falando(), pronta.is_some());
+                if let Some(fala) = pronta {
+                    let anterior = std::mem::replace(&mut nuvem, EnvioNuvem::novo(Some(app)));
+                    juntar(&mut texto, anterior.entender(&fala));
+                }
+            }
             if let Some(fala) = cortador.terminar() {
                 let _ = app.emit("ilha:entendendo", ());
                 let resto = nuvem.entender(&fala);
@@ -1002,6 +1019,7 @@ pub fn ouvir_pedido(app: &AppHandle, parar: &AtomicBool) -> Result<String, Strin
                     break f;
                 }
             }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) if parou(&microfone) => return Err("O microfone parou de mandar som.".into()),
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
             Err(_) => return Err("O microfone parou de mandar som.".into()),
         }
@@ -1078,6 +1096,7 @@ async fn testar_ouvido_agora(app: AppHandle) -> Result<TesteOuvido, String> {
                         break f;
                     }
                 }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) if parou(&microfone) => return Err("O microfone parou de mandar som.".into()),
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
                 Err(_) => return Err("O microfone parou de mandar som.".into()),
             }
@@ -1204,6 +1223,7 @@ fn proxima_fala(
                     return Ok(Some((f, nuvem)));
                 }
             }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) if parou(microfone) => return Err("O microfone parou de mandar som.".into()),
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
             Err(_) => return Err("O microfone parou de mandar som.".into()),
         }

@@ -154,6 +154,17 @@ async fn baixar_peca(app: Option<&AppHandle>, peca: &Peca, destino: &Path) -> Re
     use std::io::Write;
     let parcial = destino.with_extension("parcial");
     let ja_tinha = std::fs::metadata(&parcial).map(|d| d.len()).unwrap_or(0).min(peca.tamanho);
+    // Já baixado inteiro (a ilha fechou antes de renomear, ou o antivírus
+    // segurou o arquivo): só confere e renomeia. Pedir mais daria erro 416.
+    if ja_tinha >= peca.tamanho {
+        BAIXADO.fetch_add(ja_tinha, Ordering::Relaxed);
+        if sha256_do_arquivo(&parcial)? == peca.sha256 {
+            return std::fs::rename(&parcial, destino).map_err(|e| e.to_string());
+        }
+        let _ = std::fs::remove_file(&parcial);
+        BAIXADO.fetch_sub(ja_tinha, Ordering::Relaxed);
+        return Err("O arquivo da voz veio diferente do esperado (descartado; tento de novo depois).".into());
+    }
     let mut pedido = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(20))
         .build()
@@ -610,8 +621,23 @@ fn dados_com_caminho_simples(dados: &Path) -> PathBuf {
 
 // ---------- O modelo (fonemas → som) ----------
 
+/// O ONNX só aceita um "ambiente" por processo (e nunca o solta): cria uma vez
+/// e reaproveita, mesmo se o resto do carregamento falhar e for tentado de novo.
+static AMBIENTE: std::sync::OnceLock<ort::environment::Environment> = std::sync::OnceLock::new();
+
+fn ambiente(onnx: &Path) -> Result<&'static ort::environment::Environment, String> {
+    if let Some(a) = AMBIENTE.get() {
+        return Ok(a);
+    }
+    let novo = ort::init_from(onnx)
+        .map_err(|e| format!("O motor de voz (ONNX) não abriu: {e}"))?
+        .with_name("ilha-voz")
+        .build()
+        .map_err(|e| format!("O motor de voz (ONNX) não abriu: {e}"))?;
+    Ok(AMBIENTE.get_or_init(|| novo))
+}
+
 pub struct Motor {
-    _ambiente: ort::environment::Environment,
     espeak: Espeak,
     sessao: ort::session::Session,
     /// 510 linhas × 256 números por voz.
@@ -661,18 +687,13 @@ fn nucleos() -> usize {
 impl Motor {
     fn carregar(c: &Caminhos) -> Result<Self, String> {
         let espeak = Espeak::carregar(&c.espeak, &dados_com_caminho_simples(&c.dados_espeak))?;
-        let ambiente = ort::init_from(&c.onnx)
-            .map_err(|e| format!("O motor de voz (ONNX) não abriu: {e}"))?
-            .with_name("ilha-voz")
-            .build()
-            .map_err(|e| format!("O motor de voz (ONNX) não abriu: {e}"))?;
-        let sessao = ort::session::Session::builder(&ambiente)
+        let sessao = ort::session::Session::builder(ambiente(&c.onnx)?)
             .map_err(|e| e.to_string())?
             .with_intra_threads(nucleos())
             .map_err(|e| e.to_string())?
             .commit_from_file(&c.modelo)
             .map_err(|e| format!("O modelo da voz não abriu: {e}"))?;
-        Ok(Motor { _ambiente: ambiente, espeak, sessao, vozes: ler_vozes(&c.vozes)? })
+        Ok(Motor { espeak, sessao, vozes: ler_vozes(&c.vozes)? })
     }
 
     /// Fonemas → som (24 kHz, -1…1), com o silêncio das pontas aparado.

@@ -171,11 +171,25 @@ fn apertou(app: &AppHandle) {
     });
 }
 
+/// O que estava copiado antes do ditado (para devolver depois de colar).
+enum Antes {
+    Texto(String),
+    Imagem(tauri::image::Image<'static>),
+    Nada,
+}
+
 /// Cola o texto onde está o cursor: põe na área de transferência, aperta
-/// Ctrl+V na janela certa e devolve o que estava copiado antes (se era texto).
+/// Ctrl+V na janela certa e devolve o que estava copiado antes (texto ou
+/// imagem; arquivos copiados no Explorador não voltam, mas ficam nos Copiados).
 fn colar(app: &AppHandle, texto: &str, janela: isize) -> Result<(), String> {
     use tauri_plugin_clipboard_manager::ClipboardExt;
-    let antes = app.clipboard().read_text().ok();
+    let antes = match app.clipboard().read_text() {
+        Ok(t) => Antes::Texto(t),
+        Err(_) => match app.clipboard().read_image() {
+            Ok(img) => Antes::Imagem(img.to_owned()),
+            Err(_) => Antes::Nada,
+        },
+    };
     app.clipboard().write_text(texto.to_string()).map_err(|e| format!("Não consegui copiar o texto: {e}"))?;
     sistema::esperar_soltar_teclas();
     sistema::voltar_para(janela);
@@ -183,8 +197,14 @@ fn colar(app: &AppHandle, texto: &str, janela: isize) -> Result<(), String> {
     sistema::ctrl_v()?;
     // O programa lê a área de transferência logo depois do Ctrl+V.
     std::thread::sleep(Duration::from_millis(450));
-    if let Some(a) = antes {
-        let _ = app.clipboard().write_text(a);
+    match antes {
+        Antes::Texto(a) => {
+            let _ = app.clipboard().write_text(a);
+        }
+        Antes::Imagem(img) => {
+            let _ = app.clipboard().write_image(&img);
+        }
+        Antes::Nada => {}
     }
     Ok(())
 }

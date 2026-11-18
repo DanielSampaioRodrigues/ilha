@@ -7,6 +7,7 @@ import { diagnosticoPc, icloudEnviar, icloudEventos, limparTemporarios, type Eve
 import { normalizar, tentarComando } from "./comandos";
 import type { Contexto, NomeTela } from "./contexto";
 import { dicas } from "./telas/pc";
+import { paraISO } from "../dados/datas";
 
 export interface AcaoPedida {
   id: string;
@@ -21,7 +22,8 @@ const TELAS_LIVRES: NomeTela[] = [
 ] as NomeTela[];
 
 const n1 = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-const hoje = () => new Date().toISOString().slice(0, 10);
+// Dia local (os hábitos são anotados no dia daqui, não no de Londres).
+const hoje = () => paraISO(new Date());
 
 function lista(titulo: string, itens: string[]): string {
   return itens.length ? `${titulo}:\n${itens.map((i) => `- ${i}`).join("\n")}` : `${titulo}: nenhum(a).`;
@@ -181,7 +183,8 @@ export async function executarAcao(a: AcaoPedida, ctx: Contexto): Promise<string
     }
     case "ilha_concluir_tarefa": {
       const alvo = normalizar(texto);
-      const pendentes = ler().tarefas.filter((t) => !t.feita);
+      if (!alvo) return "Faltou dizer qual tarefa.";
+      const pendentes = ler().tarefas.filter((t) => !t.feita && normalizar(t.texto));
       const achada = pendentes.find((t) => normalizar(t.texto) === alvo) ?? pendentes.find((t) => normalizar(t.texto).includes(alvo) || alvo.includes(normalizar(t.texto)));
       if (!achada) return `Não achei tarefa pendente parecida com "${texto}".`;
       mudar((d) => {

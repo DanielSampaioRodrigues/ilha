@@ -95,6 +95,10 @@ fn parecidas(a: &str, b: &str) -> bool {
     if a == b {
         return true;
     }
+    // Números precisam ser iguais ("2024" não é "2023", "3" não é "4").
+    if a.chars().any(|c| c.is_ascii_digit()) || b.chars().any(|c| c.is_ascii_digit()) {
+        return false;
+    }
     let n = a.chars().count().min(b.chars().count());
     n >= 4 && distancia(a, b) <= n / 4
 }
@@ -115,7 +119,8 @@ pub fn nota(pedido: &[String], pasta: &[String]) -> u32 {
     }
     // Nome junto (ex.: "clientesarcano3" ou só parte dele).
     let (jp, jf) = (pedido.concat(), pasta.concat());
-    if jp.len() >= 5 && (jf.contains(&jp) || parecidas(&jp, &jf)) {
+    let numeros = |p: &[String]| p.iter().filter(|x| x.chars().all(|c| c.is_ascii_digit())).cloned().collect::<Vec<_>>();
+    if jp.len() >= 5 && numeros(pedido) == numeros(pasta) && (jf.contains(&jp) || parecidas(&jp, &jf)) {
         return 75;
     }
     let fracao = achadas as f32 / pedido.len() as f32;
@@ -246,6 +251,17 @@ pub async fn procurar_pastas(nome: String) -> Vec<PastaAchada> {
     .unwrap_or_default()
 }
 
+/// Abre uma pasta no Explorador, só se for mesmo uma pasta (nunca um programa).
+#[tauri::command]
+pub fn abrir_pasta(app: tauri::AppHandle, caminho: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let caminho = caminho.trim();
+    if !Path::new(caminho).is_dir() {
+        return Err("Essa pasta não existe (ou não é uma pasta).".into());
+    }
+    app.opener().open_path(caminho, None::<&str>).map_err(|e| e.to_string())
+}
+
 /// Refaz o índice agora (ex.: a pasta foi criada há pouco e não foi achada).
 #[tauri::command]
 pub async fn renovar_pastas() {
@@ -267,5 +283,8 @@ mod testes {
         assert!(nota(&palavras("clientes arcano 3"), &palavras("Clientes Arcano 3 - antigos")) >= 70);
         assert!(nota(&palavras("clientes arcano 3"), &pasta) > nota(&palavras("clientes arcano 3"), &palavras("Clientes Arcano 3 - antigos")));
         assert_eq!(nota(&palavras("fotos da viagem"), &pasta), 0);
+        // Números diferentes não servem.
+        assert!(nota(&palavras("clientes arcano 3"), &palavras("Clientes Arcano 4")) < 50);
+        assert!(nota(&palavras("notas 2024"), &palavras("Notas 2023")) < 50);
     }
 }
