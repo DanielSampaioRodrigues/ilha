@@ -2,14 +2,18 @@
 // meta de um hábito ou quando uma IA termina. Os papeizinhos saem da ilha e
 // caem por cima da tela (a janela é transparente; o clique passa por eles).
 
+import { ler } from "../dados/armazem";
+import { tocarPlim } from "./som";
+
 const CORES = ["var(--ciano)", "var(--cor-2)", "#ff6b9a", "#ffd166", "#7cf29a", "#b69cff"];
 
 function poucoMovimento(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 }
 
-/** Estoura confete a partir de (x, y). */
+/** Estoura confete a partir de (x, y) (com o "plim", se estiver ligado). */
 export function confete(x: number, y: number, quantos = 26): void {
+  if (ler().config.somFesta !== false) tocarPlim();
   if (poucoMovimento()) return;
   for (let i = 0; i < quantos; i++) {
     const p = document.createElement("i");

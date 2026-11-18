@@ -150,6 +150,8 @@ export interface Config {
   modoRapida?: "conversar" | "editar";
   /** Onde tocar a música pedida pelo nome (sem nada: Spotify se instalado, senão YouTube Music). */
   musicaOnde?: "youtube-music" | "youtube" | "spotify" | "deezer" | "apple-music";
+  /** Um "plim" curtinho junto com o confete (sem: ligado). */
+  somFesta?: boolean;
   /** Cidade para mostrar o tempo na tela inicial (vazio: não mostra). */
   cidade?: string;
   /** A primeira abertura guiada já foi feita (ou a ilha já tinha dados). */

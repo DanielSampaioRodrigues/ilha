@@ -273,6 +273,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
         ${interruptor("windows", "Abrir a ilha quando o Windows ligar")}
         ${interruptor("telacheia", "Esconder em jogos, vídeos e apresentações em tela cheia")}
         ${interruptor("musica", "Mostrar a música tocando na ilha fechada")}
+        ${interruptor("somfesta", "Som de comemoração (junto com o confete)")}
       </section>
 
       <section class="secao" data-aba="ias">
@@ -810,6 +811,9 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   });
   opcaoSimples("musica", dados.config.musicaNaIlha, ["Ligado: nome da música e barrinhas na ilha.", "Desligado."], (v) => {
     mudar((d) => (d.config.musicaNaIlha = v));
+  });
+  opcaoSimples("somfesta", dados.config.somFesta !== false, ["Ligado: um “plim” curtinho ao concluir tarefas e metas.", "Desligado: só o confete."], (v) => {
+    mudar((d) => (d.config.somFesta = v));
   });
 
   // Avisos dos programas de IA. Ligar coloca uma linha na configuração do
