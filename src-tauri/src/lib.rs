@@ -65,6 +65,7 @@ pub fn run() {
         .manage(corpo::central::TelaPendente::default())
         .manage(cerebro::motores::Andamento::default())
         .manage(corpo::permissao::Esperando::default())
+        .manage(corpo::permissao::AcoesEsperando::default())
         .manage(maos::copiados::Copiados::default())
         .invoke_handler(tauri::generate_handler![
             janela::definir_area,
@@ -101,6 +102,7 @@ pub fn run() {
             corpo::central::modo_central,
             corpo::atividade::perceber_atividade,
             corpo::permissao::responder_permissao,
+            corpo::permissao::responder_acao,
             corpo::passeio::passear,
             corpo::passeio::fim_passeio,
             corpo::passeio::pegar_personagem,

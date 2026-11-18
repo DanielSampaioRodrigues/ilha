@@ -577,6 +577,14 @@ export class Ilha {
     this.animar();
   }
 
+  /** Contexto para as ações pedidas pelas IAs (não consome o recado da tela). */
+  contextoParaAcoes(): Contexto {
+    const recado = this.mensagem;
+    const c = this.contexto();
+    this.mensagem = recado;
+    return c;
+  }
+
   private contexto(): Contexto {
     const mensagem = this.mensagem;
     this.mensagem = null;

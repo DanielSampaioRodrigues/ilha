@@ -74,6 +74,13 @@ async function iniciar(): Promise<void> {
     );
   });
   ouvir<string>("ilha:permissao-fim", (id) => ilha.esquecerPergunta(id));
+  // Uma IA pediu algo da própria ilha (verificar o PC, timer, tarefa…).
+  ouvir<import("./corpo/acoes-da-ia").AcaoPedida>("ilha:acao", (a) => {
+    import("./corpo/acoes-da-ia").then(async (m) => {
+      const resultado = await m.executarAcao(a, ilha.contextoParaAcoes()).catch((e) => `Não deu: ${e}`);
+      await m.responderAcao(a.id, resultado).catch(() => {});
+    });
+  });
   ouvir<{ digitando: boolean; categoria: string }>("ilha:atividade", (a) => ilha.atividade(a.digitando, a.categoria));
   // Madrugada etc.: confere a hora de tempos em tempos.
   window.setInterval(() => ilha.atualizarAtividade(), 60_000);

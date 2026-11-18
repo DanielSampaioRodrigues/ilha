@@ -68,7 +68,7 @@ pub fn aplicar(motor: &str, servidores: &[ServidorMcp], da_ilha: &[String], id: 
     let servidores: Vec<ServidorMcp> = servidores.iter().filter(|s| nome_valido(&s.nome)).cloned().collect();
     let mut ap = Aplicacao { ambiente: ambiente(&servidores), ..Default::default() };
     match motor {
-        "claude" if !servidores.is_empty() || perguntar => {
+        "claude" => {
             let mut lista = Map::new();
             for s in &servidores {
                 let env: Map<String, Value> = s.segredos.iter().map(|n| (n.clone(), json!(format!("${{{n}}}")))).collect();
@@ -83,24 +83,38 @@ pub fn aplicar(motor: &str, servidores: &[ServidorMcp], da_ilha: &[String], id: 
                 };
                 lista.insert(s.nome.clone(), valor);
             }
-            if perguntar {
-                if let Some(mut ilha) = crate::corpo::permissao::configuracao_mcp(id) {
-                    // Espera a resposta do Dan por até 15 min.
-                    ilha["timeout"] = json!(900_000);
-                    lista.insert(crate::corpo::permissao::SERVIDOR.to_string(), ilha);
-                }
+            // A própria ilha sempre vai junto: o "posso?" e as ferramentas dela
+            // (verificar o PC, timers, tarefas, notas…), para a IA saber usá-la.
+            if let Some(mut ilha) = crate::corpo::permissao::configuracao_mcp(id) {
+                // Espera a resposta do Dan por até 15 min.
+                ilha["timeout"] = json!(900_000);
+                lista.insert(crate::corpo::permissao::SERVIDOR.to_string(), ilha);
             }
             let arquivo = std::env::temp_dir().join(format!("ilha-mcp-{id}.json"));
             std::fs::write(&arquivo, json!({ "mcpServers": lista }).to_string()).map_err(|e| e.to_string())?;
             ap.argumentos = vec!["--mcp-config".into(), arquivo.to_string_lossy().into()];
             if perguntar {
                 ap.argumentos.extend(["--permission-prompt-tool".into(), crate::corpo::permissao::nome_completo()]);
+            } else {
+                // Só conversar: olhar as coisas da ilha é livre.
+                ap.argumentos.extend([
+                    "--allowedTools".into(),
+                    "mcp__ilha__ilha_ler mcp__ilha__ilha_verificar_pc".into(),
+                ]);
             }
             ap.temporario = Some(arquivo);
         }
         "codex" => {
             let texto = |v: &str| serde_json::to_string(v).unwrap_or_default();
             let lista = |v: &[String]| serde_json::to_string(v).unwrap_or_else(|_| "[]".into());
+            // As ferramentas da própria ilha (verificar o PC, timers, tarefas…).
+            if let Some(ilha) = crate::corpo::permissao::configuracao_mcp(id) {
+                let base = format!("mcp_servers.{}", crate::corpo::permissao::SERVIDOR);
+                let comando = ilha["command"].as_str().unwrap_or_default();
+                let args: Vec<String> = ilha["args"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
+                ap.argumentos.extend(["-c".into(), format!("{base}.command={}", texto(comando))]);
+                ap.argumentos.extend(["-c".into(), format!("{base}.args={}", lista(&args))]);
+            }
             for s in &servidores {
                 let base = format!("mcp_servers.{}", s.nome);
                 if s.tipo == "remoto" {
@@ -217,7 +231,13 @@ mod testes {
     #[test]
     fn codex_cria_servidor_por_c() {
         let ap = aplicar("codex", &[pw()], &[], "t", false).unwrap();
-        assert!(aplicar("claude", &[], &[], "t", false).unwrap().argumentos.is_empty());
+        // A ilha vai sempre junto (ferramentas dela), mesmo sem outros servidores.
+        let so_ilha = aplicar("claude", &[], &[], "t", false).unwrap();
+        let texto = std::fs::read_to_string(so_ilha.temporario.as_ref().unwrap()).unwrap();
+        assert!(texto.contains("--mcp-permissao"));
+        assert!(!so_ilha.argumentos.contains(&"--permission-prompt-tool".to_string()));
+        let _ = std::fs::remove_file(so_ilha.temporario.unwrap());
+        assert!(ap.argumentos.iter().any(|a| a.starts_with("mcp_servers.ilha.args=")));
         assert!(ap.argumentos.contains(&"mcp_servers.playwright.command=\"npx\"".to_string()));
         assert!(ap.argumentos.contains(&"mcp_servers.playwright.args=[\"-y\",\"@playwright/mcp@latest\"]".to_string()));
     }

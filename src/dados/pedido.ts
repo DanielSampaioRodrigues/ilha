@@ -30,6 +30,26 @@ export function textoDaMemoria(d: Dados = ler()): string {
 }
 
 /** Instruções do perfil, das skills ligadas e a memória (vão para todos os motores). */
+/**
+ * O que a IA precisa saber sobre a própria Ilha (o app em que ela está rodando):
+ * o que existe nela e, para quem tem as ferramentas (Claude Code e Codex), como usar.
+ */
+function sobreAIlha(c: Conversa, d: Dados): string {
+  const comFerramentas = c.motor === "claude" || c.motor === "codex";
+  const recursos =
+    "A Ilha tem: timers e lembretes, modo foco com pausas, tarefas (com prioridade e subtarefas), notas, hábitos, assinaturas com vencimentos, " +
+    "memória (o que o Dan pede para as IAs lembrarem), rotinas (vários passos com uma frase, ex.: \"bom dia\"), textos rápidos para copiar, " +
+    "lançador de apps, controle de volume e da música do Windows, tradução de texto da tela, histórico do que foi copiado, calendário, " +
+    "a verificação do PC (\"Meu PC\": processador, memória, disco, temporários, programas pesados) com limpeza dos temporários, e conversas com IAs (esta).";
+  const ferramentas = comFerramentas
+    ? " Você tem as ferramentas da própria Ilha (servidor MCP \"ilha\", nomes começando com ilha_): use ilha_verificar_pc para escanear/verificar o PC, " +
+      "ilha_fazer para volume, música, timer, foco, lembrete, abrir programa, traduzir a tela, copiar texto rápido e rotinas, " +
+      "ilha_ler e ilha_anotar para tarefas, notas, hábitos, assinaturas e memória, ilha_concluir_tarefa, ilha_limpar_temporarios e ilha_abrir_tela. " +
+      "Quando o pedido for sobre algo que a Ilha faz, prefira essas ferramentas a comandos do Windows."
+    : " Se pedirem algo que a Ilha faz (timer, foco, volume, abrir programa), diga a frase curta para o Dan falar à Ilha (ex.: \"timer 10 min\").";
+  return `Você está rodando dentro da Ilha, o assistente de ${d.config.nome} no Windows (o robô se chama "${d.config.nomeRobo}"). ${recursos}${ferramentas}`;
+}
+
 export function instrucoesExtras(c: Conversa, d: Dados = ler()): string {
   const perfil = d.perfis.find((p) => p.id === c.perfilId);
   const skills = d.skills.filter((s) => c.skills?.includes(s.id));
@@ -40,6 +60,7 @@ export function instrucoesExtras(c: Conversa, d: Dados = ler()): string {
     : "";
   return [
     voz,
+    sobreAIlha(c, d),
     perfil?.instrucoes ? `Instruções do perfil "${perfil.nome}":\n${perfil.instrucoes}` : "",
     ...skills.map((s) => `Skill "${s.nome}"${s.descricao ? ` (${s.descricao})` : ""}:\n${s.instrucoes}`),
     textoDaMemoria(d),

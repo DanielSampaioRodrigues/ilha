@@ -24,7 +24,7 @@ function cartao(titulo: string, valor: string, pct: number | null, alerta: boole
     </div>`;
 }
 
-function dicas(d: Diagnostico): string[] {
+export function dicas(d: Diagnostico): string[] {
   const lista: string[] = [];
   const memoria = (d.memoria_usada_gb / d.memoria_total_gb) * 100;
   const disco = d.disco_total_gb ? (d.disco_livre_gb / d.disco_total_gb) * 100 : 100;

@@ -47,6 +47,22 @@ struct PedidoDePermissao {
     ferramenta: String,
     #[serde(default)]
     entrada: Value,
+    /// Pedido de ação da própria ilha (ferramentas "ilha_…"), em vez de permissão.
+    #[serde(default)]
+    acao: Option<String>,
+}
+
+/// Ações pedidas pelas IAs esperando a ilha terminar (id → onde mandar o resultado).
+#[derive(Default)]
+pub struct AcoesEsperando(Mutex<HashMap<String, Sender<String>>>);
+
+/// O que a ilha (tela) recebe para fazer.
+#[derive(Clone, Serialize)]
+pub struct AcaoPedida {
+    pub id: String,
+    pub conversa: String,
+    pub acao: String,
+    pub entrada: Value,
 }
 
 /// O que a ilha mostra para o Dan.
@@ -152,6 +168,10 @@ fn atender(app: AppHandle, conexao: TcpStream, senha: &str) {
     if pedido.senha != senha {
         return;
     }
+    if let Some(acao) = pedido.acao.clone() {
+        atender_acao(&app, &conexao, acao, pedido);
+        return;
+    }
     let id = senha_aleatoria()[..12].to_string();
     let (enviar, receber) = channel();
     if let Ok(mut e) = app.state::<Esperando>().0.lock() {
@@ -181,6 +201,32 @@ fn atender(app: AppHandle, conexao: TcpStream, senha: &str) {
     let _ = writeln!(escrita, "{}", json!({ "permitir": permitir }));
 }
 
+/// Uma IA pediu algo da própria ilha: a tela faz e devolve o resultado em texto.
+fn atender_acao(app: &AppHandle, conexao: &TcpStream, acao: String, pedido: PedidoDePermissao) {
+    let id = senha_aleatoria()[..12].to_string();
+    let (enviar, receber) = channel();
+    if let Ok(mut e) = app.state::<AcoesEsperando>().0.lock() {
+        e.insert(id.clone(), enviar);
+    }
+    let _ = app.emit_to("ilha", "ilha:acao", AcaoPedida { id: id.clone(), conversa: pedido.conversa, acao, entrada: pedido.entrada });
+    let resultado = receber
+        .recv_timeout(Duration::from_secs(120))
+        .unwrap_or_else(|_| "A ilha não respondeu a tempo.".to_string());
+    if let Ok(mut e) = app.state::<AcoesEsperando>().0.lock() {
+        e.remove(&id);
+    }
+    let mut escrita = conexao;
+    let _ = writeln!(escrita, "{}", json!({ "resultado": resultado }));
+}
+
+/// A ilha terminou a ação pedida por uma IA.
+#[tauri::command]
+pub fn responder_acao(id: String, resultado: String, acoes: State<'_, AcoesEsperando>) {
+    if let Some(enviar) = acoes.0.lock().ok().and_then(|mut e| e.remove(&id)) {
+        let _ = enviar.send(resultado);
+    }
+}
+
 /// O Dan clicou Sim ou Não.
 #[tauri::command]
 pub fn responder_permissao(id: String, permitir: bool, esperando: State<'_, Esperando>) {
@@ -190,6 +236,67 @@ pub fn responder_permissao(id: String, permitir: bool, esperando: State<'_, Espe
 }
 
 // ---------- O servidor MCP (processo pequeno chamado pelo Claude Code) ----------
+
+/// Pede uma ação à ilha (que está aberta) e espera o resultado.
+fn pedir_acao_a_ilha(conversa: &str, acao: &str, entrada: &Value) -> Result<String, String> {
+    let texto = std::fs::read_to_string(arquivo_do_endereco()).map_err(|_| "A ilha não está aberta.".to_string())?;
+    let endereco: Endereco = serde_json::from_str(&texto).map_err(|e| e.to_string())?;
+    let conexao = TcpStream::connect(("127.0.0.1", endereco.porta)).map_err(|_| "A ilha não está aberta.".to_string())?;
+    let _ = conexao.set_read_timeout(Some(Duration::from_secs(150)));
+    let mut escrita = &conexao;
+    writeln!(
+        escrita,
+        "{}",
+        json!({ "senha": endereco.senha, "conversa": conversa, "ferramenta": acao, "entrada": entrada, "acao": acao })
+    )
+    .map_err(|e| e.to_string())?;
+    let mut linha = String::new();
+    BufReader::new(&conexao).read_line(&mut linha).map_err(|e| e.to_string())?;
+    let v: Value = serde_json::from_str(&linha).map_err(|_| "A ilha não respondeu.".to_string())?;
+    Ok(v["resultado"].as_str().unwrap_or_default().to_string())
+}
+
+/// Ferramentas da própria ilha que as IAs podem usar (o que a ilha sabe fazer).
+fn ferramentas_da_ilha() -> Value {
+    let vazio = json!({ "type": "object", "properties": {} });
+    json!([
+        {
+            "name": "ilha_fazer",
+            "description": "Faz algo pela própria Ilha com uma frase curta, do jeito que o Dan falaria. Exemplos: \"volume 30\", \"mudo\", \"pausa a música\", \"próxima música\", \"timer 10 min pizza\", \"foco 25\", \"me lembra em 15 min de ligar pro João\", \"abre o spotify\", \"traduz a tela\", \"copia meu pix\" (textos rápidos), \"vai passear\", \"que horas são\" ou a frase de uma rotina do Dan (ex.: \"bom dia\"). Devolve o que a ilha fez, ou avisa que não entendeu.",
+            "inputSchema": { "type": "object", "properties": { "pedido": { "type": "string" } }, "required": ["pedido"] }
+        },
+        {
+            "name": "ilha_verificar_pc",
+            "description": "Faz a verificação do PC da Ilha (a mesma da tela \"Meu PC\", que aparece animada para o Dan): uso do processador e da memória, espaço no disco, arquivos temporários, há quanto tempo o PC está ligado, os programas mais pesados e dicas. Use quando pedirem para escanear, verificar ou ver como está o PC.",
+            "inputSchema": vazio
+        },
+        {
+            "name": "ilha_limpar_temporarios",
+            "description": "Apaga os arquivos temporários antigos do Windows (o botão Limpar da tela Meu PC). A ilha pergunta ao Dan antes. Devolve quanto foi liberado.",
+            "inputSchema": vazio
+        },
+        {
+            "name": "ilha_ler",
+            "description": "Lê o que está guardado na Ilha: tarefas, notas, hábitos, assinaturas (com vencimentos), memória (o que o Dan pediu para lembrar), rotinas, timers ligados, textos rápidos (só os nomes) e apps do lançador.",
+            "inputSchema": { "type": "object", "properties": { "o_que": { "type": "string", "enum": ["tarefas", "notas", "habitos", "assinaturas", "memoria", "rotinas", "timers", "textos", "apps"] } }, "required": ["o_que"] }
+        },
+        {
+            "name": "ilha_anotar",
+            "description": "Guarda algo na Ilha: uma tarefa nova, uma nota nova ou uma memória (algo que o Dan quer que as IAs lembrem sempre).",
+            "inputSchema": { "type": "object", "properties": { "tipo": { "type": "string", "enum": ["tarefa", "nota", "memoria"] }, "texto": { "type": "string" } }, "required": ["tipo", "texto"] }
+        },
+        {
+            "name": "ilha_concluir_tarefa",
+            "description": "Marca como feita a tarefa da Ilha cujo texto mais combina com o dado.",
+            "inputSchema": { "type": "object", "properties": { "texto": { "type": "string" } }, "required": ["texto"] }
+        },
+        {
+            "name": "ilha_abrir_tela",
+            "description": "Abre uma tela da Ilha para o Dan ver.",
+            "inputSchema": { "type": "object", "properties": { "tela": { "type": "string", "enum": ["inicio", "tarefas", "notas", "habitos", "timers", "foco", "pc", "memoria", "rotinas", "calendario", "copiados", "textos", "apps", "tabela", "traducoes", "ajustes"] } }, "required": ["tela"] }
+        }
+    ])
+}
 
 /// Pergunta à ilha (que está aberta) e espera a resposta.
 fn perguntar_a_ilha(conversa: &str, ferramenta: &str, entrada: &Value) -> Result<bool, String> {
@@ -327,7 +434,12 @@ pub fn resposta_da_ferramenta(permitir: Result<bool, String>, entrada: &Value) -
 }
 
 /// Responde uma mensagem JSON-RPC do protocolo MCP (None = notificação, sem resposta).
-pub fn responder_mcp(msg: &Value, conversa: &str, perguntar: &dyn Fn(&str, &Value) -> Result<bool, String>) -> Option<Value> {
+pub fn responder_mcp(
+    msg: &Value,
+    conversa: &str,
+    perguntar: &dyn Fn(&str, &Value) -> Result<bool, String>,
+    agir: &dyn Fn(&str, &Value) -> Result<String, String>,
+) -> Option<Value> {
     let id = msg.get("id")?.clone();
     let metodo = msg["method"].as_str().unwrap_or_default();
     let resultado = match metodo {
@@ -337,8 +449,8 @@ pub fn responder_mcp(msg: &Value, conversa: &str, perguntar: &dyn Fn(&str, &Valu
             "serverInfo": { "name": SERVIDOR, "version": env!("CARGO_PKG_VERSION") },
         }),
         "ping" => json!({}),
-        "tools/list" => json!({
-            "tools": [{
+        "tools/list" => {
+            let mut ferramentas = vec![json!({
                 "name": NOME_DA_FERRAMENTA,
                 "description": "Pergunta ao Dan, pela ilha, se pode usar uma ferramenta.",
                 "inputSchema": {
@@ -349,8 +461,21 @@ pub fn responder_mcp(msg: &Value, conversa: &str, perguntar: &dyn Fn(&str, &Valu
                         "tool_use_id": { "type": "string" }
                     }
                 }
-            }]
-        }),
+            })];
+            ferramentas.extend(ferramentas_da_ilha().as_array().cloned().unwrap_or_default());
+            json!({ "tools": ferramentas })
+        }
+        "tools/call" if msg["params"]["name"].as_str().is_some_and(|n| n.starts_with("ilha_")) => {
+            let nome = msg["params"]["name"].as_str().unwrap_or_default();
+            let entrada = msg["params"]["arguments"].clone();
+            // Apagar os temporários não tem volta: a ilha pergunta antes (vale para todas as IAs).
+            let permitido = if nome == "ilha_limpar_temporarios" { perguntar(nome, &json!({ "command": "Apagar os arquivos temporários antigos do Windows" })) } else { Ok(true) };
+            let (texto, erro) = match permitido.and_then(|sim| if sim { agir(nome, &entrada) } else { Ok("O Dan não autorizou.".into()) }) {
+                Ok(t) => (t, false),
+                Err(e) => (e, true),
+            };
+            json!({ "content": [{ "type": "text", "text": texto }], "isError": erro })
+        }
         "tools/call" => {
             // A documentação não lista os nomes dos campos: aceita as variações comuns.
             let args = &msg["params"]["arguments"];
@@ -390,7 +515,8 @@ pub fn servidor_mcp_se_pedido() -> bool {
         let mut saida = std::io::stdout();
         for msg in receber {
             let perguntar = |ferramenta: &str, e: &Value| perguntar_a_ilha(&conversa, ferramenta, e);
-            if let Some(resposta) = responder_mcp(&msg, &conversa, &perguntar) {
+            let agir = |acao: &str, e: &Value| pedir_acao_a_ilha(&conversa, acao, e);
+            if let Some(resposta) = responder_mcp(&msg, &conversa, &perguntar, &agir) {
                 let _ = writeln!(saida, "{resposta}");
                 let _ = saida.flush();
             }
@@ -429,19 +555,28 @@ mod testes {
     #[test]
     fn conversa_mcp_completa() {
         let sim = |_: &str, _: &Value| Ok(true);
-        let ini = responder_mcp(&json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}), "c", &sim).unwrap();
+        let agir = |a: &str, _: &Value| Ok(format!("fiz {a}"));
+        let ini = responder_mcp(&json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}), "c", &sim, &agir).unwrap();
         assert_eq!(ini["result"]["protocolVersion"], "2025-06-18");
-        assert!(responder_mcp(&json!({"jsonrpc":"2.0","method":"notifications/initialized"}), "c", &sim).is_none());
-        let lista = responder_mcp(&json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}), "c", &sim).unwrap();
+        assert!(responder_mcp(&json!({"jsonrpc":"2.0","method":"notifications/initialized"}), "c", &sim, &agir).is_none());
+        let lista = responder_mcp(&json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}), "c", &sim, &agir).unwrap();
         assert_eq!(lista["result"]["tools"][0]["name"], "aprovar");
         let chamada = json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"aprovar","arguments":{"tool_name":"Bash","input":{"command":"npm publish"}}}});
-        let r = responder_mcp(&chamada, "c", &sim).unwrap();
+        let r = responder_mcp(&chamada, "c", &sim, &agir).unwrap();
         let texto: Value = serde_json::from_str(r["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(texto["behavior"], "allow");
         assert_eq!(texto["updatedInput"]["command"], "npm publish");
         let nao = |_: &str, _: &Value| Ok(false);
-        let r = responder_mcp(&chamada, "c", &nao).unwrap();
+        let r = responder_mcp(&chamada, "c", &nao, &agir).unwrap();
         assert!(r["result"]["content"][0]["text"].as_str().unwrap().contains("deny"));
+        // Ferramentas da própria ilha.
+        assert!(lista["result"]["tools"].as_array().unwrap().iter().any(|t| t["name"] == "ilha_verificar_pc"));
+        let pc = json!({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"ilha_verificar_pc","arguments":{}}});
+        let r = responder_mcp(&pc, "c", &nao, &agir).unwrap();
+        assert_eq!(r["result"]["content"][0]["text"], "fiz ilha_verificar_pc");
+        let limpar = json!({"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"ilha_limpar_temporarios","arguments":{}}});
+        let r = responder_mcp(&limpar, "c", &nao, &agir).unwrap();
+        assert_eq!(r["result"]["content"][0]["text"], "O Dan não autorizou.");
     }
 
     #[test]

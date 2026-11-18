@@ -495,6 +495,10 @@ pub struct Cortador {
 /// resto vira o pedido do mesmo jeito (o mesmo microfone continua ouvindo).
 const ESPERA_DEPOIS_DO_NOME_MS: usize = 250;
 
+/// Depois de "nome + pedido" de uma vez, quanto tempo a ilha ainda espera a
+/// pessoa continuar (corre junto com o entendimento, quase não atrasa).
+const CONTINUAR_DEPOIS_DO_NOME_MS: u64 = 700;
+
 /// Quadros de 30 ms.
 const QUADRO: usize = TAXA * 30 / 1000;
 
@@ -855,7 +859,8 @@ pub fn parece_incompleta(texto: &str) -> bool {
     if t.is_empty() {
         return false;
     }
-    if t.ends_with([',', ';', ':', '-', '—', '–']) {
+    // Reticências: quem transcreve percebeu que a fala ficou no ar.
+    if t.ends_with([',', ';', ':', '-', '—', '–', '…']) || t.ends_with("...") {
         return true;
     }
     let ultima = t.split_whitespace().last().map(normalizar).unwrap_or_default();
@@ -1136,10 +1141,24 @@ fn atender(
     let _ = app.emit("ilha:chamou", serde_json::json!({ "texto": texto, "esperando": true, "etapa": etapa }));
     let pedido = if veio_junto {
         let inicio = Instant::now();
-        let p = pedido_junto(fala, nome, resto);
+        // A fala com o nome termina num silêncio curto (para o bip vir rápido).
+        // Então, ENQUANTO entende o que já ouviu, continua ouvindo: se a pessoa
+        // seguir falando ("…pra ver se [pausa] tem vírus"), junta o resto.
+        let (fala2, nome2) = (fala.to_vec(), nome.to_string());
+        let entendendo = std::thread::spawn(move || pedido_junto(&fala2, &nome2, resto));
+        let continuacao = proxima_fala(app, microfone, fila, Duration::from_millis(CONTINUAR_DEPOIS_DO_NOME_MS)).ok().flatten();
+        let mut p = entendendo.join().unwrap_or_default();
+        if let Some((mais, nuvem)) = continuacao.filter(|(f, _)| !f.is_empty()) {
+            log::info!("Ouvido: a pessoa continuou falando depois de uma pausa; juntando");
+            if let Ok(t) = nuvem.entender(&mais) {
+                if !t.trim().is_empty() {
+                    p = format!("{} {}", p.trim(), t.trim());
+                }
+            }
+        }
         ULTIMO_PEDIDO_MS.store(inicio.elapsed().as_millis() as u64, Ordering::Relaxed);
         ULTIMA_FALA_MS.store((fala.len() * 1000 / TAXA) as u64, Ordering::Relaxed);
-        Ok(p)
+        Ok(completar(app, microfone, fila, p))
     } else {
         // Uma palavra que veio colada no nome ("Robozinho, que… horas são?") entra no pedido.
         let comeco_do_pedido = resto.clone();
@@ -1272,6 +1291,8 @@ mod testes {
         assert!(parece_incompleta("manda uma mensagem para"));
         assert!(parece_incompleta("quero saber sobre o clima e"));
         assert!(parece_incompleta("anota isso,"));
+        assert!(parece_incompleta("escaneia meu PC pra ver se..."));
+        assert!(parece_incompleta("então eu queria…"));
         assert!(!parece_incompleta("que horas são"));
         assert!(!parece_incompleta("abre o Spotify"));
         assert!(!parece_incompleta(""));
