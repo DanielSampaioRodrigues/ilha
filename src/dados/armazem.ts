@@ -149,7 +149,7 @@ export interface Config {
   /** Conversa rápida: só conversar, ou fazer tudo no PC (pedindo "Posso?" no que não tem volta). */
   modoRapida?: "conversar" | "editar";
   /** Onde tocar a música pedida pelo nome (sem nada: Spotify se instalado, senão YouTube Music). */
-  musicaOnde?: "youtube-music" | "youtube" | "spotify" | "deezer";
+  musicaOnde?: "youtube-music" | "youtube" | "spotify" | "deezer" | "apple-music";
   /** A primeira abertura guiada já foi feita (ou a ilha já tinha dados). */
   boasVindasFeita?: boolean;
   /** Silêncio (ms) que encerra um pedido falado: 900, 1400 (padrão) ou 2200. */

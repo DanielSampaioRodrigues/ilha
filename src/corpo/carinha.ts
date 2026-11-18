@@ -1050,6 +1050,18 @@ export class Carinha {
     }, 90);
   }
 
+  /**
+   * Quem anda pela tela controla os passos: o quadro segue a distância andada
+   * (e não o relógio), então o pé não escorrega no chão.
+   */
+  passo(i: number): void {
+    window.clearTimeout(this.animacao);
+    window.clearInterval(this.animacao);
+    if (this.quadro === i) return;
+    this.quadro = i;
+    this.desenhar();
+  }
+
   /** Para onde olhar: -1, 0 ou 1 na horizontal e na vertical. */
   olharPara(dx: number, dy: number): void {
     const novo: Ponto = [Math.sign(dx), Math.sign(dy)];

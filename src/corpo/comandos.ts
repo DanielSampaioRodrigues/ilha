@@ -123,7 +123,7 @@ export async function tentarComando(texto: string, ctx: Contexto): Promise<strin
     if (pedido && !/^(musica|som|a musica|o som)$/.test(pedido[1]) && !/^(?:o |a |um |uma )?(timer|alarme|lembrete|foco|volume|tarefa|nota|pausa|pasta|arquivo)\b/.test(pedido[1])) {
       const { servicoDito, tocarMusica } = await import("../maos/musica");
       const onde = servicoDito(pedido[1]);
-      const busca = pedido[1].replace(/ (?:no|na|pelo|pela) (?:youtube music|youtube|spotify|deezer)$/, "").trim();
+      const busca = pedido[1].replace(/ (?:no|na|pelo|pela) (?:youtube music|youtube|spotify|deezer|apple music|itunes)$/, "").trim();
       if (busca) return tocarMusica(busca, onde ?? undefined);
     }
   }

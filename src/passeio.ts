@@ -92,7 +92,11 @@ class Bicho {
     this.carinha.olharPara(dx, 0);
   }
 
-  /** Anda até x, balançando e mexendo os pés. */
+  /**
+   * Anda até x de verdade: cada passo troca o quadro conforme a distância
+   * andada (pé no chão não escorrega) e o corpo sobe quando as pernas se
+   * cruzam e desce quando o pé encosta no chão.
+   */
   async andar(destino: number, velocidade = 90): Promise<void> {
     const inicio = this.x;
     const distancia = destino - inicio;
@@ -102,11 +106,25 @@ class Bicho {
     this.el.classList.add("andando");
     const tempo = (Math.abs(distancia) / velocidade) * 1000;
     const comeco = performance.now();
+    // Tamanho de meio passo: proporcional ao personagem (os grandes dão passos maiores).
+    const passada = Math.max(14, this.largura * 0.15);
+    // Começa e termina mais devagar (ninguém sai a 100 por hora).
+    const suave = (t: number) => (t < 0.12 ? (t * t) / 0.2112 : t > 0.88 ? 1 - ((1 - t) * (1 - t)) / 0.2112 : (t - 0.06) / 0.88);
     try {
       await quadros((agora) => {
         const t = Math.min(1, (agora - comeco) / tempo);
-        const balanco = Math.abs(Math.sin(t * tempo * 0.012)) * -4;
-        this.x = inicio + distancia * t;
+        this.x = inicio + distancia * suave(t);
+        const andado = Math.abs(this.x - inicio) / passada;
+        this.carinha.passo(Math.floor(andado));
+        const onda = Math.sin((Math.PI / 2) * (andado - 0.5));
+        // Pezinhos (dos personagens de pixel): um levanta de cada vez, no mesmo ritmo.
+        const [pe1, pe2] = this.el.querySelectorAll<HTMLElement>(".pes i");
+        if (pe1 && pe2) {
+          pe1.style.transform = `translateY(${(-5 * Math.max(0, onda)).toFixed(1)}px)`;
+          pe2.style.transform = `translateY(${(-5 * Math.max(0, -onda)).toFixed(1)}px)`;
+        }
+        // Quadros 1 e 3 (pé no chão): embaixo; quadros 2 (pernas juntas): em cima.
+        const balanco = -3 * Math.abs(onda);
         this.el.style.transform = `translate(${this.x}px, ${this.y + balanco}px) scale(${this.escala})`;
         return t >= 1;
       });
@@ -114,7 +132,8 @@ class Bicho {
       this.el.classList.remove("andando");
     }
     this.x = destino;
-    this.el.classList.remove("andando");
+    this.el.style.transform = `translate(${this.x}px, ${this.y}px) scale(${this.escala})`;
+    for (const pe of this.el.querySelectorAll<HTMLElement>(".pes i")) pe.style.transform = "";
     this.cara("normal");
     this.olhar(0);
   }

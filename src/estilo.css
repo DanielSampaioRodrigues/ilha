@@ -2193,22 +2193,8 @@ body.modo-passeio #palco {
   box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.08);
 }
 
-.bicho.andando .pes i:first-child {
-  animation: pe-andar 0.32s ease-in-out infinite;
-}
-
-.bicho.andando .pes i:last-child {
-  animation: pe-andar 0.32s ease-in-out infinite reverse;
-}
-
-@keyframes pe-andar {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-5px);
-  }
+.bicho .pes i {
+  transition: transform 60ms linear;
 }
 
 .bicho.amassando > .cabeca-bicho {
