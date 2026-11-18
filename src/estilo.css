@@ -2843,3 +2843,320 @@ body.soltando .dica-soltar {
 .redondo.grande.vermelho {
   box-shadow: 0 0 0 4px rgba(212, 42, 37, 0.16), 0 8px 22px -8px rgba(255, 70, 60, 0.8);
 }
+
+/* ============================================================
+   Rodada "jovial": tela inicial colorida, pílulas vivas, confete,
+   cartão da música com a capa borrada, entradas com mola.
+   ============================================================ */
+
+/* Ícones da tela inicial: cada um com a sua cor (vizinhas da cor de
+   destaque, dando a volta no círculo de cores) e um pulinho ao chegar. */
+.atalhos {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px 2px;
+  margin-top: 2px;
+}
+
+.atalhos .atalho-tela {
+  --cor: oklch(from var(--ciano) 0.8 0.14 calc(h + var(--giro, 0)));
+  flex-direction: column;
+  gap: 5px;
+  height: auto;
+  padding: 6px 0 4px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  box-shadow: none;
+  color: #cfd5dc;
+  font-size: 10.5px;
+  font-weight: 600;
+  animation: icone-pular 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  animation-delay: calc(var(--i, 0) * 18ms + 80ms);
+}
+
+.atalhos .icone-atalho {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  color: var(--cor);
+  background: linear-gradient(160deg, color-mix(in oklab, var(--cor) 26%, #15171c), color-mix(in oklab, var(--cor) 7%, #0b0c0f));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--cor) 26%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: transform 0.28s cubic-bezier(0.3, 1.6, 0.5, 1), box-shadow 0.2s;
+}
+
+.atalhos .atalho-tela .icone-atalho svg {
+  width: 20px;
+  height: 20px;
+  color: inherit;
+  filter: none;
+}
+
+.atalhos .nome-atalho {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.atalhos .atalho-tela:hover {
+  border: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+  color: #fff;
+}
+
+.atalhos .atalho-tela:hover .icone-atalho,
+.atalhos .atalho-tela:focus-visible .icone-atalho {
+  transform: translateY(-3px) scale(1.08) rotate(-4deg);
+  box-shadow:
+    inset 0 0 0 1px var(--cor),
+    0 10px 22px -8px color-mix(in oklab, var(--cor) 85%, transparent);
+}
+
+.atalhos .atalho-tela:active .icone-atalho {
+  transform: scale(0.9);
+}
+
+@keyframes icone-pular {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.7);
+  }
+}
+
+/* Os programas também ganham a cor deles. */
+.lancador .app-icone:not(.tracejado) {
+  background: linear-gradient(160deg, color-mix(in srgb, currentColor 22%, #15171c), color-mix(in srgb, currentColor 6%, #0b0c0f));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 24%, transparent);
+}
+
+.lancador .app:hover .app-icone {
+  transform: translateY(-3px) scale(1.06);
+}
+
+/* Pílulas vivas abaixo da saudação. */
+.pilulas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -2px;
+}
+
+.pilula {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--texto);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+  animation: chip-chegar 0.4s cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+.pilula svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ciano);
+}
+
+.pilula:hover {
+  border-color: color-mix(in srgb, var(--ciano) 45%, transparent);
+  background: color-mix(in srgb, var(--ciano) 10%, transparent);
+  transform: translateY(-1px);
+}
+
+.anel-fundo,
+.anel-cheio {
+  fill: none;
+  stroke-width: 2.6;
+}
+
+.anel-fundo {
+  stroke: rgba(255, 255, 255, 0.16);
+}
+
+.anel-cheio {
+  stroke: var(--ciano);
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+/* A saudação muda de cor com a hora do dia. */
+.saudacao[data-periodo="manha"] {
+  background-image: linear-gradient(100deg, #ffffff 15%, #ffd28a 55%, #ff8fa3);
+}
+
+.saudacao[data-periodo="noite"] {
+  background-image: linear-gradient(100deg, #ffffff 15%, #c3b5ff 55%, #7b93ff);
+}
+
+/* Cartão da música: a capa do disco, borrada, vira o fundo. */
+.item.musica {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.item.musica.com-capa::before {
+  content: "";
+  position: absolute;
+  inset: -30px;
+  z-index: -1;
+  background: var(--capa) center / cover;
+  filter: blur(26px) saturate(1.7) brightness(0.5);
+}
+
+/* Confete. */
+.confete {
+  position: fixed;
+  z-index: 100;
+  width: 8px;
+  height: 4px;
+  margin: -2px 0 0 -4px;
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.confete.redondo {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* Concluir: o círculo dá um "pop". */
+.circulo:active {
+  transform: scale(0.85);
+}
+
+.tarefa.feita .circulo {
+  animation: pop-certo 0.4s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+
+@keyframes pop-certo {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.18); }
+}
+
+/* Chaves com mola (a bolinha passa um pouquinho e volta). */
+.chave span {
+  transition: transform 0.32s cubic-bezier(0.3, 1.7, 0.5, 1), background 0.2s;
+}
+
+.chave:active span {
+  width: 24px;
+}
+
+.chave[aria-checked="true"]:active span {
+  transform: translateX(16px);
+}
+
+/* Botões afundam um pouquinho ao clicar. */
+.botao:active:not(:disabled),
+.redondo:active:not(:disabled),
+.segmento:active,
+.pilula:active {
+  transform: scale(0.95);
+}
+
+/* Ao abrir uma tela, as partes entram uma depois da outra. */
+.estado.aberta.chegando > * {
+  animation: subir-entrar 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.estado.aberta.chegando > :nth-child(2) { animation-delay: 30ms; }
+.estado.aberta.chegando > :nth-child(3) { animation-delay: 60ms; }
+.estado.aberta.chegando > :nth-child(4) { animation-delay: 90ms; }
+.estado.aberta.chegando > :nth-child(5) { animation-delay: 120ms; }
+.estado.aberta.chegando > :nth-child(6) { animation-delay: 150ms; }
+.estado.aberta.chegando > :nth-child(n + 7) { animation-delay: 180ms; }
+
+@keyframes subir-entrar {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atalhos .atalho-tela,
+  .pilula,
+  .estado.aberta.chegando > *,
+  .tarefa.feita .circulo {
+    animation: none;
+  }
+}
+
+/* Listas vazias com o personagem. */
+.vazio-com-carinha {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+}
+
+.vazio-com-carinha .vazio {
+  padding: 0;
+  border: 0;
+}
+
+.vazio-com-carinha > .carinha {
+  flex: none;
+  animation: flutuar 3.2s ease-in-out infinite;
+}
+
+/* O personagem do topo pula quando clicado. */
+.cabeca-carinha,
+.estado.aberta header .cabeca {
+  cursor: pointer;
+}
+
+.pulinho {
+  animation: pulinho 0.6s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+@keyframes pulinho {
+  0% { transform: none; }
+  25% { transform: translateY(2px) scale(1.1, 0.88); }
+  55% { transform: translateY(-14px) scale(0.94, 1.08) rotate(-6deg); }
+  80% { transform: translateY(0) scale(1.06, 0.94); }
+  100% { transform: none; }
+}
+
+/* Foco e timers na ilha fechada: uma linha fininha que vai esvaziando. */
+.estado:has(> .trilha-tempo) {
+  position: relative;
+}
+
+.trilha-tempo {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 3px;
+  height: 2.5px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.trilha-tempo i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--ciano), var(--cor-2));
+  box-shadow: 0 0 8px var(--ciano);
+  transition: width 1s linear;
+}

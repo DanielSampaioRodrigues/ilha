@@ -16,6 +16,13 @@ export function html(codigo: string): HTMLElement {
     const comAcessorio = lugar.hasAttribute("data-acessorio");
     lugar.replaceWith(criarCarinha(expressao, Number(lugar.dataset.tamanho ?? 2), comAcessorio).elemento);
   });
+  // Lista vazia: o personagem aparece junto do recado (fica menos "sem graça").
+  elemento.querySelectorAll<HTMLElement>("p.vazio").forEach((p) => {
+    const caixa = document.createElement("div");
+    caixa.className = "vazio-com-carinha";
+    p.replaceWith(caixa);
+    caixa.append(criarCarinha((p.dataset.cara as Expressao) ?? "feliz", 3, true).elemento, p);
+  });
   return elemento;
 }
 

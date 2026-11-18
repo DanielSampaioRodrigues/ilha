@@ -1,4 +1,5 @@
 // Hábitos do dia (água, leitura, exercício…) e o lembrete de pausa.
+import { confeteEm } from "../festa";
 import { ler, mudar, novoId } from "../../dados/armazem";
 import { paraISO } from "../../dados/datas";
 import type { Contexto } from "../contexto";
@@ -53,14 +54,16 @@ export function montarHabitos(ctx: Contexto): HTMLElement {
     </div>`);
 
   aoClicar(raiz, "voltar", () => ctx.irPara("inicio"));
-  const somar = (id: string | undefined, n: number) => {
+  const somar = (id: string | undefined, n: number, botao?: HTMLElement) => {
     mudar((d) => {
       const h = d.habitos.find((x) => x.id === id);
       if (h) h.registros[dia] = Math.max(0, (h.registros[dia] ?? 0) + n);
+      // Bateu a meta de hoje agora: festa!
+      if (h && n > 0 && h.registros[dia] === h.meta) confeteEm(botao, 34);
     });
     ctx.renovar();
   };
-  aoClicar(raiz, "mais", (b) => somar(b.dataset.id, 1));
+  aoClicar(raiz, "mais", (b) => somar(b.dataset.id, 1, b));
   aoClicar(raiz, "menos", (b) => somar(b.dataset.id, -1));
   aoClicar(raiz, "apagar", (b) =>
     confirmarAntes(b, "Apagar?", () => {

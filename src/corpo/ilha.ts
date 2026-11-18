@@ -562,6 +562,8 @@ export class Ilha {
     const definicao = ESTADOS[estado];
     const conteudo = definicao.montar(this.contexto());
     conteudo.style.width = `${definicao.largura}px`;
+    // Tela nova (não um redesenho): as partes entram uma depois da outra.
+    conteudo.classList.add("chegando");
 
     // Mede a altura do conteúdo novo sem mostrar.
     this.medidor.replaceChildren(conteudo);

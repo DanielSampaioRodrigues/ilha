@@ -1,4 +1,5 @@
 // Lista de tarefas: prioridade (!, !!, !!!), data opcional e subtarefas.
+import { confeteEm } from "../festa";
 import { ler, mudar, novoId, type Tarefa } from "../../dados/armazem";
 import { diasAte, diaEscrito, horaEscrita } from "../../dados/datas";
 import type { Contexto } from "../contexto";
@@ -115,6 +116,7 @@ export function montarTarefas(ctx: Contexto): HTMLElement {
     mudar((d) => {
       const t = achar(d, b.dataset.id);
       if (t) t.feita = !t.feita;
+      if (t?.feita) confeteEm(b);
     });
     ctx.renovar();
   });

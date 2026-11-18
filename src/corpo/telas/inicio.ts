@@ -17,7 +17,26 @@ import { abrirOuvindo } from "./conversa";
 import type { Contexto } from "../contexto";
 import { seloDa } from "../selos";
 import { ICONES } from "../icones";
+import { confeteEm } from "../festa";
 import { aoClicar, escapar, html, recadoTemporario } from "../ui";
+
+/** Manhã, tarde ou noite: muda as cores da saudação. */
+function periodo(): "manha" | "tarde" | "noite" {
+  const hora = new Date().getHours();
+  return hora >= 5 && hora < 12 ? "manha" : hora >= 12 && hora < 18 ? "tarde" : "noite";
+}
+
+/** "Quarta, 18 de novembro". */
+function hojeEscrito(d: Date): string {
+  const t = d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" }).replace("-feira", "");
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/** Um anel pequeno de progresso (0 a 1). */
+function anel(fracao: number): string {
+  const c = 2 * Math.PI * 7;
+  return `<svg class="anel" viewBox="0 0 18 18" width="16" height="16" aria-hidden="true"><circle cx="9" cy="9" r="7" class="anel-fundo"/><circle cx="9" cy="9" r="7" class="anel-cheio" stroke-dasharray="${(c * Math.min(1, fracao)).toFixed(1)} ${c.toFixed(1)}"/></svg>`;
+}
 
 function saudacao(): string {
   const hora = new Date().getHours();
@@ -128,6 +147,21 @@ export function montarInicio(ctx: Contexto): HTMLElement {
       </section>`
     : "";
 
+  // Pílulas vivas: hábitos de hoje e timers correndo (tocar leva à tela).
+  const dia = paraISO(agora);
+  const metaHabitos = dados.habitos.reduce((n, h) => n + h.meta, 0);
+  const feitosHabitos = dados.habitos.reduce((n, h) => n + Math.min(h.meta, h.registros[dia] ?? 0), 0);
+  const timer = [...dados.timers].sort((a, b) => a.fim - b.fim)[0];
+  const pilulas = [
+    metaHabitos
+      ? `<button type="button" class="pilula" data-acao="tela" data-tela="habitos">${anel(feitosHabitos / metaHabitos)}Hábitos ${feitosHabitos}/${metaHabitos}</button>`
+      : "",
+    timer
+      ? `<button type="button" class="pilula" data-acao="tela" data-tela="timers">${ICONES.timer}${escapar(timer.nome)} · ${Math.max(1, Math.ceil((timer.fim - agora.getTime()) / 60_000))} min</button>`
+      : "",
+    paraHoje.length ? `<button type="button" class="pilula" data-acao="tela" data-tela="tarefas">${ICONES.tarefas}${paraHoje.length === 3 ? "3+" : paraHoje.length} para hoje</button>` : "",
+  ].join("");
+
   const apps = dados.apps
     .slice(0, 7)
     .map(
@@ -144,14 +178,15 @@ export function montarInicio(ctx: Contexto): HTMLElement {
       <header class="linha">
         ${dados.config.cabecaAberta === "carinha" ? '<span class="cabeca-carinha"><i data-carinha="feliz" data-tamanho="3" data-acessorio></i></span>' : '<img src="/robozinho.png" alt="" class="cabeca" width="52" height="52">'}
         <div class="coluna">
-          <span class="saudacao">${saudacao()}, ${escapar(dados.config.nome || "Dan")}</span>
-          <span class="secundario subtitulo">${ctx.atalho ? `${atalhoLegivel(ctx.atalho)} abre e fecha a ilha` : "Clique na carinha para abrir a ilha"}</span>
+          <span class="saudacao" data-periodo="${periodo()}">${saudacao()}, ${escapar(dados.config.nome || "Dan")}</span>
+          <span class="secundario subtitulo" title="${ctx.atalho ? `${atalhoLegivel(ctx.atalho)} abre e fecha a ilha` : "Clique na carinha para abrir a ilha"}">${hojeEscrito(agora)}</span>
         </div>
         <button type="button" class="redondo" aria-label="Traduzir a tela" title="Traduzir a tela (Win+Alt+T)" data-acao="traduzir">${ICONES.traduzir}</button>
         <button type="button" class="redondo" aria-label="Abrir a Central" title="Abrir a Central (ilha grande)" data-acao="central">${ICONES.central}</button>
         <button type="button" class="redondo" aria-label="Conversar" title="Conversar aqui na ilha" data-acao="digitar">${ICONES.teclado}</button>
         <button type="button" class="redondo grande vermelho" aria-label="Falar" title="Falar com a IA" data-acao="falar">${ICONES.microfone}</button>
       </header>
+      ${pilulas ? `<div class="pilulas">${pilulas}</div>` : ""}
       ${atualizacao}
       ${precisa}
       ${secaoTarefas}
@@ -199,7 +234,10 @@ export function montarInicio(ctx: Contexto): HTMLElement {
             ["ajustes", ICONES.ajustes, "Ajustes"],
           ] as const
         )
-          .map(([tela, icone, nome]) => `<button type="button" class="atalho-tela" data-acao="tela" data-tela="${tela}">${icone}<span>${nome}</span></button>`)
+          .map(
+            ([tela, icone, nome], i) =>
+              `<button type="button" class="atalho-tela" data-acao="tela" data-tela="${tela}" style="--giro:${i * 22.5};--i:${i}" title="${nome}"><span class="icone-atalho">${icone}</span><span class="nome-atalho">${nome}</span></button>`,
+          )
           .join("")}
       </nav>
     </div>`);
@@ -207,6 +245,15 @@ export function montarInicio(ctx: Contexto): HTMLElement {
   const subtitulo = raiz.querySelector<HTMLElement>(".subtitulo")!;
   const recado = (texto: string, ms?: number) => recadoTemporario(subtitulo, texto, ms);
   if (ctx.mensagem) recado(ctx.mensagem, 5000);
+
+  // Brincadeira: clicar no personagem faz ele dar um pulinho (com confete).
+  const cabeca = raiz.querySelector<HTMLElement>(".cabeca-carinha, .cabeca");
+  cabeca?.addEventListener("click", () => {
+    cabeca.classList.remove("pulinho");
+    void cabeca.offsetWidth;
+    cabeca.classList.add("pulinho");
+    window.setTimeout(() => confeteEm(cabeca, 14), 220);
+  });
 
   aoClicar(raiz, "falar", () => {
     abrirOuvindo();
@@ -234,6 +281,7 @@ export function montarInicio(ctx: Contexto): HTMLElement {
   });
 
   aoClicar(raiz, "concluir", (b) => {
+    confeteEm(b);
     mudar((d) => {
       const t = d.tarefas.find((x) => x.id === b.dataset.id);
       if (t) t.feita = true;
@@ -305,7 +353,12 @@ export function montarInicio(ctx: Contexto): HTMLElement {
     artista.textContent = m.artista || "tocando agora";
     botaoTocar.innerHTML = m.tocando ? ICONES.pausar : ICONES.tocar;
     botaoTocar.setAttribute("aria-label", m.tocando ? "Pausar" : "Tocar");
-    if (m.capa) capa.innerHTML = `<img src="${m.capa}" alt="">`;
+    if (m.capa) {
+      capa.innerHTML = `<img src="${m.capa}" alt="">`;
+      // A capa do disco, borrada, vira o fundo do cartão da música.
+      musica.style.setProperty("--capa", `url("${m.capa}")`);
+      musica.classList.add("com-capa");
+    }
   };
   const conferir = async () => {
     try {
@@ -314,6 +367,7 @@ export function montarInicio(ctx: Contexto): HTMLElement {
       if (m && chave !== ultimo) {
         ultimo = chave;
         capa.innerHTML = ICONES.musica;
+        musica.classList.remove("com-capa");
         mostrar((await midiaAtual(true)) ?? m);
       } else {
         if (!m) ultimo = "";

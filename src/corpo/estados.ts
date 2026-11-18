@@ -2,6 +2,7 @@
 // "ouvindo", "trabalhando" e "confirmacao" ainda são de teste (dados de
 // exemplo): ganham vida nas fases 2 e 3, com a voz e os motores de IA.
 
+import { confeteEm } from "./festa";
 import { ler } from "../dados/armazem";
 import { faltaEscrito, pendentes, pertoDeRenovar, prazo, quandoEscrito } from "../dados/datas";
 import { seloDa } from "./selos";
@@ -259,6 +260,8 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
           ${botao}
         </div>`);
       aoClicar(raiz, "botao", () => n.botao?.fazer());
+      // Deu certo (IA terminou, foco concluído): um pouco de confete.
+      if ((n.expressao ?? "feliz") === "feliz") window.setTimeout(() => confeteEm(raiz.querySelector(".carinha"), 18), 480);
       ctx.depois(() => ctx.fechar(), 12000);
       return raiz;
     },
@@ -293,6 +296,9 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
         ...ler().timers.map((t) => ({ nome: t.nome, fim: t.fim, cara: "normal" })),
       ].sort((a, b) => a.fim - b.fim);
       const atual = opcoes[0] ?? { nome: "Foco", fim: Date.now(), cara: "foco" };
+      // Quanto tempo tinha no começo (para a barrinha que vai esvaziando).
+      const timer = ler().timers.find((t) => t.fim === atual.fim && t.nome === atual.nome);
+      const total = timer ? timer.minutos * 60_000 : ctx.foco && ctx.foco.fim === atual.fim ? ctx.foco.fim - ctx.foco.inicio : 0;
       const mais = opcoes.length > 1 ? `<span class="secundario">+${opcoes.length - 1}</span>` : "";
       const raiz = html(`
         <div class="estado aviso">
@@ -301,9 +307,14 @@ export const ESTADOS: Record<NomeEstado, Estado> = {
           ${mais}
           <span class="espaco"></span>
           <span class="tempo">--:--</span>
+          ${total ? '<span class="trilha-tempo" aria-hidden="true"><i></i></span>' : ""}
         </div>`);
       const tempo = raiz.querySelector<HTMLElement>(".tempo")!;
-      const atualizar = () => (tempo.textContent = relogio(atual.fim - Date.now()));
+      const trilha = raiz.querySelector<HTMLElement>(".trilha-tempo i");
+      const atualizar = () => {
+        tempo.textContent = relogio(atual.fim - Date.now());
+        if (trilha) trilha.style.width = `${Math.max(0, Math.min(100, ((atual.fim - Date.now()) / total) * 100)).toFixed(2)}%`;
+      };
       atualizar();
       ctx.aCada(atualizar, 1000);
       return raiz;
