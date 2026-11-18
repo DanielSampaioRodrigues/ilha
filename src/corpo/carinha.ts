@@ -445,6 +445,7 @@ export type PersonagemId =
   | "boing"
   | "dobra"
   | "teo"
+  | "dandara"
   | "nimbo";
 
 interface Personagem {
@@ -875,6 +876,7 @@ export const PERSONAGENS: Record<PersonagemId, Personagem> = {
   boing: feitoComIA("boing", "Boing", "Dinossauro de borracha: estica e balança quando muda.", { material: "borracha", lados: andandoPara("direita") }),
   dobra: feitoComIA("dobra", "Dobra", "Raposa de origami: se dobra e desdobra entre as poses.", { material: "papel", lados: andandoPara("direita") }),
   teo: feitoComIA("teo", "Téo", "Autista, com abafador de ouvido e brinquedo sensorial. Uma homenagem às pessoas neurodivergentes.", { lados: andandoPara("direita") }),
+  dandara: feitoComIA("dandara", "Dandara", "Black power com fios dourados e bottons de luta. Homenagem a Dandara dos Palmares.", { lados: andandoPara("direita") }),
   nimbo: feitoComIA("nimbo", "Nimbo", "Nuvenzinha que vira fumacinha ao mudar e chove quando fica triste.", { material: "nuvem", lados: andandoPara("direita") }),
 
   // ---------- Estilo moderno (vetor) ----------

@@ -24,7 +24,7 @@ export interface Paleta {
   /** Quanto os ícones ficam coloridos (1 = normal; 0,25 = quase cinza). */
   croma: number;
   /** Tema especial, com enfeites próprios (ex.: "neuro" = infinito colorido da neurodiversidade). */
-  especial?: "neuro";
+  especial?: "neuro" | "elas";
 }
 
 export interface Tema {
@@ -42,6 +42,12 @@ export const TEMAS: Tema[] = [
   { id: "floresta", nome: "Floresta", descricao: "Verdes e limão.", paleta: { cores: ["#5FD38D", "#B5E655", "#2FB7A0"], fundo: "#060B08", aurora: 0.9, croma: 0.9 } },
   { id: "neon", nome: "Neon", descricao: "Rosa e ciano bem fortes, estilo cyberpunk.", paleta: { cores: ["#FF2FD6", "#2FF3FF", "#8A5BFF"], fundo: "#07040D", aurora: 1.5, croma: 1.15 } },
   { id: "grafite", nome: "Grafite", descricao: "Sóbrio, quase sem cor.", paleta: { cores: ["#C9D1D9", "#8B98A5", "#E6E6E6"], fundo: "#08090B", aurora: 0.35, croma: 0.25 } },
+  {
+    id: "elas",
+    nome: "Elas ✊",
+    descricao: "Roxo, verde e dourado: as cores históricas do movimento das mulheres e a coroa. É o tema da Dandara.",
+    paleta: { cores: ["#B07CFF", "#3DDC97", "#FFC94D"], fundo: "#08060C", aurora: 1.15, croma: 1.05, especial: "elas" },
+  },
   {
     id: "neurodiversidade",
     nome: "Neurodiversidade ∞",
@@ -64,6 +70,7 @@ const DO_PERSONAGEM: Record<string, [string, string, string]> = {
   dobra: ["#FF8A3D", "#FFD29A", "#FF5D73"],
   // Téo: o tema especial da neurodiversidade (abaixo).
   teo: ["#2EC4B6", "#FFCF56", "#FF8FAB"],
+  dandara: ["#B07CFF", "#3DDC97", "#FFC94D"],
   nimbo: ["#8FD3FF", "#FFB3E6", "#B8F2A0"],
 };
 
@@ -72,6 +79,7 @@ export function paletaAtual(c: Config = ler().config): Paleta | null {
   const tema = c.tema ?? "personagem";
   if (tema === "personagem") {
     if (c.personagem === "teo") return TEMAS.find((t) => t.id === "neurodiversidade")!.paleta!;
+    if (c.personagem === "dandara") return TEMAS.find((t) => t.id === "elas")!.paleta!;
     const cores = DO_PERSONAGEM[c.personagem];
     return cores ? { cores, fundo: "#06070A", aurora: 1, croma: 1 } : null;
   }

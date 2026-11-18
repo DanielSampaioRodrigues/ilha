@@ -8,6 +8,8 @@ import { tocarPlim } from "./som";
 const CORES = ["var(--ciano)", "var(--cor-2)", "#ff6b9a", "#ffd166", "#7cf29a", "#b69cff"];
 /** No tema da neurodiversidade: as cores do arco-íris (como o infinito). */
 const ARCO_IRIS = ["#ff5f6d", "#ffa94d", "#ffe066", "#69db7c", "#4dabf7", "#9775fa"];
+/** No tema "Elas": roxo, verde e dourado. */
+const ELAS = ["#b07cff", "#3ddc97", "#ffc94d", "#8a4dff", "#ffe08a", "#2fbf7e"];
 
 function poucoMovimento(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -19,7 +21,8 @@ export function confete(x: number, y: number, quantos = 26): void {
   if (poucoMovimento()) return;
   // Visual calmo: bem menos papeizinhos.
   if (ler().config.visualCalmo) quantos = Math.ceil(quantos / 3);
-  const cores = document.documentElement.dataset.especial === "neuro" ? ARCO_IRIS : CORES;
+  const especial = document.documentElement.dataset.especial;
+  const cores = especial === "neuro" ? ARCO_IRIS : especial === "elas" ? ELAS : CORES;
   for (let i = 0; i < quantos; i++) {
     const p = document.createElement("i");
     p.className = `confete${i % 3 === 0 ? " redondo" : ""}`;
