@@ -338,6 +338,7 @@ export const googleDisponivel = () => pedir<boolean>("google_disponivel", undefi
 export const googleConectado = () => pedir<string | null>("google_conectado", undefined, null);
 export const googleEntrar = () => pedir<string>("google_entrar", undefined, "voce@gmail.com");
 export const googleSair = () => pedir<void>("google_sair");
+export const googleCancelar = () => pedir<void>("google_cancelar");
 export const googleCalendarios = () => pedir<Calendario[]>("google_calendarios", undefined, [{ url: "primary", nome: "Pessoal" }]);
 export const googleEventos = (inicio: string, fim: string) => pedir<EventoLido[]>("google_eventos", { inicio, fim }, []);
 export const googleEnviar = (calendario: string, eventos: EventoCalendario[], apagar: string[], fuso: string) =>

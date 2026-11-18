@@ -153,6 +153,7 @@ pub fn run() {
             maos::google::google_disponivel,
             maos::google::google_conectado,
             maos::google::google_sair,
+            maos::google::google_cancelar,
             maos::google::google_entrar,
             maos::google::google_calendarios,
             maos::google::google_eventos,

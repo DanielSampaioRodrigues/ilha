@@ -1,6 +1,7 @@
 // Monta o pedido para uma IA a partir de uma conversa e roda a resposta.
 // Usado pela Central e pela conversa rápida da ilha, para as duas falarem
 // com as IAs do mesmo jeito (instruções, perfil, skills, memória, MCPs).
+import { nomeDaAgenda } from "./agenda";
 import { pastasConhecidas } from "./pastas";
 import { ler, type Dados } from "./armazem";
 import type { Conversa, MensagemConversa } from "./conversas";
@@ -46,7 +47,7 @@ function sobreAIlha(c: Conversa, d: Dados): string {
     ? " Você tem as ferramentas da própria Ilha (servidor MCP \"ilha\", nomes começando com ilha_): use ilha_verificar_pc para escanear/verificar o PC, " +
       "ilha_fazer para volume, música, timer, foco, lembrete, abrir programa, traduzir a tela, copiar texto rápido e rotinas, " +
       "ilha_ler e ilha_anotar para tarefas, notas, hábitos, assinaturas e memória, ilha_concluir_tarefa, ilha_limpar_temporarios, ilha_abrir_tela, " +
-      "e ilha_agenda / ilha_agenda_criar para LER e criar compromissos no Calendário da Apple (iCloud) do Dan, que é a agenda principal dele. " +
+      `e ilha_agenda / ilha_agenda_criar para LER e criar compromissos na agenda do Dan (${nomeDaAgenda(d)}), que é a agenda principal dele. ` +
       "Quando o pedido for sobre algo que a Ilha faz, prefira essas ferramentas a comandos do Windows."
     : " Se pedirem algo que a Ilha faz (timer, foco, volume, abrir programa), diga a frase curta para o Dan falar à Ilha (ex.: \"timer 10 min\").";
   const pastas = pastasConhecidas(d);

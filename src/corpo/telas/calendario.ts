@@ -7,6 +7,7 @@ import { haQuanto } from "../../dados/datas";
 import {
   abrirPrograma,
   googleCalendarios,
+  googleCancelar,
   googleConectado,
   googleDisponivel,
   googleEntrar,
@@ -17,7 +18,8 @@ import {
   icloudDesconectar,
   type Calendario,
 } from "../../maos/sistema";
-import { provedorAgenda } from "../../dados/agenda";
+import { agendaConectada, agendaEscolhida, gravarEventos, nomeDaAgenda, provedorAgenda } from "../../dados/agenda";
+import type { Dados } from "../../dados/armazem";
 import type { Contexto } from "../contexto";
 import { aoClicar, cabecalho, confirmarAntes, escapar, html } from "../ui";
 
@@ -29,6 +31,39 @@ let googleConta: string | null | undefined;
 let calendariosGoogle: Calendario[] = [];
 let entrandoGoogle = false;
 let erroGoogle = "";
+/** Número da tentativa de login (uma nova faz a anterior ser ignorada). */
+let tentativaGoogle = 0;
+let conferidoGoogleEm = 0;
+
+/** Pergunta "sim ou não" numa janela do Windows (no navegador de teste, a do navegador). */
+async function perguntar(texto: string): Promise<boolean> {
+  try {
+    const { ask } = await import("@tauri-apps/plugin-dialog");
+    return await ask(texto, { title: "Ilha", kind: "warning", okLabel: "Sim", cancelLabel: "Não" });
+  } catch {
+    return window.confirm(texto);
+  }
+}
+
+/**
+ * Trocar de agenda (Apple ↔ Google, ou outra agenda da mesma conta): os
+ * eventos que a ilha já mandou ficariam esquecidos lá. Pergunta ao Dan se
+ * tira de lá (não tem volta) antes de trocar; mandar de novo é sempre para a nova.
+ */
+async function trocarAgenda(mudanca: (d: Dados) => void): Promise<void> {
+  const d = ler();
+  const enviados = Object.keys(d.config.calendarioEnviados);
+  if (enviados.length && agendaConectada(d) && agendaEscolhida(d).id) {
+    const tirar = await perguntar(
+      `A ilha já colocou ${enviados.length} evento(s) em “${agendaEscolhida(d).nome || nomeDaAgenda(d)}” (${nomeDaAgenda(d)}).\n\nTirar esses eventos de lá antes de trocar? (Se não, eles ficam lá e não são mais atualizados.)`,
+    );
+    if (tirar) await gravarEventos([], enviados).catch(() => {});
+  }
+  mudar((x) => {
+    mudanca(x);
+    x.config.calendarioEnviados = {};
+  });
+}
 
 export function montarCalendario(ctx: Contexto): HTMLElement {
   const c = ler().config;
@@ -89,7 +124,9 @@ export function montarCalendario(ctx: Contexto): HTMLElement {
           <li>Se aparecer “O Google não verificou este app”, é normal por enquanto: clique em <b>Avançado</b> › <b>Acessar Ilha</b>.</li>
           <li>Quando aparecer “Pronto!”, pode fechar a aba e voltar aqui.</li>
         </ol>
-        <div class="linha fim"><span class="secundario resposta-google">${entrandoGoogle ? "Esperando você autorizar no navegador…" : escapar(erroGoogle)}</span><span class="espaco"></span><button type="button" class="botao ciano" data-acao="google-entrar" ${entrandoGoogle ? "disabled" : ""}>Entrar com Google</button></div>
+        <div class="linha fim"><span class="secundario resposta-google">${entrandoGoogle ? "Esperando você autorizar no navegador…" : escapar(erroGoogle)}</span><span class="espaco"></span>${
+          entrandoGoogle ? '<button type="button" class="botao" data-acao="google-cancelar">Cancelar</button>' : ""
+        }<button type="button" class="botao ciano" data-acao="google-entrar">${entrandoGoogle ? "Abrir de novo" : "Entrar com Google"}</button></div>
       </section>`
               : `
       <section class="secao">
@@ -149,13 +186,17 @@ export function montarCalendario(ctx: Contexto): HTMLElement {
   aoClicar(raiz, "voltar", () => ctx.irPara("ajustes"));
   aoClicar(raiz, "abrir-apple", () => abrirPrograma("https://appleid.apple.com/account/manage").catch(() => {}));
 
-  // Google: o login existe nesta versão? Está conectado? Quais agendas?
-  if (googleConta === undefined) {
+  // Google: o login existe nesta versão? Está conectado (a permissão pode ter
+  // acabado lá no Google)? Quais agendas? Confere ao abrir a tela.
+  if (!entrandoGoogle && Date.now() - conferidoGoogleEm > 5000) {
+    conferidoGoogleEm = Date.now();
     googleDisponivel()
       .then(async (existe) => {
         googleExiste = existe;
         googleConta = existe ? await googleConectado() : null;
-        if (googleConta) calendariosGoogle = await googleCalendarios().catch(() => []);
+        if (googleConta) calendariosGoogle = await googleCalendarios().catch(() => calendariosGoogle);
+        // A permissão sumiu (tirada no Google ou vencida): a tela volta a oferecer "Entrar".
+        else if (ler().config.googleEmail) mudar((d) => (d.config.googleEmail = ""));
       })
       .catch(() => (googleConta = null))
       .finally(() => raiz.isConnected && ctx.renovar());
@@ -163,19 +204,22 @@ export function montarCalendario(ctx: Contexto): HTMLElement {
   aoClicar(raiz, "provedor", (b) => {
     const p = b.dataset.provedor as "icloud" | "google";
     if (p === provedorAgenda()) return;
-    // Agenda nova: manda tudo de novo para lá.
-    mudar((d) => {
-      d.config.agenda = p;
-      d.config.calendarioEnviados = {};
-    });
+    void trocarAgenda((d) => (d.config.agenda = p)).then(() => ctx.renovar());
+  });
+  aoClicar(raiz, "google-cancelar", () => {
+    tentativaGoogle++;
+    entrandoGoogle = false;
+    googleCancelar().catch(() => {});
     ctx.renovar();
   });
   aoClicar(raiz, "google-entrar", () => {
+    const minha = ++tentativaGoogle;
     entrandoGoogle = true;
     erroGoogle = "";
     ctx.renovar();
     googleEntrar()
       .then(async (email) => {
+        if (minha !== tentativaGoogle) return;
         googleConta = email;
         calendariosGoogle = await googleCalendarios().catch(() => []);
         // A agenda principal (o próprio e-mail) já vem escolhida.
@@ -190,8 +234,11 @@ export function montarCalendario(ctx: Contexto): HTMLElement {
           }
         });
       })
-      .catch((erro) => (erroGoogle = String(erro)))
+      .catch((erro) => {
+        if (minha === tentativaGoogle && String(erro) !== "cancelado") erroGoogle = String(erro);
+      })
       .finally(() => {
+        if (minha !== tentativaGoogle) return;
         entrandoGoogle = false;
         ctx.renovar();
       });
@@ -199,12 +246,10 @@ export function montarCalendario(ctx: Contexto): HTMLElement {
   raiz.querySelector<HTMLSelectElement>(".escolha-google")?.addEventListener("change", (e) => {
     const id = (e.target as HTMLSelectElement).value;
     const k = calendariosGoogle.find((x) => x.url === id);
-    mudar((d) => {
+    void trocarAgenda((d) => {
       d.config.googleCalendario = id;
       d.config.googleNomeCalendario = k?.nome ?? "";
-      d.config.calendarioEnviados = {};
-    });
-    ctx.renovar();
+    }).then(() => ctx.renovar());
   });
   aoClicar(raiz, "google-sair", (b) =>
     confirmarAntes(b, "Desconectar?", () => {
@@ -265,13 +310,11 @@ export function montarCalendario(ctx: Contexto): HTMLElement {
   raiz.querySelector<HTMLSelectElement>(".escolha-calendario")?.addEventListener("change", (e) => {
     const url = (e.target as HTMLSelectElement).value;
     const k = calendariosAchados.find((x) => x.url === url);
-    mudar((d) => {
+    // Calendário novo: pergunta se tira os eventos do antigo; manda tudo de novo para o novo.
+    void trocarAgenda((d) => {
       d.config.icloudCalendario = url;
       d.config.icloudNomeCalendario = k?.nome ?? "";
-      // Calendário novo: manda tudo de novo para lá.
-      d.config.calendarioEnviados = {};
-    });
-    ctx.renovar();
+    }).then(() => ctx.renovar());
   });
 
   aoClicar(raiz, "item", (b) => {

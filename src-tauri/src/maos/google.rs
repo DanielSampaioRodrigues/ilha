@@ -39,6 +39,9 @@ fn cliente_oauth() -> Option<(&'static str, &'static str)> {
     Some((id.trim(), segredo.trim()))
 }
 
+/// Cada tentativa de login ganha um número; uma nova encerra a espera da anterior.
+static TENTATIVA: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// A permissão de curta duração (uma hora), guardada só na memória.
 static ACESSO: Mutex<Option<(String, Instant)>> = Mutex::new(None);
 
@@ -84,10 +87,13 @@ fn decodificar(t: &str) -> String {
 }
 
 /// Espera o navegador voltar com a resposta do Google (até 5 minutos).
-fn esperar_resposta(servidor: TcpListener, estado: &str) -> Result<String, String> {
+fn esperar_resposta(servidor: TcpListener, estado: &str, tentativa: u64) -> Result<String, String> {
     servidor.set_nonblocking(true).map_err(|e| e.to_string())?;
     let limite = Instant::now() + Duration::from_secs(300);
     while Instant::now() < limite {
+        if TENTATIVA.load(std::sync::atomic::Ordering::SeqCst) != tentativa {
+            return Err("cancelado".into());
+        }
         let (mut conexao, _) = match servidor.accept() {
             Ok(c) => c,
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -142,6 +148,12 @@ pub fn google_conectado() -> Option<String> {
     guardado["email"].as_str().map(str::to_string)
 }
 
+/// Desiste do login que está esperando o navegador.
+#[tauri::command]
+pub fn google_cancelar() {
+    TENTATIVA.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
 #[tauri::command]
 pub fn google_sair() -> Result<(), String> {
     if let Ok(mut a) = ACESSO.lock() {
@@ -176,7 +188,8 @@ pub async fn google_entrar(app: AppHandle) -> Result<String, String> {
     .map_err(|e| e.to_string())?;
     app.opener().open_url(endereco.as_str(), None::<&str>).map_err(|e| format!("Não consegui abrir o navegador: {e}"))?;
     let estado2 = estado.clone();
-    let codigo = tokio::task::spawn_blocking(move || esperar_resposta(servidor, &estado2)).await.map_err(|e| e.to_string())??;
+    let tentativa = TENTATIVA.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+    let codigo = tokio::task::spawn_blocking(move || esperar_resposta(servidor, &estado2, tentativa)).await.map_err(|e| e.to_string())??;
     let r: Value = http()?
         .post(TOKEN)
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -195,13 +208,18 @@ pub async fn google_entrar(app: AppHandle) -> Result<String, String> {
         .await
         .map_err(|e| e.to_string())?;
     let renovar = r["refresh_token"].as_str().ok_or_else(|| format!("O Google não devolveu a permissão ({}).", r["error"].as_str().unwrap_or("?")))?;
+    // Na tela do Google dá para desmarcar caixinhas: sem as duas, a agenda não funciona.
+    let concedido = r["scope"].as_str().unwrap_or(ESCOPOS);
+    if !ESCOPOS.split(' ').all(|e| concedido.split(' ').any(|c| c == e)) {
+        return Err("No Google, deixe marcadas as duas permissões (ver e editar os eventos, e ver a lista de agendas) e entre de novo.".into());
+    }
     let acesso = r["access_token"].as_str().unwrap_or_default().to_string();
     let validade = r["expires_in"].as_u64().unwrap_or(3000).saturating_sub(120);
     if let Ok(mut a) = ACESSO.lock() {
         *a = Some((acesso.clone(), Instant::now() + Duration::from_secs(validade)));
     }
     // O e-mail é o identificador da agenda principal.
-    let lista = listar_calendarios(&acesso).await.unwrap_or_default();
+    let lista = listar_calendarios(&acesso).await?;
     let email = lista.iter().find(|c| c["primary"].as_bool() == Some(true)).and_then(|c| c["id"].as_str()).unwrap_or("conta Google").to_string();
     cofre::gravar_google(&json!({ "refresh_token": renovar, "email": email }).to_string())?;
     Ok(email)
@@ -242,24 +260,66 @@ async fn acesso() -> Result<String, String> {
     Ok(t)
 }
 
+/// Esquece a permissão curta (o Google disse que ela não vale mais).
+fn esquecer_acesso() {
+    if let Ok(mut a) = ACESSO.lock() {
+        *a = None;
+    }
+}
+
+/// Explica um erro do Google em português.
+fn erro_do_google(status: StatusCode) -> String {
+    match status.as_u16() {
+        401 => "O Google não aceitou a permissão. Conecte de novo em Calendário.".into(),
+        403 => "O Google negou o acesso à agenda (confira as permissões dadas à ilha).".into(),
+        429 => "O Google pediu para esperar um pouco (muitos pedidos).".into(),
+        _ => format!("O Google respondeu com erro ({status})."),
+    }
+}
+
+/// GET na API com a permissão; num 401, renova e tenta mais uma vez.
+async fn pegar(url: reqwest::Url) -> Result<Value, String> {
+    for tentativa in 0..2 {
+        let token = acesso().await?;
+        let r = http()?.get(url.clone()).bearer_auth(&token).send().await.map_err(|_| "Sem conexão com o Google.".to_string())?;
+        let status = r.status();
+        if status == StatusCode::UNAUTHORIZED && tentativa == 0 {
+            esquecer_acesso();
+            continue;
+        }
+        if !status.is_success() {
+            return Err(erro_do_google(status));
+        }
+        return r.json().await.map_err(|e| e.to_string());
+    }
+    Err(erro_do_google(StatusCode::UNAUTHORIZED))
+}
+
 async fn listar_calendarios(token: &str) -> Result<Vec<Value>, String> {
-    let r: Value = http()?
+    let r = http()?
         .get(format!("{API}/users/me/calendarList"))
         .bearer_auth(token)
         .send()
         .await
-        .map_err(|_| "Sem conexão com o Google.".to_string())?
-        .json()
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(r["items"].as_array().cloned().unwrap_or_default())
+        .map_err(|_| "Sem conexão com o Google.".to_string())?;
+    if !r.status().is_success() {
+        return Err(erro_do_google(r.status()));
+    }
+    let v: Value = r.json().await.map_err(|e| e.to_string())?;
+    Ok(v["items"].as_array().cloned().unwrap_or_default())
+}
+
+/// A lista de agendas, renovando a permissão uma vez se o Google recusar.
+async fn calendarios_da_conta() -> Result<Vec<Value>, String> {
+    let url = reqwest::Url::parse(&format!("{API}/users/me/calendarList")).map_err(|e| e.to_string())?;
+    let v = pegar(url).await?;
+    Ok(v["items"].as_array().cloned().unwrap_or_default())
 }
 
 /// As agendas em que a ilha pode gravar (dono ou editor).
 #[tauri::command]
 pub async fn google_calendarios() -> Result<Vec<Calendario>, String> {
-    let token = acesso().await?;
-    Ok(listar_calendarios(&token)
+    Ok(calendarios_da_conta()
         .await?
         .iter()
         .filter(|c| matches!(c["accessRole"].as_str(), Some("owner" | "writer")))
@@ -340,23 +400,48 @@ fn utc_para_rfc3339(t: &str) -> Option<String> {
 #[tauri::command]
 pub async fn google_eventos(inicio: String, fim: String) -> Result<Vec<EventoLido>, String> {
     let (de, ate) = (utc_para_rfc3339(&inicio).ok_or("Datas inválidas.")?, utc_para_rfc3339(&fim).ok_or("Datas inválidas.")?);
-    let token = acesso().await?;
-    let c = http()?;
     let mut todos = Vec::new();
-    for cal in listar_calendarios(&token).await? {
-        if cal["selected"].as_bool() == Some(false) {
-            continue;
-        }
+    let mut lidas = 0;
+    let mut ultimo_erro = None;
+    let agendas: Vec<Value> = calendarios_da_conta().await?.into_iter().filter(|c| c["selected"].as_bool() != Some(false)).collect();
+    for cal in &agendas {
         let id = cal["id"].as_str().unwrap_or_default();
         let nome = cal["summaryOverride"].as_str().or(cal["summary"].as_str()).unwrap_or("Agenda");
-        let endereco = reqwest::Url::parse_with_params(
-            &format!("{API}/calendars/{}/events", urlencode(id)),
-            &[("timeMin", de.as_str()), ("timeMax", ate.as_str()), ("singleEvents", "true"), ("orderBy", "startTime"), ("maxResults", "250")],
-        )
-        .map_err(|e| e.to_string())?;
-        let Ok(r) = c.get(endereco).bearer_auth(&token).send().await else { continue };
-        let Ok(v) = r.json::<Value>().await else { continue };
-        for e in v["items"].as_array().into_iter().flatten() {
+        // Página por página (até 10 páginas de 250).
+        let mut pagina: Option<String> = None;
+        let mut itens = Vec::new();
+        let mut falhou = false;
+        for _ in 0..10 {
+            let mut parametros = vec![
+                ("timeMin", de.clone()),
+                ("timeMax", ate.clone()),
+                ("singleEvents", "true".to_string()),
+                ("orderBy", "startTime".to_string()),
+                ("maxResults", "250".to_string()),
+            ];
+            if let Some(p) = &pagina {
+                parametros.push(("pageToken", p.clone()));
+            }
+            let endereco = reqwest::Url::parse_with_params(&format!("{API}/calendars/{}/events", urlencode(id)), &parametros).map_err(|e| e.to_string())?;
+            match pegar(endereco).await {
+                Ok(v) => {
+                    itens.extend(v["items"].as_array().cloned().unwrap_or_default());
+                    pagina = v["nextPageToken"].as_str().map(str::to_string);
+                    if pagina.is_none() {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    ultimo_erro = Some(e);
+                    falhou = true;
+                    break;
+                }
+            }
+        }
+        if !falhou {
+            lidas += 1;
+        }
+        for e in &itens {
             if e["status"].as_str() == Some("cancelled") {
                 continue;
             }
@@ -376,6 +461,12 @@ pub async fn google_eventos(inicio: String, fim: String) -> Result<Vec<EventoLid
             });
         }
     }
+    // Nenhuma agenda deu para ler: é erro (e não "agenda vazia").
+    if lidas == 0 && !agendas.is_empty() {
+        return Err(ultimo_erro.unwrap_or_else(|| "Não consegui ler a agenda do Google.".into()));
+    }
+    // Em ordem (junta várias agendas). Datas com hora estão em UTC; dia inteiro fica no começo do dia.
+    todos.sort_by(|a, b| a.inicio.cmp(&b.inicio));
     Ok(todos)
 }
 
@@ -393,13 +484,15 @@ fn urlencode(t: &str) -> String {
         .collect()
 }
 
-/// O identificador do evento no Google a partir do "ilha-…" (o Google só aceita 0-9 e a-v).
-fn id_google(uid: &str) -> String {
-    uid.bytes().map(|b| format!("{b:02x}")).collect()
+/// O identificador do evento no Google, a partir da agenda e do "ilha-…" (o
+/// Google só aceita 0-9 e a-v; e o mesmo id não pode estar em duas agendas).
+fn id_google(calendario: &str, uid: &str) -> String {
+    let resumo = Sha256::digest(format!("{calendario}\n{uid}").as_bytes());
+    resumo.iter().take(16).map(|b| format!("{b:02x}")).collect()
 }
 
 /// O evento da ilha no formato do Google.
-fn corpo_do_evento(e: &Evento, fuso: &str) -> Result<Value, String> {
+fn corpo_do_evento(e: &Evento, fuso: &str, calendario: &str) -> Result<Value, String> {
     let (inicio, dia_inteiro) = data_ics(&e.inicio).ok_or("Data inválida.")?;
     let seg = segundos_de(&inicio).ok_or("Data inválida.")?;
     let (comeco, termino) = if dia_inteiro {
@@ -409,7 +502,7 @@ fn corpo_do_evento(e: &Evento, fuso: &str) -> Result<Value, String> {
         (json!({ "dateTime": texto_de(seg, true), "timeZone": fuso }), json!({ "dateTime": texto_de(seg + duracao * 60, true), "timeZone": fuso }))
     };
     let mut corpo = json!({
-        "id": id_google(&e.uid),
+        "id": id_google(calendario, &e.uid),
         "status": "confirmed",
         "summary": e.titulo,
         "description": e.notas,
@@ -434,19 +527,20 @@ fn corpo_do_evento(e: &Evento, fuso: &str) -> Result<Value, String> {
 pub async fn google_enviar(calendario: String, eventos: Vec<Evento>, apagar: Vec<String>, fuso: String) -> Result<Vec<String>, String> {
     let token = acesso().await?;
     let c = http()?;
-    let cal = urlencode(if calendario.is_empty() { "primary" } else { &calendario });
+    let calendario = if calendario.is_empty() { "primary".to_string() } else { calendario };
+    let cal = urlencode(&calendario);
     let fuso = if fuso.is_empty() { "America/Sao_Paulo".to_string() } else { fuso };
     let mut feitos = Vec::new();
     let mut erros = Vec::new();
     for e in eventos.iter().filter(|e| uid_valido(&e.uid)) {
-        let corpo = match corpo_do_evento(e, &fuso) {
+        let corpo = match corpo_do_evento(e, &fuso, &calendario) {
             Ok(c) => c,
             Err(err) => {
                 erros.push(format!("{}: {err}", e.titulo));
                 continue;
             }
         };
-        let id = id_google(&e.uid);
+        let id = id_google(&calendario, &e.uid);
         // Troca se já existe (mesmo apagado antes: volta a valer); senão, cria.
         let mut r = c.put(format!("{API}/calendars/{cal}/events/{id}")).bearer_auth(&token).json(&corpo).send().await;
         if matches!(&r, Ok(x) if x.status() == StatusCode::NOT_FOUND) {
@@ -454,12 +548,16 @@ pub async fn google_enviar(calendario: String, eventos: Vec<Evento>, apagar: Vec
         }
         match r {
             Ok(x) if x.status().is_success() => feitos.push(e.uid.clone()),
+            Ok(x) if x.status() == StatusCode::UNAUTHORIZED => {
+                esquecer_acesso();
+                return Err(erro_do_google(x.status()));
+            }
             Ok(x) => erros.push(format!("{}: {}", e.titulo, x.status())),
             Err(err) => erros.push(format!("{}: {err}", e.titulo)),
         }
     }
     for uid in apagar.iter().filter(|u| uid_valido(u)) {
-        let r = c.delete(format!("{API}/calendars/{cal}/events/{}", id_google(uid))).bearer_auth(&token).send().await;
+        let r = c.delete(format!("{API}/calendars/{cal}/events/{}", id_google(&calendario, uid))).bearer_auth(&token).send().await;
         match r {
             Ok(x) if x.status().is_success() || x.status() == StatusCode::NOT_FOUND || x.status() == StatusCode::GONE => feitos.push(uid.clone()),
             Ok(x) => erros.push(format!("apagar {uid}: {}", x.status())),
@@ -491,8 +589,9 @@ mod testes {
 
     #[test]
     fn id_so_com_letras_aceitas() {
-        let id = id_google("ilha-tarefa-abc123");
-        assert!(id.chars().all(|c| c.is_ascii_digit() || ('a'..='v').contains(&c)) && id.len() >= 5);
+        let id = id_google("primary", "ilha-tarefa-abc123");
+        assert!(id.chars().all(|c| c.is_ascii_digit() || ('a'..='v').contains(&c)) && id.len() == 32);
+        assert_ne!(id, id_google("outra@group.calendar.google.com", "ilha-tarefa-abc123"));
     }
 
     #[test]
@@ -506,13 +605,13 @@ mod testes {
             alerta_minutos: Some(15),
             duracao_minutos: Some(90),
         };
-        let c = corpo_do_evento(&e, "America/Recife").unwrap();
+        let c = corpo_do_evento(&e, "America/Recife", "primary").unwrap();
         assert_eq!(c["start"]["dateTime"], "2026-11-20T19:30:00");
         assert_eq!(c["end"]["dateTime"], "2026-11-20T21:00:00");
         assert_eq!(c["recurrence"][0], "RRULE:FREQ=WEEKLY");
         assert_eq!(c["reminders"]["overrides"][0]["minutes"], 15);
         let dia = Evento { inicio: "2026-12-31".into(), repete: "nao".into(), alerta_minutos: Some(-540), ..e };
-        let c = corpo_do_evento(&dia, "America/Recife").unwrap();
+        let c = corpo_do_evento(&dia, "America/Recife", "primary").unwrap();
         assert_eq!((c["start"]["date"].as_str(), c["end"]["date"].as_str()), (Some("2026-12-31"), Some("2027-01-01")));
         assert_eq!(c["reminders"]["useDefault"], true);
     }
@@ -533,7 +632,8 @@ mod testes {
             let pagina = pedir("/?state=abc&code=4%2Fxyz&scope=x");
             (icone, pagina)
         });
-        assert_eq!(esperar_resposta(servidor, "abc").unwrap(), "4/xyz");
+        let t = TENTATIVA.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(esperar_resposta(servidor, "abc", t).unwrap(), "4/xyz");
         let (icone, pagina) = navegador.join().unwrap();
         assert!(icone.starts_with("HTTP/1.1 404"));
         assert!(pagina.contains("Pronto!"));
@@ -544,7 +644,7 @@ mod testes {
             let mut c = std::net::TcpStream::connect(("127.0.0.1", porta)).unwrap();
             c.write_all(b"GET /?state=outro&code=1 HTTP/1.1\r\n\r\n").unwrap();
         });
-        assert!(esperar_resposta(servidor, "abc").is_err());
+        assert!(esperar_resposta(servidor, "abc", TENTATIVA.load(std::sync::atomic::Ordering::SeqCst)).is_err());
     }
 
     #[test]
