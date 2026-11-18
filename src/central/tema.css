@@ -301,3 +301,15 @@ body.modo-central .ideia:hover {
 body.modo-central .ideia:active {
   transform: scale(0.96);
 }
+
+/* Telas da ilha dentro da Central: centralizadas, sem esticar demais. */
+body.modo-central .pagina-tela > .estado {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+/* Notas na Central: o papel ocupa a altura da janela. */
+body.modo-central .pagina-tela textarea.nota,
+body.modo-central .pagina-tela .area-nota {
+  min-height: 52vh;
+}
