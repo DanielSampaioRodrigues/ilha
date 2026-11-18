@@ -3431,3 +3431,19 @@ body.soltando .dica-soltar {
   width: 13px;
   height: 13px;
 }
+
+/* Notas: a IA corrige, melhora, resume ou traduz. */
+.ia-nota {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ia-nota .chip {
+  height: 28px;
+  font-size: 12px;
+}
+
+.ia-nota .desfazer-ia {
+  border-color: color-mix(in oklab, #ffb454 50%, transparent);
+  color: #ffd29a;
+}
