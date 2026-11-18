@@ -240,16 +240,24 @@ async function iniciar(): Promise<void> {
   ouvir<"desligado" | "automatico" | "sempre">("ilha:modo-discreto", (m) => ilha.definirModoDiscreto(m));
   ouvir<string>("ilha:atalho", (a) => ilha.definirAtalho(a));
 
-  // Arrastar arquivos para a ilha: abre a Central com eles anexados.
+  // Arrastar arquivos para a ilha: mostra o que dá para fazer com eles
+  // (diminuir, PDF, converter, renomear ou mandar para a IA).
   if (dentroDoApp) {
     const { getCurrentWebview } = await import("@tauri-apps/api/webview");
-    const { abrirCentral } = await import("./maos/sistema");
+    const { receberArquivos } = await import("./corpo/telas/arquivos");
     getCurrentWebview()
       .onDragDropEvent((e) => {
+        document.body.classList.toggle("soltando", e.payload.type === "enter" || e.payload.type === "over");
         if (e.payload.type !== "drop" || !e.payload.paths.length) return;
-        abrirCentral("conversa-atual", e.payload.paths).catch(() => {});
+        receberArquivos(e.payload.paths);
+        ilha.abrir("arquivos");
       })
       .catch(() => {});
+  } else if (new URLSearchParams(location.search).get("arquivos")) {
+    // Teste no navegador: ?arquivos=foto.jpg,doc.pdf
+    const { receberArquivos } = await import("./corpo/telas/arquivos");
+    receberArquivos(new URLSearchParams(location.search).get("arquivos")!.split(","));
+    ilha.abrir("arquivos");
   }
 
   ouvir("ilha:abrir", () => ilha.abrir());

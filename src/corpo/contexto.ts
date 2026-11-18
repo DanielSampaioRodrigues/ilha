@@ -38,7 +38,8 @@ export type NomeTela =
   | "memoria"
   | "calendario"
   | "copiados"
-  | "rotinas";
+  | "rotinas"
+  | "arquivos";
 
 export interface Notificacao {
   id: string;

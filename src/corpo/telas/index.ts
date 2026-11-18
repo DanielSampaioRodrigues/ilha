@@ -19,6 +19,7 @@ import { montarMemoria } from "./memoria";
 import { montarCalendario } from "./calendario";
 import { montarCopiados } from "./copiados";
 import { montarRotinas } from "./rotinas";
+import { montarArquivos } from "./arquivos";
 
 export const TELAS: Record<NomeTela, { montar(ctx: Contexto): HTMLElement }> = {
   inicio: { montar: montarInicio },
@@ -41,4 +42,5 @@ export const TELAS: Record<NomeTela, { montar(ctx: Contexto): HTMLElement }> = {
   calendario: { montar: montarCalendario },
   copiados: { montar: montarCopiados },
   rotinas: { montar: montarRotinas },
+  arquivos: { montar: montarArquivos },
 };
