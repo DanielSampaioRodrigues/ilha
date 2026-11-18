@@ -2,7 +2,7 @@
 // ElevenLabs (voz humana); senão, ou se der erro, as vozes do Windows.
 import { ler } from "../dados/armazem";
 import { dentroDoApp } from "../ponte";
-import { falarNatural } from "./sistema";
+import { falarKokoro, falarNatural } from "./sistema";
 
 function vozes(): SpeechSynthesisVoice[] {
   return typeof speechSynthesis === "undefined" ? [] : speechSynthesis.getVoices();
@@ -97,13 +97,19 @@ export function paraArrayBuffer(dados: unknown): ArrayBuffer {
   throw new Error("O áudio da voz natural chegou num formato que não conheço.");
 }
 
-/** Voz natural (ElevenLabs): pede o áudio e toca. Se falhar, usa a do Windows. */
+/** O áudio da voz natural escolhida: Kokoro (no PC, WAV) ou ElevenLabs (MP3). */
+function audioNatural(texto: string): Promise<unknown> {
+  const c = ler().config;
+  if ((c.vozMotor ?? "kokoro") === "kokoro") return falarKokoro(texto, c.vozKokoro ?? "dora");
+  return falarNatural(texto, c.vozElevenlabs ?? "", c.modeloElevenlabs ?? "");
+}
+
+/** Voz natural (Kokoro ou ElevenLabs): pede o áudio e toca. Se falhar, usa a do Windows. */
 async function falarComVozNatural(texto: string, aoTerminar?: () => void): Promise<void> {
   const minhaVez = vez;
-  const c = ler().config;
   document.body.classList.add("falando");
   try {
-    const mp3 = await falarNatural(texto, c.vozElevenlabs ?? "", c.modeloElevenlabs ?? "");
+    const mp3 = await audioNatural(texto);
     if (minhaVez !== vez) return; // cortaram enquanto o áudio chegava
     somCtx ??= new AudioContext();
     if (somCtx.state === "suspended") await somCtx.resume();
@@ -204,7 +210,7 @@ export function falarEmPartes(aoTerminar?: () => void): FalaEmPartes {
   const preparar = async (texto: string): Promise<AudioBuffer | string> => {
     if (!natural) return texto;
     try {
-      const mp3 = await falarNatural(texto, c.vozElevenlabs ?? "", c.modeloElevenlabs ?? "");
+      const mp3 = await audioNatural(texto);
       somCtx ??= new AudioContext();
       return await somCtx.decodeAudioData(paraArrayBuffer(mp3));
     } catch (erro) {

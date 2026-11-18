@@ -19,7 +19,7 @@ import {
   PROGRAMAS_COM_ABAS,
   situacaoAvisos,
   type ProgramaIA,
-  type SituacaoAviso, atenderPeloNome, baixarOuvido, escolherOuvido, testarOuvido, conferirVoz, consertarVoz, estadoChamado, estadoOuvido, vozesNaturais, type EstadoChamado, type EstadoOuvido, type EstadoVoz } from "../../maos/sistema";
+  type SituacaoAviso, atenderPeloNome, aquecerKokoro, baixarOuvido, escolherOuvido, estadoKokoro, prepararKokoro, testarOuvido, conferirVoz, consertarVoz, estadoChamado, estadoOuvido, vozesNaturais, type EstadoChamado, type EstadoOuvido, type EstadoVoz } from "../../maos/sistema";
 import { aplicarCor, CORES_DESTAQUE } from "../tema";
 import type { Contexto } from "../contexto";
 import { procurar, type Novidade } from "../../atualizacao";
@@ -129,10 +129,27 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
           <button type="button" class="chave" role="switch" aria-checked="${dados.config.microfoneComEco !== false}" aria-label="Interromper sem fone" data-acao="microfone-eco"><span></span></button>
         </div>
         <div class="item">
-          <div class="coluna"><span class="principal">Voz natural (ElevenLabs)</span><span class="secundario">Voz humana, bem menos robótica. Precisa da chave da ElevenLabs (em Chaves de IA, abaixo); se der erro, ele usa a voz do Windows.</span></div>
-          <button type="button" class="chave" role="switch" aria-checked="${!!dados.config.vozNatural}" aria-label="Voz natural (ElevenLabs)" data-acao="voz-natural"><span></span></button>
+          <div class="coluna"><span class="principal">Voz natural</span><span class="secundario">Voz humana, bem menos robótica. Se der erro, ele usa a voz do Windows.</span></div>
+          <button type="button" class="chave" role="switch" aria-checked="${!!dados.config.vozNatural}" aria-label="Voz natural" data-acao="voz-natural"><span></span></button>
         </div>
-        <div class="item linha-voz-natural" ${dados.config.vozNatural ? "" : "hidden"}>
+        <div class="item linha-motor-voz" ${dados.config.vozNatural ? "" : "hidden"}>
+          <div class="coluna"><span class="principal">De onde vem a voz</span><span class="secundario">Kokoro: grátis, feita no próprio PC, sem internet (baixa ~145 MB uma vez). ElevenLabs: a mais expressiva, paga, precisa da chave (em Chaves de IA, abaixo).</span></div>
+          <div class="segmentos" role="radiogroup" aria-label="De onde vem a voz">
+            <button type="button" class="segmento" role="radio" aria-checked="${(dados.config.vozMotor ?? "kokoro") === "kokoro"}" data-acao="motor-voz" data-motor="kokoro">Kokoro (grátis)</button>
+            <button type="button" class="segmento" role="radio" aria-checked="${dados.config.vozMotor === "elevenlabs"}" data-acao="motor-voz" data-motor="elevenlabs">ElevenLabs</button>
+          </div>
+        </div>
+        <div class="item linha-voz-kokoro" ${dados.config.vozNatural && (dados.config.vozMotor ?? "kokoro") === "kokoro" ? "" : "hidden"}>
+          <div class="coluna"><span class="principal">Qual voz</span><span class="secundario situacao-kokoro">Conferindo…</span></div>
+          <select class="entrada curta2 escolha-voz-kokoro" aria-label="Voz da Kokoro">
+            <option value="dora" ${(dados.config.vozKokoro ?? "dora") === "dora" ? "selected" : ""}>Dora (feminina)</option>
+            <option value="alex" ${dados.config.vozKokoro === "alex" ? "selected" : ""}>Alex (masculina)</option>
+            <option value="santa" ${dados.config.vozKokoro === "santa" ? "selected" : ""}>Santa (masculina)</option>
+          </select>
+          <button type="button" class="botao" data-acao="testar-voz">Ouvir</button>
+          <button type="button" class="botao" data-acao="baixar-kokoro" hidden>Tentar de novo</button>
+        </div>
+        <div class="item linha-voz-natural" ${dados.config.vozNatural && dados.config.vozMotor === "elevenlabs" ? "" : "hidden"}>
           <div class="coluna"><span class="principal">Qual voz</span><span class="secundario situacao-vozes-naturais">Carregando as vozes…</span></div>
           <select class="entrada curta2 escolha-voz-natural" aria-label="Voz da ElevenLabs"></select>
           <select class="entrada curta2 escolha-modelo-natural" aria-label="Qualidade">
@@ -327,13 +344,75 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
       })
       .catch((erro: unknown) => (situacaoVozes.textContent = String(erro)));
   };
-  if (ler().config.vozNatural) carregarVozesNaturais();
+  // Kokoro: voz grátis no PC (baixa sozinha na primeira vez).
+  const linhaMotor = raiz.querySelector<HTMLElement>(".linha-motor-voz")!;
+  const linhaKokoro = raiz.querySelector<HTMLElement>(".linha-voz-kokoro")!;
+  const situacaoKokoro = raiz.querySelector<HTMLElement>(".situacao-kokoro")!;
+  const botaoBaixarKokoro = raiz.querySelector<HTMLButtonElement>('[data-acao="baixar-kokoro"]')!;
+  const usaKokoro = () => (ler().config.vozMotor ?? "kokoro") === "kokoro";
+  const mostrarVoz = () => {
+    const c = ler().config;
+    linhaMotor.hidden = !c.vozNatural;
+    linhaKokoro.hidden = !(c.vozNatural && usaKokoro());
+    linhaNatural.hidden = !(c.vozNatural && !usaKokoro());
+    raiz.querySelectorAll<HTMLElement>('[data-acao="motor-voz"]').forEach((s) => s.setAttribute("aria-checked", String(s.dataset.motor === (c.vozMotor ?? "kokoro"))));
+  };
+  let acompanhando = 0;
+  const acompanharKokoro = () => {
+    window.clearInterval(acompanhando);
+    const olhar = () =>
+      estadoKokoro()
+        .then((e) => {
+          botaoBaixarKokoro.hidden = !(e.erro && !e.baixando && !e.pronta);
+          if (e.pronta) {
+            situacaoKokoro.textContent = "Pronta, no seu PC. As três falam português do Brasil.";
+            window.clearInterval(acompanhando);
+          } else if (e.baixando) {
+            const mb = (n: number) => Math.round(n / 1_000_000);
+            situacaoKokoro.textContent = `Baixando a voz: ${mb(e.baixado)} de ${mb(e.total)} MB. Enquanto isso, fala a voz do Windows.`;
+          } else if (e.erro) {
+            situacaoKokoro.textContent = e.erro;
+            window.clearInterval(acompanhando);
+          } else {
+            situacaoKokoro.textContent = "Preparando…";
+          }
+        })
+        .catch(() => {});
+    olhar();
+    acompanhando = window.setInterval(() => {
+      if (!raiz.isConnected) return window.clearInterval(acompanhando);
+      olhar();
+    }, 1000);
+  };
+  const ligarKokoro = () => {
+    prepararKokoro()
+      .then(() => aquecerKokoro())
+      .catch(() => {});
+    acompanharKokoro();
+  };
+  if (ler().config.vozNatural) {
+    if (usaKokoro()) acompanharKokoro();
+    else carregarVozesNaturais();
+  }
   aoClicar(raiz, "voz-natural", (b) => {
     const ligado = !ler().config.vozNatural;
     mudar((d) => (d.config.vozNatural = ligado));
     b.setAttribute("aria-checked", String(ligado));
-    linhaNatural.hidden = !ligado;
-    if (ligado) carregarVozesNaturais();
+    mostrarVoz();
+    if (ligado && usaKokoro()) ligarKokoro();
+    else if (ligado) carregarVozesNaturais();
+  });
+  aoClicar(raiz, "motor-voz", (b) => {
+    const motor = b.dataset.motor === "elevenlabs" ? "elevenlabs" : "kokoro";
+    mudar((d) => (d.config.vozMotor = motor));
+    mostrarVoz();
+    if (motor === "kokoro") ligarKokoro();
+    else carregarVozesNaturais();
+  });
+  aoClicar(raiz, "baixar-kokoro", () => ligarKokoro());
+  raiz.querySelector<HTMLSelectElement>(".escolha-voz-kokoro")!.addEventListener("change", (e) => {
+    const voz = (e.target as HTMLSelectElement).value as "dora" | "alex" | "santa";
+    mudar((d) => (d.config.vozKokoro = voz));
   });
   escolhaNatural.addEventListener("change", () => mudar((d) => (d.config.vozElevenlabs = escolhaNatural.value)));
   escolhaModelo.addEventListener("change", () => mudar((d) => (d.config.modeloElevenlabs = escolhaModelo.value)));
@@ -351,7 +430,7 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   aoClicar(raiz, "testar-voz", () =>
     falar(`Oi, ${ler().config.nome}! Eu sou ${ler().config.nomeRobo}. É assim que eu falo.`, () => {
       // A voz natural falhou e caiu na do Windows: mostra o porquê.
-      if (ler().config.vozNatural && erroVozNatural) situacaoVozes.textContent = erroVozNatural;
+      if (ler().config.vozNatural && erroVozNatural) (usaKokoro() ? situacaoKokoro : situacaoVozes).textContent = erroVozNatural;
     }),
   );
 

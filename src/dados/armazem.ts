@@ -162,6 +162,10 @@ export interface Config {
   voz: string;
   /** Falar com a voz natural da ElevenLabs (precisa da chave). */
   vozNatural?: boolean;
+  /** De onde vem a voz natural: Kokoro (grátis, no PC; o padrão) ou ElevenLabs. */
+  vozMotor?: "kokoro" | "elevenlabs";
+  /** Voz da Kokoro: Dora (feminina), Alex ou Santa (masculinas). */
+  vozKokoro?: "dora" | "alex" | "santa";
   /** Voz da ElevenLabs escolhida (id) e o modelo. */
   vozElevenlabs?: string;
   modeloElevenlabs?: string;

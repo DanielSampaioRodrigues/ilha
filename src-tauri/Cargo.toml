@@ -30,6 +30,10 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png"]
 toml_edit = "0.25"
 reqwest = { version = "0.13", features = ["json"] }
 minisign-verify = "0.3"
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "load-dynamic", "api-24"] }
+libloading = "0.8"
+sha2 = "0.10"
+zip = { version = "9", default-features = false, features = ["deflate"] }
 tauri-plugin-clipboard-manager = "2.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

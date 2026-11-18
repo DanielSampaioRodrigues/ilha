@@ -492,6 +492,18 @@ export const estadoChamado = () =>
 
 /** Fala com a voz natural da ElevenLabs: devolve o MP3. */
 export const falarNatural = (texto: string, voz: string, modelo: string) => invoke<unknown>("falar_natural", { texto, voz, modelo });
+/** Voz Kokoro (no PC): devolve um WAV. */
+export const falarKokoro = (texto: string, voz: string) => invoke<unknown>("falar_kokoro", { texto, voz });
+export interface EstadoKokoro {
+  pronta: boolean;
+  baixando: boolean;
+  baixado: number;
+  total: number;
+  erro: string | null;
+}
+export const estadoKokoro = () => pedir<EstadoKokoro>("estado_kokoro", undefined, { pronta: true, baixando: false, baixado: 0, total: 0, erro: null });
+export const prepararKokoro = () => pedir<void>("preparar_kokoro");
+export const aquecerKokoro = () => pedir<void>("aquecer_kokoro");
 export interface VozNatural {
   id: string;
   nome: string;

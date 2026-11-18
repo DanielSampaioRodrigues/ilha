@@ -138,6 +138,10 @@ pub fn run() {
             maos::ouvido::som_do_microfone,
             maos::atualizar::procurar_versao,
             maos::pastas::procurar_pastas,
+            maos::kokoro::estado_kokoro,
+            maos::kokoro::preparar_kokoro,
+            maos::kokoro::falar_kokoro,
+            maos::kokoro::aquecer_kokoro,
             maos::pastas::renovar_pastas,
             maos::atualizar::instalar_versao,
             maos::volume::volume_atual,
@@ -168,6 +172,7 @@ pub fn run() {
             // Ouvido próprio: baixa sozinho o que faltar, em segundo plano.
             maos::ouvido::iniciar(app);
             maos::pastas::iniciar();
+            maos::kokoro::iniciar(app);
             corpo::tela_cheia::vigiar(app.clone());
             maos::volume::vigiar(app.clone());
             maos::pc::vigiar(app.clone());
