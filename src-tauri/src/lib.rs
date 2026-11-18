@@ -133,6 +133,8 @@ pub fn run() {
             maos::ouvido::escolher_ouvido,
             maos::ouvido::testar_ouvido,
             maos::ouvido::som_do_microfone,
+            maos::atualizar::procurar_versao,
+            maos::atualizar::instalar_versao,
             maos::volume::volume_atual,
             maos::volume::definir_volume,
             maos::pc::diagnostico_pc,

@@ -2461,6 +2461,7 @@ dependencies = [
  "futures-util",
  "image",
  "log",
+ "minisign-verify",
  "pdf-extract",
  "reqwest",
  "rustls",
