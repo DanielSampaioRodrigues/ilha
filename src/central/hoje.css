@@ -233,7 +233,7 @@
 }
 
 .bola-foco.pausa {
-  --cor: oklch(from var(--ciano) 0.82 0.13 calc(h + 150));
+  --cor: var(--cor-3);
   width: 84px;
   height: 84px;
   align-self: center;
@@ -394,7 +394,7 @@
 }
 
 .anel-habito {
-  --cor: oklch(from var(--ciano) 0.8 0.15 calc(h + var(--giro, 0)));
+  --cor: oklch(from var(--ciano) 0.8 calc(0.15 * var(--croma, 1)) calc(h + var(--giro, 0)));
   display: flex;
   flex-direction: column;
   align-items: center;

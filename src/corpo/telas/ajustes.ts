@@ -21,7 +21,7 @@ import {
   situacaoAvisos,
   type ProgramaIA,
   type SituacaoAviso, atenderPeloNome, aquecerKokoro, baixarOuvido, definirEspera, escolherOuvido, estadoKokoro, prepararKokoro, testarOuvido, conferirVoz, consertarVoz, estadoChamado, estadoOuvido, vozesNaturais, type EstadoChamado, type EstadoOuvido, type EstadoVoz } from "../../maos/sistema";
-import { aplicarCor, CORES_DESTAQUE } from "../tema";
+import { amostraDoTema, aplicarCor, CORES_DESTAQUE, TEMAS } from "../tema";
 import type { Contexto } from "../contexto";
 import { procurar, type Novidade } from "../../atualizacao";
 import { ajustarMicrofoneComEco } from "../../maos/microfone-eco";
@@ -90,8 +90,17 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
           <div class="coluna"><span class="principal">Sua cidade</span><span class="secundario">Para mostrar o tempo agora na tela inicial. Em branco, não mostra.</span></div>
           <input class="entrada curta2" name="cidade" maxlength="60" value="${escapar(dados.config.cidade ?? "")}" placeholder="Ex.: Recife" aria-label="Sua cidade">
         </div>
+        <div class="item coluna-item item-temas">
+          <div class="coluna"><span class="principal">Tema</span><span class="secundario">O clima de cores da ilha e da Central. A ilha continua preta; mudam o brilho, os ícones e o fundo animado.</span></div>
+          <div class="temas">${TEMAS.map((t) => {
+            const cores = amostraDoTema(t, dados.config) ?? [dados.config.corDestaque, dados.config.corDestaque, dados.config.corDestaque];
+            const ativo = (dados.config.tema ?? "personagem") === t.id;
+            return `<button type="button" class="tema-opcao ${ativo ? "ativo" : ""}" data-acao="tema" data-tema="${t.id}" title="${escapar(t.descricao)}" aria-pressed="${ativo}">
+              <span class="amostra-tema" style="--a:${cores[0]};--b:${cores[1]};--c:${cores[2]}"></span><span>${escapar(t.nome)}</span></button>`;
+          }).join("")}</div>
+        </div>
         <div class="item">
-          <div class="coluna"><span class="principal">Cor de destaque</span><span class="secundario">Botões e marcações. Os olhos do robô ficam com os personagens.</span></div>
+          <div class="coluna"><span class="principal">Cor de destaque</span><span class="secundario">Escolher uma cor aqui troca o tema para Aurora (a sua cor, com as vizinhas). Os olhos do robô ficam com os personagens.</span></div>
           <div class="linha amostras">${cores}</div>
         </div>
       </section>
@@ -347,18 +356,29 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   // Cor
   raiz.querySelector<HTMLInputElement>('input[data-cor-livre="destaque"]')?.addEventListener("change", (e) => {
     const cor = (e.target as HTMLInputElement).value;
-    mudar((d) => (d.config.corDestaque = cor));
+    mudar((d) => {
+      d.config.corDestaque = cor;
+      d.config.tema = "aurora";
+    });
     aplicarCor(cor);
     ctx.renovar();
   });
   aoClicar(raiz, "cor", (b) => {
     const cor = b.dataset.cor!;
-    mudar((d) => (d.config.corDestaque = cor));
+    mudar((d) => {
+      d.config.corDestaque = cor;
+      d.config.tema = "aurora";
+    });
     aplicarCor(cor);
-    raiz.querySelectorAll(".amostra").forEach((a) => a.classList.toggle("ativa", a === b));
+    ctx.renovar();
   });
 
   aoClicar(raiz, "tela-calendario", () => ctx.irPara("calendario"));
+  aoClicar(raiz, "tema", (b) => {
+    mudar((d) => (d.config.tema = b.dataset.tema));
+    aplicarCor();
+    ctx.renovar();
+  });
 
   // Voz
   aoClicar(raiz, "falar-respostas", (b) => {

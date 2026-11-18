@@ -2589,7 +2589,7 @@ body.soltando .dica-soltar {
 }
 
 .portal {
-  --cor: oklch(from var(--ciano) 0.78 0.15 calc(h + var(--giro, 0)));
+  --cor: oklch(from var(--ciano) 0.78 calc(0.15 * var(--croma, 1)) calc(h + var(--giro, 0)));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2788,7 +2788,8 @@ body.soltando .dica-soltar {
    a identidade dela; a cor de destaque ganha gradiente e brilho).
    ============================================================ */
 :root {
-  --cor-2: oklch(from var(--ciano) 0.74 0.17 calc(h + 75));
+  --cor-2: var(--tema-2, oklch(from var(--ciano) 0.74 0.17 calc(h + 75)));
+  --cor-3: var(--tema-3, oklch(from var(--ciano) 0.75 0.17 calc(h + 150)));
 }
 
 .saudacao {
@@ -2858,7 +2859,7 @@ body.soltando .dica-soltar {
 }
 
 .atalhos .atalho-tela {
-  --cor: oklch(from var(--ciano) 0.8 0.14 calc(h + var(--giro, 0)));
+  --cor: oklch(from var(--ciano) 0.8 calc(0.14 * var(--croma, 1)) calc(h + var(--giro, 0)));
   flex-direction: column;
   gap: 5px;
   height: auto;
@@ -3178,7 +3179,7 @@ body.soltando .dica-soltar {
   height: 52px;
   padding: 0 16px;
   border-radius: 18px;
-  background: linear-gradient(#0b0c10, #0b0c10) padding-box, linear-gradient(120deg, var(--ciano), var(--cor-2), oklch(from var(--ciano) 0.75 0.17 calc(h + 150))) border-box;
+  background: linear-gradient(#0b0c10, #0b0c10) padding-box, linear-gradient(120deg, var(--ciano), var(--cor-2), var(--cor-3)) border-box;
   border: 1.5px solid transparent;
   box-shadow: 0 12px 30px -10px color-mix(in oklab, var(--ciano) 60%, transparent);
 }
@@ -3331,7 +3332,7 @@ body.soltando .dica-soltar {
 }
 
 .foco-andando.pausa .anel-cheio {
-  stroke: oklch(from var(--ciano) 0.82 0.13 calc(h + 150));
+  stroke: var(--cor-3);
 }
 
 .centro-foco {
@@ -3446,4 +3447,67 @@ body.soltando .dica-soltar {
 .ia-nota .desfazer-ia {
   border-color: color-mix(in oklab, #ffb454 50%, transparent);
   color: #ffd29a;
+}
+
+/* ---------- Escolha do tema ---------- */
+.item-temas .temas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.tema-opcao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 8px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--texto);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.2s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.tema-opcao:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.tema-opcao.ativo {
+  border-color: var(--ciano);
+  box-shadow: 0 0 0 1px var(--ciano), 0 8px 20px -12px var(--ciano);
+}
+
+.amostra-tema {
+  position: relative;
+  width: 100%;
+  height: 38px;
+  overflow: hidden;
+  border-radius: 9px;
+  background:
+    radial-gradient(60% 90% at 15% 20%, color-mix(in oklab, var(--a) 70%, transparent), transparent 70%),
+    radial-gradient(60% 90% at 90% 30%, color-mix(in oklab, var(--b) 60%, transparent), transparent 70%),
+    radial-gradient(70% 90% at 55% 110%, color-mix(in oklab, var(--c) 55%, transparent), transparent 70%),
+    #07080b;
+}
+
+/* A "ilha" preta em miniatura dentro da amostra. */
+.amostra-tema::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 40%;
+  height: 9px;
+  border-radius: 0 0 6px 6px;
+  background: #000;
+  box-shadow: 0 0 8px color-mix(in oklab, var(--a) 80%, transparent);
+  transform: translateX(-50%);
 }

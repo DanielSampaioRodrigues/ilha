@@ -2,6 +2,7 @@
 // de ser (olhos seguem o mouse, brincadeiras, cochilo). Com prévia ao vivo.
 import { ler, mudar, type Config } from "../../dados/armazem";
 import { passear, perceberAtividade } from "../../maos/sistema";
+import { aplicarTema } from "../tema";
 import {
   Carinha,
   NOMES_ACESSORIOS,
@@ -188,6 +189,8 @@ export function montarPersonagem(ctx: Contexto): HTMLElement {
 
   const salvar = (fazer: (c: Config) => void) => {
     mudar((d) => fazer(d.config));
+    // No tema "combinar com o personagem", as cores mudam junto.
+    aplicarTema();
     ctx.renovar();
   };
   aoClicar(raiz, "expressao", (b) => {
