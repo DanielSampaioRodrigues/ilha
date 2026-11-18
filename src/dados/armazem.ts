@@ -136,6 +136,8 @@ export interface Config {
   corDestaque: string;
   /** Tema de cores: "personagem" (padrão), "aurora" (a cor de destaque) ou um pronto. */
   tema?: string;
+  /** Visual calmo: fundo quase parado, menos brilho, menos confete (sem: desligado). */
+  visualCalmo?: boolean;
   /** Ilha vira um risquinho em repouso (sempre, ou com navegador na frente). */
   modoDiscreto: ModoDiscreto;
   /** Mostrar a música que está tocando na ilha fechada. */

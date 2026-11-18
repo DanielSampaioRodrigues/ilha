@@ -6,6 +6,8 @@ import { ler } from "../dados/armazem";
 import { tocarPlim } from "./som";
 
 const CORES = ["var(--ciano)", "var(--cor-2)", "#ff6b9a", "#ffd166", "#7cf29a", "#b69cff"];
+/** No tema da neurodiversidade: as cores do arco-íris (como o infinito). */
+const ARCO_IRIS = ["#ff5f6d", "#ffa94d", "#ffe066", "#69db7c", "#4dabf7", "#9775fa"];
 
 function poucoMovimento(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -15,10 +17,13 @@ function poucoMovimento(): boolean {
 export function confete(x: number, y: number, quantos = 26): void {
   if (ler().config.somFesta !== false) tocarPlim();
   if (poucoMovimento()) return;
+  // Visual calmo: bem menos papeizinhos.
+  if (ler().config.visualCalmo) quantos = Math.ceil(quantos / 3);
+  const cores = document.documentElement.dataset.especial === "neuro" ? ARCO_IRIS : CORES;
   for (let i = 0; i < quantos; i++) {
     const p = document.createElement("i");
     p.className = `confete${i % 3 === 0 ? " redondo" : ""}`;
-    p.style.background = CORES[i % CORES.length];
+    p.style.background = cores[i % cores.length];
     p.style.left = `${x}px`;
     p.style.top = `${y}px`;
     // Para cima, num leque; depois a "gravidade" puxa para baixo.

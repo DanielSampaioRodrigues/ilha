@@ -100,6 +100,10 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
           }).join("")}</div>
         </div>
         <div class="item">
+          <div class="coluna"><span class="principal">Visual calmo</span><span class="secundario">Menos movimento e menos brilho: fundo quase parado, ícones sem pulos, menos confete. Para quem prefere menos estímulo; vale para qualquer tema.</span></div>
+          <button type="button" class="chave" role="switch" aria-checked="${!!dados.config.visualCalmo}" aria-label="Visual calmo" data-acao="visual-calmo"><span></span></button>
+        </div>
+        <div class="item">
           <div class="coluna"><span class="principal">Cor de destaque</span><span class="secundario">Escolher uma cor aqui troca o tema para Aurora (a sua cor, com as vizinhas). Os olhos do robô ficam com os personagens.</span></div>
           <div class="linha amostras">${cores}</div>
         </div>
@@ -374,6 +378,12 @@ export function montarAjustes(ctx: Contexto): HTMLElement {
   });
 
   aoClicar(raiz, "tela-calendario", () => ctx.irPara("calendario"));
+  aoClicar(raiz, "visual-calmo", (b) => {
+    const ligado = !ler().config.visualCalmo;
+    mudar((d) => (d.config.visualCalmo = ligado));
+    b.setAttribute("aria-checked", String(ligado));
+    aplicarCor();
+  });
   aoClicar(raiz, "tema", (b) => {
     mudar((d) => (d.config.tema = b.dataset.tema));
     aplicarCor();
