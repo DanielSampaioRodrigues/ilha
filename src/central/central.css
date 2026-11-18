@@ -1003,3 +1003,86 @@ body.central-janela .fechar-grande {
   color: #fff;
   animation: pulsar 1.2s ease-in-out infinite;
 }
+
+/* Boas-vindas (primeira abertura) */
+.boas-vindas {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.cartao-boas-vindas {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(560px, 100%);
+  max-height: 100%;
+  padding: 28px;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  background: #0b0c0f;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+.cartao-boas-vindas h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.topo-boas-vindas {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0 4px;
+}
+
+.carinha-boas-vindas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 150px;
+  height: 90px;
+  border-radius: 22px;
+  background: #000;
+}
+
+.rodape-boas-vindas {
+  margin-top: 8px;
+}
+
+.rodape-boas-vindas .pontos {
+  display: flex;
+  gap: 6px;
+}
+
+.rodape-boas-vindas .pontos span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.rodape-boas-vindas .pontos span.ativo {
+  width: 20px;
+  border-radius: 4px;
+  background: var(--ciano);
+}
+
+.cartao-boas-vindas .campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cartao-boas-vindas .entrada {
+  height: 40px;
+  padding: 0 12px;
+  font-size: 14px;
+}

@@ -148,6 +148,8 @@ export interface Config {
   modelosRapida?: Partial<Record<string, string>>;
   /** Conversa rápida: só conversar, ou fazer tudo no PC (pedindo "Posso?" no que não tem volta). */
   modoRapida?: "conversar" | "editar";
+  /** A primeira abertura guiada já foi feita (ou a ilha já tinha dados). */
+  boasVindasFeita?: boolean;
   /** Silêncio (ms) que encerra um pedido falado: 900, 1400 (padrão) ou 2200. */
   esperaFala?: number;
   /** Ditado em qualquer lugar (atalho global). Ligado se não houver nada. */
@@ -415,11 +417,16 @@ export function aoMudarDeFora(fazer: () => void): void {
   ouvintes.add(fazer);
 }
 
+/** Nada salvo ao ligar: a ilha acabou de ser instalada (mostra as boas-vindas). */
+export let primeiraVez = false;
+
 export async function carregar(): Promise<void> {
   try {
     if (dentroDoApp) {
       loja = await load("dados.json", { defaults: {}, autoSave: false });
-      dados = completar(await loja.get<Dados>(CHAVE));
+      const salvo = await loja.get<Dados>(CHAVE);
+      primeiraVez = !salvo;
+      dados = completar(salvo);
       await listen<{ origem: string; dados: Dados }>("dados:mudaram", (e) => {
         if (e.payload.origem === ORIGEM) return;
         dados = completar(e.payload.dados);

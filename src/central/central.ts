@@ -360,6 +360,10 @@ export async function iniciarCentral(): Promise<void> {
   }
   const inicial = pedido.tela ?? new URLSearchParams(location.search).get("secao") ?? lembrada;
   ir((inicial as Secao) ?? "conversa");
+  // Primeira abertura (ilha recém-instalada): boas-vindas guiadas por cima.
+  if (inicial === "boas-vindas" || ler().config.boasVindasFeita === false) {
+    import("./boas-vindas").then((m) => m.mostrarBoasVindas(palco, () => ir("conversa")));
+  }
   if (pedido.anexos.length) anexar(pedido.anexos);
   if (pedido.conversa) importarConversa(pedido.conversa as Conversa);
 }

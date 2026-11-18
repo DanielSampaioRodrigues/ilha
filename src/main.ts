@@ -5,7 +5,7 @@ import type { NomeEstado, NomeTela } from "./corpo/contexto";
 import { aoPerderFoco, dentroDoApp, ouvir } from "./ponte";
 import { procurar, versaoAtual } from "./atualizacao";
 import { bip, calar, falando } from "./maos/fala";
-import { aoMudarDeFora, carregar, ler, mudar } from "./dados/armazem";
+import { aoMudarDeFora, carregar, ler, mudar, primeiraVez } from "./dados/armazem";
 import { ajustarMicrofoneComEco } from "./maos/microfone-eco";
 import { avancar, paraISO } from "./dados/datas";
 import { aplicarCor } from "./corpo/tema";
@@ -92,6 +92,15 @@ async function iniciar(): Promise<void> {
   // enquanto "Atender quando eu chamar pelo nome" estiver ligado.
   ajustarMicrofoneComEco();
   aoMudarDeFora(ajustarMicrofoneComEco);
+  // Recém-instalada: abre a Central com as boas-vindas guiadas (uma vez só).
+  if (ler().config.boasVindasFeita === undefined) {
+    if (primeiraVez) {
+      mudar((d) => (d.config.boasVindasFeita = false));
+      window.setTimeout(() => import("./maos/sistema").then((m) => m.abrirCentral("boas-vindas")).catch(() => {}), 1500);
+    } else {
+      mudar((d) => (d.config.boasVindasFeita = true));
+    }
+  }
   // Ditado em qualquer lugar (atalho global) e o dicionário do ouvido.
   import("./dados/dicionario").then((m) => {
     void m.aplicarDitado();
