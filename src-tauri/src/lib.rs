@@ -76,6 +76,7 @@ pub fn run() {
             corpo::traducao::captura_atual,
             corpo::traducao::traduzir_linhas,
             corpo::traducao::traduzir_tela,
+            corpo::traducao::print_para_anexo,
             corpo::traducao::fechar_traducao,
             corpo::historico::salvar_traducao,
             corpo::historico::listar_traducoes,

@@ -506,13 +506,20 @@ export class Ilha {
     }
   }
 
+  /** Largura da ilha agora (a conversa rápida "ampliada" fica mais larga). */
+  private larguraAgora(): number {
+    if (this.estado === "aberta" && this.tela === "conversa" && document.body.classList.contains("rapida-ampla")) return 700;
+    return ESTADOS[this.estado].largura;
+  }
+
   /** Redesenha a tela atual sem a animação de troca (dados mudaram). */
   renovar(): void {
     this.relogiosLimpar();
     this.sinalVerde = temSinalVerde();
     const definicao = ESTADOS[this.estado];
     const novo = definicao.montar(this.contexto());
-    novo.style.width = `${definicao.largura}px`;
+    novo.style.width = `${this.larguraAgora()}px`;
+    this.largura.alvo = this.larguraAgora();
     if (this.esperando) {
       // Ainda abrindo: troca a tela que vai aparecer.
       this.medidor.replaceChildren(novo);
@@ -569,7 +576,7 @@ export class Ilha {
 
     const definicao = ESTADOS[estado];
     const conteudo = definicao.montar(this.contexto());
-    conteudo.style.width = `${definicao.largura}px`;
+    conteudo.style.width = `${this.larguraAgora()}px`;
     // Tela nova (não um redesenho): as partes entram uma depois da outra.
     conteudo.classList.add("chegando");
 
@@ -587,7 +594,7 @@ export class Ilha {
     this.atual = null;
     this.esperando = conteudo;
 
-    this.largura.alvo = definicao.largura;
+    this.largura.alvo = this.larguraAgora();
     this.altura.alvo = altura;
     this.raio.alvo = definicao.raio;
     this.ombro.alvo = definicao.ombro ?? OMBRO;

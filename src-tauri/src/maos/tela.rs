@@ -30,6 +30,11 @@ pub fn capturar(x: i32, y: i32) -> Result<Captura, String> {
     sistema::capturar(x, y)
 }
 
+/// Só o print (sem ler o texto), salvo como PNG em `arquivo`.
+pub fn salvar_print(x: i32, y: i32, arquivo: &std::path::Path) -> Result<(), String> {
+    sistema::salvar_print(x, y, arquivo)
+}
+
 #[cfg(windows)]
 mod sistema {
     use base64::{engine::general_purpose::STANDARD, Engine};
@@ -102,6 +107,22 @@ mod sistema {
         Ok(linhas)
     }
 
+    fn monitor_em(x: i32, y: i32) -> Result<Monitor, String> {
+        match Monitor::from_point(x, y) {
+            Ok(m) => Ok(m),
+            Err(_) => Monitor::all()
+                .map_err(|e| format!("Não achei o monitor: {e}"))?
+                .into_iter()
+                .next()
+                .ok_or_else(|| "Não achei o monitor.".to_string()),
+        }
+    }
+
+    pub fn salvar_print(x: i32, y: i32, arquivo: &std::path::Path) -> Result<(), String> {
+        let imagem = monitor_em(x, y)?.capture_image().map_err(|e| format!("Não consegui tirar o print: {e}"))?;
+        imagem.save_with_format(arquivo, xcap::image::ImageFormat::Png).map_err(|e| format!("Não consegui salvar o print: {e}"))
+    }
+
     pub fn capturar(x: i32, y: i32) -> Result<Captura, String> {
         // Modo "multithread" do Windows: esperar a leitura do texto (OCR) num
         // fio de "apartamento" pode travar para sempre.
@@ -141,5 +162,9 @@ mod sistema {
 
     pub fn capturar(_x: i32, _y: i32) -> Result<Captura, String> {
         Err("A tradução da tela só funciona no Windows.".into())
+    }
+
+    pub fn salvar_print(_x: i32, _y: i32, _arquivo: &std::path::Path) -> Result<(), String> {
+        Err("O print só funciona no Windows.".into())
     }
 }

@@ -7,7 +7,7 @@ import { ler, mudar, novoId } from "../../dados/armazem";
 import type { Conversa, MensagemConversa } from "../../dados/conversas";
 import { responder } from "../../dados/pedido";
 import { guardarModelosExtras, modelosDe } from "../../dados/modelos";
-import { abrirCentral, copiar, listarModelos, motoresDisponiveis, NOMES_MOTORES, ouvir, pararConversa, pararDeOuvir, type Motor } from "../../maos/sistema";
+import { abrirCentral, copiar, escolherArquivos, listarModelos, printParaAnexo, motoresDisponiveis, NOMES_MOTORES, ouvir, pararConversa, pararDeOuvir, type Motor } from "../../maos/sistema";
 import { bip, calar, falar, falarEmPartes, frasesProntas } from "../../maos/fala";
 import { ouvir as aoEvento } from "../../ponte";
 import { textoRico } from "../../central/texto-rico";
@@ -22,6 +22,62 @@ const MOTORES: Motor[] = ["deepseek", "claude", "codex", "antigravity", "gemini"
 /** A conversa rápida atual (vive enquanto a ilha estiver ligada). */
 let atual: Conversa | null = null;
 let rodando = false;
+
+// ---------- Histórico das conversas rápidas ----------
+// Ficam guardadas na própria ilha (a Central grava as dela à parte): as 20 mais
+// novas. Ao abrir, continua a última se ela foi usada nas últimas 2 horas.
+const CHAVE_RAPIDAS = "ilha-rapidas";
+const LIMITE_RAPIDAS = 20;
+const CONTINUAR_ATE = 2 * 60 * 60 * 1000;
+function lerRapidas(): Conversa[] {
+  try {
+    const l = JSON.parse(localStorage.getItem(CHAVE_RAPIDAS) ?? "[]");
+    return Array.isArray(l) ? l.filter((c) => c?.id && Array.isArray(c.mensagens)) : [];
+  } catch {
+    return [];
+  }
+}
+let rapidas: Conversa[] = lerRapidas();
+let relogioGuardar = 0;
+/** Guarda a conversa atual no histórico (um pouco depois, para não gravar a cada letra). */
+function guardarRapidas(): void {
+  window.clearTimeout(relogioGuardar);
+  relogioGuardar = window.setTimeout(() => {
+    if (atual?.mensagens.length) rapidas = [atual, ...rapidas.filter((c) => c.id !== atual!.id)];
+    rapidas.sort((a, b) => b.atualizada - a.atualizada);
+    rapidas = rapidas.slice(0, LIMITE_RAPIDAS);
+    try {
+      localStorage.setItem(CHAVE_RAPIDAS, JSON.stringify(rapidas));
+    } catch {
+      // Sem espaço: guarda só as 5 mais novas.
+      try {
+        localStorage.setItem(CHAVE_RAPIDAS, JSON.stringify(rapidas.slice(0, 5)));
+      } catch {
+        /* fica só na memória */
+      }
+    }
+  }, 400);
+}
+function esquecerRapida(id: string): void {
+  rapidas = rapidas.filter((c) => c.id !== id);
+  try {
+    localStorage.setItem(CHAVE_RAPIDAS, JSON.stringify(rapidas));
+  } catch {
+    /* sem problema */
+  }
+}
+if (rapidas[0] && Date.now() - rapidas[0].atualizada < CONTINUAR_ATE) atual = rapidas[0];
+// "Ampliar" fica lembrado.
+try {
+  if (localStorage.getItem("ilha-rapida-ampla")) document.body.classList.add("rapida-ampla");
+} catch {
+  /* sem problema */
+}
+/** Arquivos (ou prints) esperando para ir com a próxima mensagem. */
+let anexosPendentes: string[] = [];
+/** Mostrando a lista de conversas antigas no lugar das mensagens. */
+let vendoHistorico = false;
+const nomeDoArquivo = (c: string) => c.split(/[\\/]/).pop() ?? c;
 /** Parar a resposta em andamento (solta a conversa na hora, sem esperar a IA). */
 let pararResposta: (() => void) | null = null;
 let rascunho = "";
@@ -162,21 +218,26 @@ function nomeDeQuem(): string {
   return NOMES_MOTORES[valor as Motor] ?? "DeepSeek";
 }
 
-async function enviar(texto: string, ctx: Contexto, porVoz = false): Promise<void> {
+async function enviar(texto: string, ctx: Contexto, porVoz = false, anexos: string[] = []): Promise<void> {
   // Uma de cada vez (ex.: algo ouvido enquanto uma mensagem digitada ainda roda).
   if (rodando || enviando) return;
   enviando = true;
   // Mandou algo: o recado antigo do microfone ("não ouvi nada") sai.
   erroVoz = "";
+  vendoHistorico = false;
+  // Os anexos esperando vão junto (falando ou digitando).
+  const todos = [...anexos, ...anexosPendentes.filter((a) => !anexos.includes(a))];
+  anexosPendentes = [];
   try {
-    await enviarAgora(texto, ctx, porVoz);
+    await enviarAgora(texto, ctx, porVoz, todos);
   } finally {
     enviando = false;
+    guardarRapidas();
   }
 }
 let enviando = false;
 
-async function enviarAgora(texto: string, ctx: Contexto, porVoz: boolean): Promise<void> {
+async function enviarAgora(texto: string, ctx: Contexto, porVoz: boolean, anexos: string[]): Promise<void> {
   calar();
   const c = (atual ??= nova());
   const responderEmVoz = (t: string) => {
@@ -189,8 +250,8 @@ async function enviarAgora(texto: string, ctx: Contexto, porVoz: boolean): Promi
     if (ler().config.falarRespostas) falar("Até já!");
     return;
   }
-  // Primeiro: dá para resolver sem IA?
-  const local = await tentarComando(texto, ctx).catch((e) => `Não deu: ${e}`);
+  // Primeiro: dá para resolver sem IA? (Com anexo, sempre vai para a IA.)
+  const local = anexos.length ? null : await tentarComando(texto, ctx).catch((e) => `Não deu: ${e}`);
   if (local !== null) {
     c.mensagens.push({ papel: "voce", texto, quando: Date.now() }, { papel: "robo", texto: local, quando: Date.now(), local: true });
     if (!c.titulo) c.titulo = texto.slice(0, 60);
@@ -264,7 +325,7 @@ async function enviarAgora(texto: string, ctx: Contexto, porVoz: boolean): Promi
       responder(
         c,
         texto,
-        [],
+        anexos,
         () => {
           aoMudar();
           falarNovas(false);
@@ -331,6 +392,8 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
         </label>
         <span class="espaco"></span>
         <button type="button" class="redondo" data-acao="memoria" aria-label="Memória" title="O que eu guardei de você">${ICONES.memoria}</button>
+        <button type="button" class="botao" data-acao="historico" title="Conversas rápidas anteriores">Histórico</button>
+        <button type="button" class="botao" data-acao="ampliar" title="Deixar a conversa maior">Ampliar</button>
         <button type="button" class="botao" data-acao="nova" title="Começar outra conversa">Nova</button>
         <button type="button" class="botao" data-acao="central" title="Levar esta conversa para a Central">Abrir na Central</button>
       </div>
@@ -341,8 +404,16 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
         <button type="button" class="botao" data-acao="parar-ouvir">Parar</button>
       </div>
       <p class="erro-msg rapida-erro-voz" hidden></p>
+      <div class="linha rapida-anexos" hidden></div>
       <form class="linha rapida-compositor">
         <button type="button" class="redondo vermelho" aria-label="Falar" title="Falar: eu ouço, respondo e leio a resposta" data-acao="falar">${ICONES.microfone}</button>
+        <div class="menu-anexar">
+          <button type="button" class="redondo" aria-label="Anexar" title="Anexar um arquivo ou um print da tela" data-acao="anexar">${ICONES.mais}</button>
+          <div class="opcoes-anexar" hidden>
+            <button type="button" class="botao" data-acao="anexar-arquivo">Arquivo…</button>
+            <button type="button" class="botao" data-acao="anexar-print">Print da tela</button>
+          </div>
+        </div>
         <textarea class="entrada" rows="1" placeholder="Pergunte ou peça: “volume 30”, “timer 10 min”…" aria-label="Mensagem">${escapar(rascunho)}</textarea>
         <button type="submit" class="botao ciano enviar-rapida">Enviar</button>
       </form>
@@ -358,10 +429,36 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
 
   const desenhar = () => {
     const msgs = atual?.mensagens ?? [];
+    raiz.classList.toggle("ampla", document.body.classList.contains("rapida-ampla"));
+    raiz.querySelector<HTMLElement>('[data-acao="ampliar"]')!.textContent = document.body.classList.contains("rapida-ampla") ? "Reduzir" : "Ampliar";
+    raiz.querySelector<HTMLElement>('[data-acao="historico"]')!.classList.toggle("ciano", vendoHistorico);
+    // Anexos esperando para ir com a próxima mensagem.
+    const caixaAnexos = raiz.querySelector<HTMLElement>(".rapida-anexos")!;
+    caixaAnexos.hidden = !anexosPendentes.length;
+    caixaAnexos.innerHTML = anexosPendentes
+      .map((a, i) => `<span class="anexo-pilula" title="${escapar(a)}">📎 ${escapar(nomeDoArquivo(a))}<button type="button" data-tirar-anexo="${i}" aria-label="Tirar">×</button></span>`)
+      .join("");
+    if (vendoHistorico) {
+      const outras = rapidas.filter((c) => c.mensagens.length);
+      lista.innerHTML = outras.length
+        ? `<p class="secundario">Conversas rápidas anteriores (as ${LIMITE_RAPIDAS} mais novas). Clique para continuar.</p>` +
+          outras
+            .map(
+              (c) => `<button type="button" class="item-historico${c.id === atual?.id ? " atual" : ""}" data-abrir-rapida="${escapar(c.id)}">
+                <span class="principal">${escapar(c.titulo || "Conversa")}</span>
+                <span class="secundario">${escapar(NOMES_MOTORES[c.motor] ?? c.motor)} · ${new Date(c.atualizada).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} · ${c.mensagens.filter((m) => m.papel === "voce").length} pergunta(s)</span>
+              </button>`,
+            )
+            .join("")
+        : '<p class="secundario rapida-vazio">Ainda não há conversas guardadas.</p>';
+    } else
     lista.innerHTML = msgs.length
       ? msgs
           .map((m, i) => {
-            if (m.papel === "voce") return `<div class="rapida-bolha voce">${escapar(m.texto).replace(/\n/g, "<br>")}</div>`;
+            if (m.papel === "voce") {
+              const anexosTexto = m.anexos?.length ? `<span class="secundario anexos-bolha">📎 ${m.anexos.map((a) => escapar(nomeDoArquivo(a))).join(", ")}</span>` : "";
+              return `<div class="rapida-bolha voce">${escapar(m.texto).replace(/\n/g, "<br>")}${anexosTexto}</div>`;
+            }
             const ativa = rodando && i === msgs.length - 1;
             const corpo = m.texto ? textoRico(m.texto) : ativa ? '<span class="rapida-pensando"><i></i><i></i><i></i></span>' : "";
             const erro = !m.erro
@@ -371,11 +468,16 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
                 : `<p class="erro-msg">${escapar(m.erro)}</p>`;
             const ferramentas = m.ferramentas?.length ? `<p class="secundario">${m.ferramentas.length} ação(ões) feitas</p>` : "";
             const copiarBotao = m.texto && !ativa ? `<button type="button" class="mini copiar-bolha" data-copiar="${i}" title="Copiar a resposta">Copiar</button>` : "";
-            return `<div class="rapida-bolha robo">${ferramentas}<div class="md">${corpo}</div>${erro}${copiarBotao}</div>`;
+            // Refazer: só a última resposta, de IA (não de comando simples), já terminada.
+            const refazer = !rodando && !m.local && i === msgs.length - 1 && msgs[i - 1]?.papel === "voce"
+              ? '<button type="button" class="mini copiar-bolha" data-refazer title="Pedir outra resposta para a mesma pergunta">Refazer</button>'
+              : "";
+            return `<div class="rapida-bolha robo">${ferramentas}<div class="md">${corpo}</div>${erro}${copiarBotao}${refazer}</div>`;
           })
           .join("")
       : `<p class="secundario rapida-vazio">Fale com ${escapar(nomeDeQuem())}. Pedidos simples (volume, timer, foco, abrir programa, copiar texto, “guarda que…”) eu resolvo na hora, sem IA.</p>`;
-    lista.scrollTop = lista.scrollHeight;
+    if (!vendoHistorico) lista.scrollTop = lista.scrollHeight;
+    raiz.querySelector<HTMLButtonElement>('[data-acao="anexar"]')!.disabled = rodando;
     botaoEnviar.textContent = rodando ? "Parar" : "Enviar";
     botaoEnviar.classList.toggle("ciano", !rodando);
     raiz.querySelector<HTMLButtonElement>('[data-acao="central"]')!.disabled = !atual?.mensagens.length;
@@ -399,6 +501,71 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
   };
   aoMudar = desenhar;
   desenhar();
+  // Abrir uma conversa do histórico; Refazer a última resposta.
+  lista.addEventListener("click", (e) => {
+    const alvo = e.target as Element;
+    const item = alvo.closest<HTMLElement>("[data-abrir-rapida]");
+    if (item && !rodando) {
+      const c = rapidas.find((x) => x.id === item.dataset.abrirRapida);
+      if (c) atual = c;
+      vendoHistorico = false;
+      desenharModelos();
+      desenhar();
+      return;
+    }
+    if (alvo.closest("[data-refazer]") && atual && !rodando) {
+      const robo = atual.mensagens.pop();
+      const voce = atual.mensagens.pop();
+      if (!voce || voce.papel !== "voce" || robo?.papel !== "robo") {
+        if (voce) atual.mensagens.push(voce);
+        if (robo) atual.mensagens.push(robo);
+        return;
+      }
+      enviar(voce.texto, ctx, false, voce.anexos ?? []).catch(() => {});
+    }
+  });
+  raiz.querySelector<HTMLElement>(".rapida-anexos")!.addEventListener("click", (e) => {
+    const b = (e.target as Element).closest<HTMLElement>("[data-tirar-anexo]");
+    if (!b) return;
+    anexosPendentes.splice(Number(b.dataset.tirarAnexo), 1);
+    desenhar();
+  });
+  const opcoesAnexar = raiz.querySelector<HTMLElement>(".opcoes-anexar")!;
+  aoClicar(raiz, "anexar", () => (opcoesAnexar.hidden = !opcoesAnexar.hidden));
+  const juntarAnexos = (novos: string[]) => {
+    anexosPendentes = [...anexosPendentes, ...novos.filter((n) => !anexosPendentes.includes(n))].slice(0, 6);
+    if (raiz.isConnected) {
+      desenhar();
+      campo.focus();
+    }
+  };
+  aoClicar(raiz, "anexar-arquivo", () => {
+    opcoesAnexar.hidden = true;
+    ctx.segurarAberta(escolherArquivos()).then(juntarAnexos).catch(() => {});
+  });
+  aoClicar(raiz, "anexar-print", () => {
+    opcoesAnexar.hidden = true;
+    printParaAnexo()
+      .then((c) => juntarAnexos([c]))
+      .catch((erro) => {
+        erroVoz = String(erro);
+        desenhar();
+      });
+  });
+  aoClicar(raiz, "historico", () => {
+    vendoHistorico = !vendoHistorico;
+    desenhar();
+  });
+  aoClicar(raiz, "ampliar", () => {
+    const ampla = !document.body.classList.contains("rapida-ampla");
+    document.body.classList.toggle("rapida-ampla", ampla);
+    try {
+      localStorage.setItem("ilha-rapida-ampla", ampla ? "1" : "");
+    } catch {
+      /* sem problema */
+    }
+    ctx.renovar();
+  });
   // Copiar uma resposta.
   lista.addEventListener("click", (e) => {
     const b = (e.target as Element).closest<HTMLButtonElement>("[data-copiar]");
@@ -486,7 +653,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
       pararResposta?.();
       return;
     }
-    const texto = campo.value.trim();
+    const texto = campo.value.trim() || (anexosPendentes.length ? "Dê uma olhada no anexo." : "");
     if (!texto) return;
     campo.value = rascunho = "";
     ajustar();
@@ -497,6 +664,8 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
   aoClicar(raiz, "nova", () => {
     if (rodando) return;
     atual = null;
+    vendoHistorico = false;
+    desenharModelos();
     desenhar();
     campo.focus();
   });
@@ -511,6 +680,8 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     abrirCentral("conversa", [], JSON.parse(JSON.stringify(c)))
       .then(() => {
         if (atual === c) atual = null;
+        // Agora ela mora na Central (não fica repetida aqui).
+        esquecerRapida(c.id);
         ctx.fechar();
       })
       .catch((erro) => {

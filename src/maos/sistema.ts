@@ -398,6 +398,12 @@ export async function escolherArquivos(): Promise<string[]> {
   return Array.isArray(escolhidos) ? escolhidos : typeof escolhidos === "string" ? [escolhidos] : [];
 }
 
+/** Tira um print da tela (sem a ilha) e devolve o caminho do arquivo, para anexar. */
+export const printParaAnexo = () => {
+  if (!dentroDoApp) return Promise.reject(new Error("O print só funciona no app."));
+  return invoke<string>("print_para_anexo");
+};
+
 export const pararConversa = (conversaId: string) => pedir<void>("parar_conversa", { conversaId });
 /** Instala o Claude Code ou o Codex por trás (1 a 3 minutos). Só depois de o Dan confirmar. */
 export const instalarMotor = (motor: Motor) => pedir<void>("instalar_motor", { motor });

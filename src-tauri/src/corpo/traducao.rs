@@ -118,6 +118,39 @@ pub async fn traduzir_linhas(linhas: Vec<String>) -> Result<Vec<String>, String>
     crate::cerebro::deepseek::traduzir(&linhas).await
 }
 
+/// Print da tela (sem a ilha nele) para anexar numa conversa. Devolve o caminho do PNG.
+#[tauri::command]
+pub async fn print_para_anexo(app: AppHandle) -> Result<String, String> {
+    let ilha = app.get_webview_window(JANELA);
+    let cursor = ilha.as_ref().and_then(|j| j.cursor_position().ok());
+    let (x, y) = cursor.map(|c| (c.x as i32, c.y as i32)).unwrap_or((0, 0));
+    let pasta = std::env::temp_dir().join("ilha-prints");
+    std::fs::create_dir_all(&pasta).map_err(|e| e.to_string())?;
+    // Prints de mais de um dia são apagados (não acumulam).
+    if let Ok(itens) = std::fs::read_dir(&pasta) {
+        for item in itens.flatten() {
+            let velho = item.metadata().and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|d| d > Duration::from_secs(86_400));
+            if velho {
+                let _ = std::fs::remove_file(item.path());
+            }
+        }
+    }
+    let agora = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+    let arquivo = pasta.join(format!("print-{agora}.png"));
+    if let Some(j) = &ilha {
+        let _ = j.hide();
+    }
+    tokio_sleep(Duration::from_millis(250)).await;
+    let destino = arquivo.clone();
+    let r = tauri::async_runtime::spawn_blocking(move || tela::salvar_print(x, y, &destino))
+        .await
+        .unwrap_or_else(|e| Err(e.to_string()));
+    if let Some(j) = &ilha {
+        let _ = j.show();
+    }
+    r.map(|_| arquivo.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 pub fn traduzir_tela(app: AppHandle) {
     iniciar(app);
