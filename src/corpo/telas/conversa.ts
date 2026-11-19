@@ -4,10 +4,10 @@
 // sozinha, sem IA. "Continuar na Central" leva a conversa para lá.
 import { emit } from "@tauri-apps/api/event";
 import { ler, mudar, novoId } from "../../dados/armazem";
-import type { Conversa } from "../../dados/conversas";
+import type { Conversa, MensagemConversa } from "../../dados/conversas";
 import { responder } from "../../dados/pedido";
 import { guardarModelosExtras, modelosDe } from "../../dados/modelos";
-import { abrirCentral, listarModelos, motoresDisponiveis, NOMES_MOTORES, ouvir, pararConversa, pararDeOuvir, type Motor } from "../../maos/sistema";
+import { abrirCentral, copiar, listarModelos, motoresDisponiveis, NOMES_MOTORES, ouvir, pararConversa, pararDeOuvir, type Motor } from "../../maos/sistema";
 import { bip, calar, falar, falarEmPartes, frasesProntas } from "../../maos/fala";
 import { ouvir as aoEvento } from "../../ponte";
 import { textoRico } from "../../central/texto-rico";
@@ -22,6 +22,8 @@ const MOTORES: Motor[] = ["deepseek", "claude", "codex", "antigravity", "gemini"
 /** A conversa rápida atual (vive enquanto a ilha estiver ligada). */
 let atual: Conversa | null = null;
 let rodando = false;
+/** Parar a resposta em andamento (solta a conversa na hora, sem esperar a IA). */
+let pararResposta: (() => void) | null = null;
 let rascunho = "";
 /** Ouvindo o microfone agora. */
 let ouvindo = false;
@@ -249,18 +251,32 @@ async function enviarAgora(texto: string, ctx: Contexto, porVoz: boolean): Promi
       falado = ate;
     }
   };
-  const resposta = await responder(
-    c,
-    texto,
-    [],
-    () => {
-      aoMudar();
-      falarNovas(false);
-    },
-    () => {
-      emit("ilha:trabalho", { id: c.id, titulo: c.titulo, motor: c.motor }).catch(() => {});
-    },
-  );
+  const parado = { valor: false };
+  const cancelado = new Promise<null>((fim) => {
+    pararResposta = () => {
+      parado.valor = true;
+      pararConversa(c.id).catch(() => {});
+      fim(null);
+    };
+  });
+  const resposta =
+    (await Promise.race([
+      responder(
+        c,
+        texto,
+        [],
+        () => {
+          aoMudar();
+          falarNovas(false);
+        },
+        () => {
+          emit("ilha:trabalho", { id: c.id, titulo: c.titulo, motor: c.motor }).catch(() => {});
+        },
+        parado,
+      ),
+      cancelado,
+    ])) ?? marcarParado(c);
+  pararResposta = null;
   rodando = false;
   window.clearTimeout(espera);
   aoMudar();
@@ -268,6 +284,8 @@ async function enviarAgora(texto: string, ctx: Contexto, porVoz: boolean): Promi
     if (!resposta.erro) falarNovas(true);
     voz.fim();
   }
+  // Parou: cala também a leitura em voz alta.
+  if (parado.valor) calar();
   emit("ilha:trabalho-fim", {
     id: c.id,
     titulo: c.titulo,
@@ -275,6 +293,16 @@ async function enviarAgora(texto: string, ctx: Contexto, porVoz: boolean): Promi
     ok: !resposta.erro,
     segundos: Math.round((Date.now() - inicio) / 1000),
   }).catch(() => {});
+}
+
+/** Parou antes de a IA terminar: a última resposta fica marcada como parada. */
+function marcarParado(c: Conversa): MensagemConversa {
+  const robo = c.mensagens[c.mensagens.length - 1];
+  if (robo?.papel === "robo") {
+    robo.erro = "Parado.";
+    return robo;
+  }
+  return { papel: "robo", texto: "", quando: Date.now(), erro: "Parado." };
 }
 
 export function montarConversaRapida(ctx: Contexto): HTMLElement {
@@ -336,16 +364,21 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
             if (m.papel === "voce") return `<div class="rapida-bolha voce">${escapar(m.texto).replace(/\n/g, "<br>")}</div>`;
             const ativa = rodando && i === msgs.length - 1;
             const corpo = m.texto ? textoRico(m.texto) : ativa ? '<span class="rapida-pensando"><i></i><i></i><i></i></span>' : "";
-            const erro = m.erro && m.erro !== "Parado." ? `<p class="erro-msg">${escapar(m.erro)}</p>` : "";
+            const erro = !m.erro
+              ? ""
+              : m.erro === "Parado."
+                ? '<p class="secundario parado-msg">Parado por você.</p>'
+                : `<p class="erro-msg">${escapar(m.erro)}</p>`;
             const ferramentas = m.ferramentas?.length ? `<p class="secundario">${m.ferramentas.length} ação(ões) feitas</p>` : "";
-            return `<div class="rapida-bolha robo">${ferramentas}<div class="md">${corpo}</div>${erro}</div>`;
+            const copiarBotao = m.texto && !ativa ? `<button type="button" class="mini copiar-bolha" data-copiar="${i}" title="Copiar a resposta">Copiar</button>` : "";
+            return `<div class="rapida-bolha robo">${ferramentas}<div class="md">${corpo}</div>${erro}${copiarBotao}</div>`;
           })
           .join("")
       : `<p class="secundario rapida-vazio">Fale com ${escapar(nomeDeQuem())}. Pedidos simples (volume, timer, foco, abrir programa, copiar texto, “guarda que…”) eu resolvo na hora, sem IA.</p>`;
     lista.scrollTop = lista.scrollHeight;
     botaoEnviar.textContent = rodando ? "Parar" : "Enviar";
     botaoEnviar.classList.toggle("ciano", !rodando);
-    raiz.querySelector<HTMLButtonElement>('[data-acao="central"]')!.disabled = rodando || !atual?.mensagens.length;
+    raiz.querySelector<HTMLButtonElement>('[data-acao="central"]')!.disabled = !atual?.mensagens.length;
     seletor.disabled = rodando;
     seletorModelo.disabled = rodando;
     seletorModo.disabled = rodando;
@@ -366,6 +399,18 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
   };
   aoMudar = desenhar;
   desenhar();
+  // Copiar uma resposta.
+  lista.addEventListener("click", (e) => {
+    const b = (e.target as Element).closest<HTMLButtonElement>("[data-copiar]");
+    const m = b && atual?.mensagens[Number(b.dataset.copiar)];
+    if (!b || !m) return;
+    copiar(m.texto)
+      .then(() => {
+        b.textContent = "Copiado ✓";
+        window.setTimeout(() => (b.textContent = "Copiar"), 1500);
+      })
+      .catch(() => {});
+  });
 
   // Modelo: a lista de cada IA (a mesma da Central). Num perfil, vale o modelo do perfil.
   const motorEscolhido = (): { motor: Motor; perfil: boolean } => {
@@ -438,7 +483,7 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     if (rodando) {
-      if (atual) pararConversa(atual.id).catch(() => {});
+      pararResposta?.();
       return;
     }
     const texto = campo.value.trim();
@@ -456,11 +501,22 @@ export function montarConversaRapida(ctx: Contexto): HTMLElement {
     campo.focus();
   });
   aoClicar(raiz, "central", () => {
-    if (!atual || rodando) return;
+    if (!atual?.mensagens.length) return;
+    // Ainda respondendo: para aqui e continua lá (a resposta até agora vai junto).
     const c = atual;
-    atual = null;
-    ctx.fechar();
-    abrirCentral("conversa", [], c).catch(() => {});
+    if (rodando) {
+      pararResposta?.();
+      marcarParado(c);
+    }
+    abrirCentral("conversa", [], JSON.parse(JSON.stringify(c)))
+      .then(() => {
+        if (atual === c) atual = null;
+        ctx.fechar();
+      })
+      .catch((erro) => {
+        erroVoz = `Não consegui abrir na Central: ${String(erro)}`;
+        desenhar();
+      });
   });
   // Falar: ouve uma frase, manda, e lê a resposta em voz alta.
   const escutar = async (continuando = false) => {

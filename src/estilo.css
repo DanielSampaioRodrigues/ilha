@@ -3738,3 +3738,22 @@ body.soltando .dica-soltar {
 :root.visual-calmo[data-especial="elas"] .heroi::before {
   animation: none;
 }
+
+/* Conversa rápida: copiar uma resposta e o aviso de "parado". */
+.rapida-bolha.robo { position: relative; }
+.copiar-bolha {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--texto-2, #b9c0c8);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.15s, background 0.15s;
+}
+.copiar-bolha:hover { opacity: 1; background: rgba(255, 255, 255, 0.1); }
+.parado-msg { margin: 4px 0 0; font-style: italic; }

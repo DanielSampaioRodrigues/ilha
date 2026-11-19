@@ -90,6 +90,8 @@ export async function responder(
   anexos: string[],
   aoMudar: () => void,
   aoComecar: () => void = () => {},
+  /** Ligado pelo Parar: o que ainda chegar da IA é ignorado. */
+  parado: { valor: boolean } = { valor: false },
 ): Promise<MensagemConversa> {
   const primeira = c.mensagens.length === 0;
   c.mensagens.push({ papel: "voce", texto, quando: Date.now(), anexos: anexos.length ? anexos : undefined });
@@ -141,6 +143,7 @@ export async function responder(
       },
       (e) => {
         if (e.tipo === "sessao") c.sessao = e.id;
+        if (parado.valor) return;
         if (e.tipo === "texto") resposta.texto += e.texto;
         if (e.tipo === "pensamento") resposta.pensamento = (resposta.pensamento ?? "") + e.texto;
         if (e.tipo === "ferramenta") resposta.ferramentas!.push({ nome: e.nome, detalhe: e.detalhe });
@@ -152,8 +155,9 @@ export async function responder(
       },
     );
   } catch (erro) {
-    resposta.erro = String(erro);
+    if (!parado.valor) resposta.erro = String(erro);
   }
+  if (parado.valor) resposta.erro = "Parado.";
   c.atualizada = Date.now();
   return resposta;
 }

@@ -173,6 +173,19 @@ pub async fn modelos() -> Result<Vec<String>, String> {
         .unwrap_or_default())
 }
 
+/// Espera `tarefa`, mas desiste (devolve `None`) assim que o Parar for apertado.
+async fn ate_parar<F: std::future::Future>(tarefa: F, parar: &AtomicBool) -> Option<F::Output> {
+    let vigia = async {
+        while !parar.load(Ordering::Relaxed) {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+    };
+    tokio::select! {
+        r = tarefa => Some(r),
+        _ = vigia => None,
+    }
+}
+
 /// Conversa com a resposta chegando aos poucos (para aparecer enquanto escreve).
 /// `esforco`: "" (padrão da DeepSeek), "none" (sem pensar), "low", "high" ou "max".
 /// `imagens`: imagens da última mensagem, como "data:image/...;base64,...".
@@ -215,14 +228,10 @@ pub async fn conversar(
         }
     }
     let inicio = std::time::Instant::now();
-    let mut resposta = cliente()
-        .post(ENDERECO)
-        .bearer_auth(chave)
-        .json(&corpo)
-        .timeout(std::time::Duration::from_secs(600))
-        .send()
-        .await
-        .map_err(|e| format!("Sem conexão com a DeepSeek: {e}"))?;
+    let envio = cliente().post(ENDERECO).bearer_auth(chave).json(&corpo).timeout(std::time::Duration::from_secs(600)).send();
+    // Parar funciona até enquanto espera a DeepSeek começar a responder.
+    let Some(resposta) = ate_parar(envio, parar).await else { return Ok(()) };
+    let mut resposta = resposta.map_err(|e| format!("Sem conexão com a DeepSeek: {e}"))?;
     let situacao = resposta.status();
     if situacao == reqwest::StatusCode::UNAUTHORIZED {
         return Err("A DeepSeek recusou a chave. Confira em Ajustes › Chaves de IA.".into());
@@ -237,10 +246,10 @@ pub async fn conversar(
     log::info!("DeepSeek: começou a responder em {} ms", inicio.elapsed().as_millis());
     // Os pedaços chegam no formato "data: {json}" (um por linha).
     let mut sobra: Vec<u8> = Vec::new();
-    while let Some(pedaco) = resposta.chunk().await.map_err(|e| e.to_string())? {
-        if parar.load(Ordering::Relaxed) {
-            break;
-        }
+    loop {
+        // Esperando o próximo pedaço: o Parar corta na hora (não espera o pedaço chegar).
+        let Some(pedaco) = ate_parar(resposta.chunk(), parar).await else { break };
+        let Some(pedaco) = pedaco.map_err(|e| e.to_string())? else { break };
         sobra.extend_from_slice(&pedaco);
         while let Some(fim) = sobra.iter().position(|&b| b == b'\n') {
             let linha: Vec<u8> = sobra.drain(..=fim).collect();

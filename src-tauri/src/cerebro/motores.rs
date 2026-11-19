@@ -278,6 +278,19 @@ fn sem_janela(_c: &mut Command) {
     }
 }
 
+/// Encerra o programa e tudo o que ele abriu (no Windows, só matar o programa
+/// deixava os "filhos" vivos segurando a saída, e a resposta nunca terminava).
+fn matar_arvore(filho: &mut std::process::Child) {
+    #[cfg(windows)]
+    {
+        let mut c = Command::new("taskkill");
+        c.args(["/PID", &filho.id().to_string(), "/T", "/F"]).stdout(Stdio::null()).stderr(Stdio::null());
+        sem_janela(&mut c);
+        let _ = c.status();
+    }
+    let _ = filho.kill();
+}
+
 #[derive(Serialize)]
 pub struct MotorDisponivel {
     pub motor: String,
@@ -601,7 +614,7 @@ static ABERTOS: Mutex<Option<HashMap<String, ClaudeAberto>>> = Mutex::new(None);
 impl ClaudeAberto {
     fn fechar(self) {
         if let Ok(mut f) = self.filho.lock() {
-            let _ = f.kill();
+            matar_arvore(&mut f);
             let _ = f.wait();
         }
         if let Some(t) = &self.temporario {
@@ -902,17 +915,36 @@ fn rodar_programa(pedido: &Pedido, canal: &Channel<Evento>, andamento: &Andament
     };
     // As últimas linhas ficam guardadas: se a resposta vier vazia, vão para o registro.
     let mut ultimas: std::collections::VecDeque<String> = std::collections::VecDeque::new();
-    for linha in BufReader::new(saida).lines().map_while(Result::ok) {
-        leitor.linha(&linha, canal);
-        if ultimas.len() == 6 {
-            ultimas.pop_front();
+    // A saída é lida num fio à parte: assim o Parar encerra na hora, mesmo que
+    // algum programa aberto por ele continue segurando a saída.
+    let (envia, linhas) = std::sync::mpsc::channel::<String>();
+    std::thread::spawn(move || {
+        for linha in BufReader::new(saida).lines().map_while(Result::ok) {
+            if envia.send(linha).is_err() {
+                break;
+            }
         }
-        ultimas.push_back(linha.chars().take(400).collect());
+    });
+    let parado = || andamento.0.lock().map(|a| !a.contains_key(&pedido.conversa_id)).unwrap_or(false);
+    loop {
+        match linhas.recv_timeout(std::time::Duration::from_millis(300)) {
+            Ok(linha) => {
+                leitor.linha(&linha, canal);
+                if ultimas.len() == 6 {
+                    ultimas.pop_front();
+                }
+                ultimas.push_back(linha.chars().take(400).collect());
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) if parado() => break,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+        }
     }
-    let codigo = filho.lock().ok().and_then(|mut f| f.wait().ok());
+    let parou_a_pedido = parado();
+    // Parado: não espera o programa (nem os erros) terminarem de fechar.
+    let codigo = if parou_a_pedido { None } else { filho.lock().ok().and_then(|mut f| f.wait().ok()) };
     apagar_temporario();
-    let erros = erros_texto.join().unwrap_or_default();
-    let parou_a_pedido = andamento.0.lock().map(|a| !a.contains_key(&pedido.conversa_id)).unwrap_or(false);
+    let erros = if parou_a_pedido { String::new() } else { erros_texto.join().unwrap_or_default() };
     if let Ok(mut a) = andamento.0.lock() {
         a.remove(&pedido.conversa_id);
     }
@@ -1031,9 +1063,12 @@ pub fn parar_conversa(conversa_id: String, andamento: State<'_, Andamento>) {
     let parada = andamento.0.lock().ok().and_then(|mut a| a.remove(&conversa_id));
     match parada {
         Some(Parada::Processo(filho)) => {
-            if let Ok(mut f) = filho.lock() {
-                let _ = f.kill();
-            }
+            // Num fio à parte: matar a árvore de programas leva um instante.
+            std::thread::spawn(move || {
+                if let Ok(mut f) = filho.lock() {
+                    matar_arvore(&mut f);
+                }
+            });
         }
         Some(Parada::Sinal(s)) => s.store(true, Ordering::Relaxed),
         None => {}

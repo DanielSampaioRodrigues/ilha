@@ -39,6 +39,12 @@ pub fn abrir(app: &AppHandle, tela: Option<String>) {
 }
 
 pub fn abrir_com(app: &AppHandle, tela: Option<String>, anexos: Vec<String>, conversa: Option<serde_json::Value>, mensagem: Option<String>) {
+    log::info!(
+        "Central: abrindo (tela {:?}, {} anexo(s), conversa vinda da ilha: {})",
+        tela,
+        anexos.len(),
+        if conversa.is_some() { "sim" } else { "não" }
+    );
     if let Some(j) = app.get_webview_window(JANELA_CENTRAL) {
         if !MODO_JANELA.load(Ordering::Relaxed) {
             posicionar(app, &j);

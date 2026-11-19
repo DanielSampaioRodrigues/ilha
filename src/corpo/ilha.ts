@@ -112,7 +112,10 @@ export class Ilha {
     let acabouDeArrastar = false;
     const aoClicar = () => {
       if (acabouDeArrastar) return;
-      if (ESTADOS[this.estado].compacto) this.abrir();
+      // Aviso com ação ("Claude respondeu" → Ver): clicar em qualquer lugar dele faz a ação.
+      const acao = this.estado === "pronta" ? this.notificacao?.botao : undefined;
+      if (acao) acao.fazer();
+      else if (ESTADOS[this.estado].compacto) this.abrir();
     };
 
     // Apertar no personagem e arrastar: ele sai da ilha pendurado no mouse.
