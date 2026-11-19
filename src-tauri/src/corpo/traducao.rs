@@ -51,12 +51,24 @@ pub fn iniciar(app: AppHandle) {
             let _ = j.hide();
         }
         tokio_sleep(Duration::from_millis(220)).await;
-        let resultado = tauri::async_runtime::spawn_blocking(move || tela::capturar(x, y))
-            .await
-            .unwrap_or_else(|e| Err(e.to_string()));
+        let inicio = std::time::Instant::now();
+        // Num fio novo (com o Windows no modo certo) e com tempo limite: se a
+        // leitura do texto empacar, a ilha volta e avisa em vez de sumir.
+        let resultado = tauri::async_runtime::spawn_blocking(move || {
+            let (envia, recebe) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let _ = envia.send(tela::capturar(x, y));
+            });
+            recebe
+                .recv_timeout(Duration::from_secs(20))
+                .unwrap_or_else(|_| Err("A leitura da tela demorou demais. Tente de novo.".into()))
+        })
+        .await
+        .unwrap_or_else(|e| Err(e.to_string()));
         if let Some(j) = &ilha {
             let _ = j.show();
         }
+        log::info!("Tradução da tela: print e leitura em {} ms", inicio.elapsed().as_millis());
         match resultado {
             Ok(captura) => {
                 if let Err(erro) = abrir_janela(&app, &captura) {

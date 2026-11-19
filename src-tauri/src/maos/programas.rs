@@ -17,7 +17,9 @@ pub struct ProgramaInstalado {
 
 #[tauri::command]
 pub async fn listar_programas() -> Vec<ProgramaInstalado> {
-    tauri::async_runtime::spawn_blocking(sistema::listar)
+    // Num fio só dele: a lista liga um modo do Windows (COM de "apartamento")
+    // que não pode sobrar num fio reaproveitado (travava a leitura da tela).
+    tauri::async_runtime::spawn_blocking(|| std::thread::spawn(sistema::listar).join().unwrap_or_default())
         .await
         .unwrap_or_default()
 }

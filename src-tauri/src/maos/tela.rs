@@ -103,6 +103,11 @@ mod sistema {
     }
 
     pub fn capturar(x: i32, y: i32) -> Result<Captura, String> {
+        // Modo "multithread" do Windows: esperar a leitura do texto (OCR) num
+        // fio de "apartamento" pode travar para sempre.
+        unsafe {
+            let _ = windows::Win32::System::Com::CoInitializeEx(None, windows::Win32::System::Com::COINIT_MULTITHREADED);
+        }
         let monitor = match Monitor::from_point(x, y) {
             Ok(m) => m,
             Err(_) => Monitor::all()
